@@ -1,0 +1,367 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ── SHELL ─────────────────────────────────────────────
+
+model Agency {
+  id               String    @id @default(cuid())
+  name             String
+  logoUrl          String?
+  plan             Plan      @default(SOLO)
+  stripeCustomerId String?
+  activeModules    String[]  @default(["dpgf"])
+  createdAt        DateTime  @default(now())
+  users            User[]
+  projects         Project[]
+  library          Library[]
+}
+
+model User {
+  id            String              @id @default(cuid())
+  agencyId      String?
+  email         String              @unique
+  role          Role
+  firstName     String?
+  lastName      String?
+  avatarUrl     String?
+  createdAt     DateTime            @default(now())
+  agency        Agency?             @relation(fields: [agencyId], references: [id])
+  permissions   ProjectPermission[]
+  notifications Notification[]
+  activityLogs  ActivityLog[]
+}
+
+model Project {
+  id           String              @id @default(cuid())
+  agencyId     String
+  name         String
+  address      String?
+  clientUserId String?
+  status       ProjectStatus       @default(ACTIVE)
+  createdAt    DateTime            @default(now())
+  agency       Agency              @relation(fields: [agencyId], references: [id])
+  dpgfs        DPGF[]
+  permissions  ProjectPermission[]
+}
+
+model ProjectPermission {
+  id          String  @id @default(cuid())
+  projectId   String
+  userId      String
+  module      String
+  permissions Json
+  project     Project @relation(fields: [projectId], references: [id])
+  user        User    @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  projectId String?
+  userId    String
+  module    String
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+// ── MODULE DPGF ────────────────────────────────────────
+
+model DPGF {
+  id               String        @id @default(cuid())
+  projectId        String
+  status           DPGFStatus    @default(DRAFT)
+  currentVersionId String?
+  createdById      String
+  createdAt        DateTime      @default(now())
+  project          Project       @relation(fields: [projectId], references: [id])
+  lots             Lot[]
+  versions         DPGFVersion[]
+  aos              AO[]
+  aiImports        AIImport[]
+}
+
+model DPGFVersion {
+  id           String   @id @default(cuid())
+  dpgfId       String
+  name         String
+  snapshotJson Json
+  createdById  String
+  createdAt    DateTime @default(now())
+  dpgf         DPGF     @relation(fields: [dpgfId], references: [id])
+}
+
+model Lot {
+  id       String   @id @default(cuid())
+  dpgfId   String
+  number   Int
+  name     String
+  position Int
+  dpgf     DPGF     @relation(fields: [dpgfId], references: [id])
+  sublots  SubLot[]
+  posts    Post[]
+}
+
+model SubLot {
+  id       String @id @default(cuid())
+  lotId    String
+  number   String
+  name     String
+  position Int
+  lot      Lot    @relation(fields: [lotId], references: [id])
+  posts    Post[]
+}
+
+model Post {
+  id             String      @id @default(cuid())
+  lotId          String
+  sublotId       String?
+  ref            String
+  title          String
+  unit           String
+  qtyArchi       Float?
+  unitPriceArchi Float?
+  isOptional     Boolean     @default(false)
+  commentArchi   String?
+  libraryRefId   String?
+  position       Int
+  lot            Lot         @relation(fields: [lotId], references: [id])
+  sublot         SubLot?     @relation(fields: [sublotId], references: [id])
+  offerPosts     OfferPost[]
+}
+
+model Library {
+  id         String   @id @default(cuid())
+  agencyId   String
+  title      String
+  unit       String
+  avgPrice   Float?
+  minPrice   Float?
+  maxPrice   Float?
+  trade      String?
+  usageCount Int      @default(0)
+  createdAt  DateTime @default(now())
+  agency     Agency   @relation(fields: [agencyId], references: [id])
+}
+
+model AO {
+  id                String      @id @default(cuid())
+  dpgfId            String
+  name              String
+  lotIds            String[]
+  deadline          DateTime
+  instructions      String?
+  status            AOStatus    @default(DRAFT)
+  allowCustomQty    Boolean     @default(true)
+  isPaid            Boolean     @default(false)
+  paymentAmount     Float?
+  clientPublished   Boolean     @default(false)
+  publishedElements Json?
+  createdById       String
+  createdAt         DateTime    @default(now())
+  dpgf              DPGF        @relation(fields: [dpgfId], references: [id])
+  aoCompanies       AOCompany[]
+  documents         Document[]
+  qas               QA[]
+}
+
+model AOCompany {
+  id            String          @id @default(cuid())
+  aoId          String
+  companyUserId String
+  inviteToken   String?         @unique
+  tokenUsedAt   DateTime?
+  status        AOCompanyStatus @default(INVITED)
+  paymentStatus String?
+  ao            AO              @relation(fields: [aoId], references: [id])
+  offer         Offer?
+  adminDocs     AdminDoc[]
+  documentReads DocumentRead[]
+  qas           QA[]
+}
+
+model Offer {
+  id          String      @id @default(cuid())
+  aoId        String
+  aoCompanyId String      @unique
+  submittedAt DateTime?
+  isComplete  Boolean     @default(false)
+  aoCompany   AOCompany   @relation(fields: [aoCompanyId], references: [id])
+  offerPosts  OfferPost[]
+}
+
+model OfferPost {
+  id                 String  @id @default(cuid())
+  offerId            String
+  postId             String
+  qtyCompany         Float?
+  qtyMotive          String?
+  unitPrice          Float?
+  comment            String?
+  isVariant          Boolean @default(false)
+  variantDescription String?
+  offer              Offer   @relation(fields: [offerId], references: [id])
+  post               Post    @relation(fields: [postId], references: [id])
+}
+
+model Document {
+  id           String         @id @default(cuid())
+  aoId         String
+  name         String
+  category     String
+  fileUrl      String
+  isMandatory  Boolean        @default(false)
+  revision     Int            @default(1)
+  uploadedById String
+  createdAt    DateTime       @default(now())
+  ao           AO             @relation(fields: [aoId], references: [id])
+  reads        DocumentRead[]
+}
+
+model DocumentRead {
+  id          String    @id @default(cuid())
+  documentId  String
+  aoCompanyId String
+  readAt      DateTime  @default(now())
+  document    Document  @relation(fields: [documentId], references: [id])
+  aoCompany   AOCompany @relation(fields: [aoCompanyId], references: [id])
+
+  @@unique([documentId, aoCompanyId])
+}
+
+model AdminDoc {
+  id              String         @id @default(cuid())
+  aoCompanyId     String
+  type            String
+  fileUrl         String
+  status          AdminDocStatus @default(PENDING)
+  rejectionReason String?
+  expiresAt       DateTime?
+  aoCompany       AOCompany      @relation(fields: [aoCompanyId], references: [id])
+}
+
+model QA {
+  id            String       @id @default(cuid())
+  aoId          String
+  aoCompanyId   String
+  title         String
+  body          String
+  attachmentUrl String?
+  postRef       String?
+  visibility    QAVisibility @default(PUBLIC)
+  status        QAStatus     @default(PENDING)
+  createdAt     DateTime     @default(now())
+  ao            AO           @relation(fields: [aoId], references: [id])
+  aoCompany     AOCompany    @relation(fields: [aoCompanyId], references: [id])
+  answer        QAAnswer?
+}
+
+model QAAnswer {
+  id           String   @id @default(cuid())
+  qaId         String   @unique
+  answeredById String
+  body         String
+  createdAt    DateTime @default(now())
+  qa           QA       @relation(fields: [qaId], references: [id])
+}
+
+model AIImport {
+  id               String         @id @default(cuid())
+  dpgfId           String
+  originalFilename String
+  fileType         String
+  aiModel          String
+  rawResponse      Json?
+  confidenceScores Json?
+  status           AIImportStatus @default(PROCESSING)
+  createdById      String
+  createdAt        DateTime       @default(now())
+  dpgf             DPGF           @relation(fields: [dpgfId], references: [id])
+}
+
+// ── ENUMS ──────────────────────────────────────────────
+
+enum Role {
+  ARCHITECT
+  COLLABORATOR
+  CLIENT
+  COMPANY
+  ADMIN
+}
+
+enum Plan {
+  SOLO
+  STUDIO
+  AGENCY
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum DPGFStatus {
+  DRAFT
+  AO_SENT
+  CLOSED
+  ARCHIVED
+}
+
+enum AOStatus {
+  DRAFT
+  SENT
+  IN_PROGRESS
+  CLOSED
+  ARCHIVED
+}
+
+enum AOCompanyStatus {
+  INVITED
+  OPENED
+  IN_PROGRESS
+  SUBMITTED
+  INCOMPLETE
+}
+
+enum AdminDocStatus {
+  PENDING
+  VALID
+  EXPIRED
+  REJECTED
+}
+
+enum QAVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum QAStatus {
+  PENDING
+  ANSWERED
+}
+
+enum AIImportStatus {
+  PROCESSING
+  REVIEW
+  IMPORTED
+  FAILED
+}

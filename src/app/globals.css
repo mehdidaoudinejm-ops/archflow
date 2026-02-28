@@ -2,26 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+}
+
+/* ── ArchFlow Design Tokens ─────────────────────────── */
+:root {
+  --bg:          #F8F8F6;
+  --surface:     #FFFFFF;
+  --surface2:    #F3F3F0;
+  --border:      #E8E8E3;
+  --border2:     #D4D4CC;
+  --text:        #1A1A18;
+  --text2:       #6B6B65;
+  --text3:       #9B9B94;
+  --green:       #1A5C3A;
+  --green-mid:   #2D7A50;
+  --green-light: #EAF3ED;
+  --green-btn:   #1F6B44;
+  --amber:       #B45309;
+  --amber-light: #FEF3E2;
+  --red:         #9B1C1C;
+  --red-light:   #FEE8E8;
+  --shadow-sm:   0 1px 3px rgba(0,0,0,.06);
+  --shadow-md:   0 4px 16px rgba(0,0,0,.08);
+  --radius:      8px;
+  --radius-lg:   14px;
+}
+
+/* ── shadcn/ui tokens (conservés pour la compatibilité) ── */
+@layer base {
+  :root {
+    --background: 0 0% 97%;
+    --foreground: 0 0% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+    --primary: 150 55% 23%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 95%;
+    --secondary-foreground: 0 0% 10%;
+    --muted: 0 0% 95%;
+    --muted-foreground: 0 0% 42%;
+    --accent: 150 35% 93%;
+    --accent-foreground: 150 55% 23%;
+    --destructive: 0 62% 37%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 91%;
+    --input: 0 0% 91%;
+    --ring: 150 55% 23%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'DM Sans', sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
+  }
+  h1, h2, h3 {
+    font-family: 'DM Serif Display', serif;
   }
 }
