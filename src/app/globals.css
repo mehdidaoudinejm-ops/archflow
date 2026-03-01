@@ -64,11 +64,11 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-dm-sans), sans-serif;
     background-color: var(--bg);
     color: var(--text);
   }
   h1, h2, h3 {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-dm-serif), serif;
   }
 }

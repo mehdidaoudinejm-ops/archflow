@@ -1,5 +1,17 @@
 import { createServerClient } from '@supabase/ssr'
+import { jwtVerify } from 'jose'
 import { NextResponse, type NextRequest } from 'next/server'
+
+async function verifyPortalToken(token: string): Promise<boolean> {
+  try {
+    const secret = process.env.INVITE_JWT_SECRET
+    if (!secret) return false
+    await jwtVerify(token, new TextEncoder().encode(secret))
+    return true
+  } catch {
+    return false
+  }
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -42,13 +54,19 @@ export async function middleware(request: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession()
 
-  // Routes portail entreprise — vérification token JWT
+  // Routes portail entreprise — vérification token JWT d'invitation
   if (pathname.startsWith('/portal/')) {
     const token = request.nextUrl.searchParams.get('token')
-    if (!token && !session) {
-      return NextResponse.redirect(new URL('/login', request.url))
+
+    if (token) {
+      const valid = await verifyPortalToken(token)
+      if (valid) return response
     }
-    return response
+
+    // Fallback : session Supabase valide (entreprise déjà connectée)
+    if (session) return response
+
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   // Routes espace client

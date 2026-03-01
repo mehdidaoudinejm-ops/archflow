@@ -612,11 +612,11 @@ Ajouter dans `layout.tsx` depuis Google Fonts.
 | Sprint | Objectif | Statut |
 |--------|----------|--------|
 | S01 | Setup projet + auth shell | ✅ Terminé |
-| S02 | Modèle de données + migrations Prisma | ⬜ À faire |
-| S03 | DPGF — structure lots/postes + CRUD | ⬜ À faire |
-| S04 | DPGF — tableau éditeur en ligne | ⬜ À faire |
+| S02 | Modèle de données + migrations Prisma | ✅ Terminé |
+| S03 | DPGF — structure lots/postes + CRUD | ✅ Terminé |
+| S04 | DPGF — tableau éditeur en ligne | ✅ Terminé |
 | S05 | Bibliothèque d'intitulés | ⬜ À faire |
-| S06 | Appel d'offre — config + invitation entreprises | ⬜ À faire |
+| S06 | Appel d'offre — config + invitation entreprises | ✅ Terminé |
 | S07 | Portail entreprise — saisie prix + quantités | ⬜ À faire |
 | S08 | Section DCE — upload + suivi lecture | ⬜ À faire |
 | S09 | Q&A + Dashboard analyse + Espace client | ⬜ À faire |

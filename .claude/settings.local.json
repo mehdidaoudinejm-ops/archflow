@@ -12,7 +12,17 @@
       "Bash(npm run:*)",
       "Bash(lsof:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(git:*)",
+      "Bash(ls:*)",
+      "Bash(set:*)",
+      "Bash(cat:*)",
+      "Bash(killall node:*)",
+      "Bash(node:*)",
+      "Bash(open:*)"
     ]
   }
 }

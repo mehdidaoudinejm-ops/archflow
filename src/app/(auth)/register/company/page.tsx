@@ -1,48 +1,61 @@
 'use client'
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createBrowserClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-export default function RegisterPage() {
+function RegisterCompanyForm() {
+  const searchParams = useSearchParams()
   const router = useRouter()
 
+  const token = searchParams.get('token')
+
+  const [tokenValid, setTokenValid] = useState<boolean | null>(null)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
-  const [agencyName, setAgencyName] = useState('')
-  const [email, setEmail] = useState('')
+  const [companyName, setCompanyName] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // Vérifier le token au chargement
+  useEffect(() => {
+    if (!token) {
+      setTokenValid(false)
+      return
+    }
+    // Vérification côté client simple (le vrai check se fait côté serveur)
+    setTokenValid(true)
+  }, [token])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!token) return
     setError(null)
     setLoading(true)
 
     try {
-      // 1. Créer le compte via l'API (Supabase Auth + Prisma)
-      const res = await fetch('/api/auth/register', {
+      // 1. Créer le compte via l'API
+      const res = await fetch('/api/auth/register-company', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstName, lastName, agencyName, email, password }),
+        body: JSON.stringify({ token, firstName, lastName, companyName, password }),
       })
 
-      const data = await res.json() as { error?: string }
+      const data = await res.json() as { error?: string; email?: string }
 
       if (!res.ok) {
         setError(data.error ?? 'Erreur lors de la création du compte')
         return
       }
 
-      // 2. Se connecter automatiquement après l'inscription
+      // 2. Se connecter automatiquement
       const supabase = createBrowserClient()
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
+        email: data.email!,
         password,
       })
 
@@ -51,6 +64,7 @@ export default function RegisterPage() {
         return
       }
 
+      // 3. Rediriger vers le portail (reconstruit depuis le token, sera géré par le portail)
       router.push('/dashboard')
       router.refresh()
     } catch {
@@ -58,6 +72,46 @@ export default function RegisterPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (tokenValid === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
+        <div style={{ color: 'var(--text2)' }}>Vérification du lien...</div>
+      </div>
+    )
+  }
+
+  if (!tokenValid) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
+        <div
+          className="w-full max-w-md p-8 text-center rounded-[var(--radius-lg)]"
+          style={{
+            background: 'var(--surface)',
+            boxShadow: 'var(--shadow-md)',
+            border: '1px solid var(--border)',
+          }}
+        >
+          <h1
+            className="text-3xl mb-4"
+            style={{ fontFamily: '"DM Serif Display", serif', color: 'var(--green)' }}
+          >
+            ArchFlow
+          </h1>
+          <div
+            className="p-4 rounded-[var(--radius)] mb-4"
+            style={{ background: 'var(--red-light)', color: 'var(--red)' }}
+          >
+            Ce lien n&apos;est plus valide
+          </div>
+          <p className="text-sm" style={{ color: 'var(--text2)' }}>
+            Ce lien d&apos;invitation a expiré ou a déjà été utilisé.
+            Contactez l&apos;agence qui vous a invité pour recevoir un nouveau lien.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -70,7 +124,6 @@ export default function RegisterPage() {
           border: '1px solid var(--border)',
         }}
       >
-        {/* Logo */}
         <div className="mb-8 text-center">
           <h1
             className="text-3xl"
@@ -79,11 +132,25 @@ export default function RegisterPage() {
             ArchFlow
           </h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text2)' }}>
-            Créez votre espace agence
+            Créez votre compte entreprise pour répondre à l&apos;appel d&apos;offre
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-1.5">
+            <Label htmlFor="companyName" style={{ color: 'var(--text)' }}>
+              Nom de la société
+            </Label>
+            <Input
+              id="companyName"
+              placeholder="SARL Dupont Électricité"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              required
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="firstName" style={{ color: 'var(--text)' }}>Prénom</Label>
@@ -107,34 +174,6 @@ export default function RegisterPage() {
                 style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
               />
             </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="agencyName" style={{ color: 'var(--text)' }}>
-              Nom de l&apos;agence
-            </Label>
-            <Input
-              id="agencyName"
-              placeholder="Studio Dupont Architecture"
-              value={agencyName}
-              onChange={(e) => setAgencyName(e.target.value)}
-              required
-              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="email" style={{ color: 'var(--text)' }}>Adresse email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="vous@agence.fr"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
-            />
           </div>
 
           <div className="space-y-1.5">
@@ -170,14 +209,21 @@ export default function RegisterPage() {
             {loading ? 'Création...' : 'Créer mon compte'}
           </Button>
         </form>
-
-        <p className="mt-6 text-center text-sm" style={{ color: 'var(--text2)' }}>
-          Déjà un compte ?{' '}
-          <Link href="/login" className="font-medium hover:underline" style={{ color: 'var(--green-mid)' }}>
-            Se connecter
-          </Link>
-        </p>
       </div>
     </div>
+  )
+}
+
+export default function RegisterCompanyPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
+          <div style={{ color: 'var(--text2)' }}>Chargement...</div>
+        </div>
+      }
+    >
+      <RegisterCompanyForm />
+    </Suspense>
   )
 }

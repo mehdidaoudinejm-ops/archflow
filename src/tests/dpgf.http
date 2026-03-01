@@ -1,0 +1,142 @@
+# ArchFlow — Tests REST DPGF
+# Utiliser avec l'extension "REST Client" de VS Code (humao.rest-client)
+# ou avec curl en remplaçant les variables
+
+@baseUrl = http://localhost:3000
+@dpgfId  = seed-dpgf-001
+@lotId1  = seed-lot-001
+@lotId2  = seed-lot-002
+@postId  = seed-post-001
+
+# ──────────────────────────────────────────────────────────
+# DPGF
+# ──────────────────────────────────────────────────────────
+
+### GET — Récupérer la DPGF complète (lots + postes)
+GET {{baseUrl}}/api/dpgf/{{dpgfId}}
+Content-Type: application/json
+
+###
+
+### PATCH — Changer le statut de la DPGF
+PATCH {{baseUrl}}/api/dpgf/{{dpgfId}}
+Content-Type: application/json
+
+{
+  "status": "AO_SENT"
+}
+
+###
+
+# ──────────────────────────────────────────────────────────
+# LOTS
+# ──────────────────────────────────────────────────────────
+
+### GET — Lister les lots d'une DPGF
+GET {{baseUrl}}/api/dpgf/{{dpgfId}}/lots
+Content-Type: application/json
+
+###
+
+### POST — Créer un nouveau lot
+POST {{baseUrl}}/api/dpgf/{{dpgfId}}/lots
+Content-Type: application/json
+
+{
+  "name": "Électricité CFO/CFA"
+}
+
+###
+
+### PATCH — Renommer un lot
+PATCH {{baseUrl}}/api/dpgf/{{dpgfId}}/lots/{{lotId1}}
+Content-Type: application/json
+
+{
+  "name": "Démolition / Dépose"
+}
+
+###
+
+### DELETE — Supprimer un lot (bloqué si des offres existent)
+DELETE {{baseUrl}}/api/dpgf/{{dpgfId}}/lots/{{lotId2}}
+
+###
+
+# ──────────────────────────────────────────────────────────
+# RÉORDONNANCEMENT DES LOTS
+# ──────────────────────────────────────────────────────────
+
+### PATCH — Réordonner les lots (drag & drop)
+PATCH {{baseUrl}}/api/dpgf/{{dpgfId}}/lots/reorder
+Content-Type: application/json
+
+[
+  { "lotId": "seed-lot-002", "position": 0 },
+  { "lotId": "seed-lot-001", "position": 1 }
+]
+
+###
+
+# ──────────────────────────────────────────────────────────
+# POSTES
+# ──────────────────────────────────────────────────────────
+
+### GET — Lister les postes d'un lot
+GET {{baseUrl}}/api/dpgf/{{dpgfId}}/lots/{{lotId1}}/posts
+Content-Type: application/json
+
+###
+
+### POST — Créer un poste dans un lot
+POST {{baseUrl}}/api/dpgf/{{dpgfId}}/lots/{{lotId1}}/posts
+Content-Type: application/json
+
+{
+  "title": "Évacuation des gravats — benne 8m³",
+  "unit": "u",
+  "qtyArchi": 2,
+  "unitPriceArchi": 650,
+  "isOptional": false,
+  "commentArchi": "Accès par escalier de service uniquement"
+}
+
+###
+
+### POST — Créer un poste optionnel
+POST {{baseUrl}}/api/dpgf/{{dpgfId}}/lots/{{lotId1}}/posts
+Content-Type: application/json
+
+{
+  "title": "Protection plancher bois existant pendant travaux",
+  "unit": "forfait",
+  "isOptional": true
+}
+
+###
+
+### PATCH — Modifier un poste (ex : mettre à jour le prix)
+PATCH {{baseUrl}}/api/dpgf/{{dpgfId}}/lots/{{lotId1}}/posts/{{postId}}
+Content-Type: application/json
+
+{
+  "unitPriceArchi": 32,
+  "qtyArchi": 50
+}
+
+###
+
+### PATCH — Modifier l'intitulé d'un poste
+PATCH {{baseUrl}}/api/dpgf/{{dpgfId}}/lots/{{lotId1}}/posts/{{postId}}
+Content-Type: application/json
+
+{
+  "title": "Démolition de cloisons en plâtre sur ossature bois"
+}
+
+###
+
+### DELETE — Supprimer un poste (bloqué si des offres existent)
+DELETE {{baseUrl}}/api/dpgf/{{dpgfId}}/lots/{{lotId1}}/posts/{{postId}}
+
+###

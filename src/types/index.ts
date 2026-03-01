@@ -64,6 +64,23 @@ export type QAWithAnswer = QA & {
   answer: QAAnswer | null
 }
 
+export type DPGFWithLots = DPGF & {
+  lots: LotWithChildren[]
+}
+
+// ── Mutation input types ──────────────────────────────
+
+export interface CreatePostInput {
+  title: string
+  unit: string
+  qtyArchi?: number | null
+  unitPriceArchi?: number | null
+  isOptional?: boolean
+  commentArchi?: string | null
+  sublotId?: string | null
+  libraryRefId?: string | null
+}
+
 // ── API Response types ────────────────────────────────
 
 export interface ApiError {
