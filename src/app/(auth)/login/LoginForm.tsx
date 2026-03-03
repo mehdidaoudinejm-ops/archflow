@@ -40,8 +40,10 @@ export default function LoginForm() {
 
       router.push(redirect)
       router.refresh()
-    } catch {
-      setError('Une erreur est survenue. Réessayez.')
+    } catch (err) {
+      // Erreur réseau ou configuration Supabase incorrecte
+      console.error('[Login] Erreur inattendue:', err)
+      setError('Impossible de contacter le serveur. Vérifiez votre connexion ou réessayez dans quelques instants.')
     } finally {
       setLoading(false)
     }
