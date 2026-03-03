@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireAdmin } from '@/lib/admin-auth'
+import { requireAdmin, bootstrapAdminUser } from '@/lib/admin-auth'
 import { AdminShell } from '@/components/admin/AdminShell'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -8,6 +8,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!session) {
     redirect('/dashboard')
   }
+
+  // Créer le profil Prisma si absent (premier accès admin)
+  await bootstrapAdminUser(session.user.email!)
 
   return (
     <AdminShell adminEmail={session.user.email!}>
