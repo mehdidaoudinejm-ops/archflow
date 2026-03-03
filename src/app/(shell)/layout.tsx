@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { getUserWithProfile } from '@/lib/auth'
+import { getUserWithProfile, getSession } from '@/lib/auth'
+import { isAdminEmail } from '@/lib/admin-auth'
 import { Sidebar } from '@/components/shell/Sidebar'
 import { Topbar } from '@/components/shell/Topbar'
 import { AnnouncementBanner } from '@/components/shell/AnnouncementBanner'
@@ -12,6 +13,11 @@ export default async function ShellLayout({
   const user = await getUserWithProfile()
 
   if (!user) {
+    // Admin connecté dans Supabase mais sans profil Prisma → bootstrapAdminUser le créera
+    const session = await getSession()
+    if (session?.user.email && isAdminEmail(session.user.email)) {
+      redirect('/admin')
+    }
     redirect('/login')
   }
 

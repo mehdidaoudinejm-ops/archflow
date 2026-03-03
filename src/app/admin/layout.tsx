@@ -6,7 +6,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const session = await requireAdmin()
 
   if (!session) {
-    redirect('/dashboard')
+    redirect('/login')
   }
 
   // Créer le profil Prisma si absent (premier accès admin)
