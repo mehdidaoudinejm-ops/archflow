@@ -16,7 +16,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const { dpgfId, name, lotIds, deadline, instructions, allowCustomQty, isPaid, paymentAmount } =
+    const { dpgfId, name, lotIds, deadline, instructions, allowCustomQty, isPaid, paymentAmount, requiredDocs } =
       parsed.data
 
     // Vérifier que la DPGF appartient à l'agence de l'utilisateur
@@ -39,6 +39,7 @@ export async function POST(req: Request) {
         allowCustomQty: allowCustomQty ?? true,
         isPaid: isPaid ?? false,
         paymentAmount: paymentAmount ?? null,
+        requiredDocs: requiredDocs ?? undefined,
         status: 'DRAFT',
         createdById: user.id,
       },

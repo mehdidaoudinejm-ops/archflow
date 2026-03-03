@@ -33,12 +33,12 @@ export async function PATCH(
       )
     }
 
-    // Mise à jour des positions en transaction
+    // Mise à jour des positions et numéros en transaction
     await prisma.$transaction(
       parsed.data.map(({ lotId, position }) =>
         prisma.lot.update({
           where: { id: lotId, dpgfId: params.dpgfId },
-          data: { position },
+          data: { position, number: position + 1 },
         })
       )
     )

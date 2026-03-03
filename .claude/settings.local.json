@@ -22,7 +22,12 @@
       "Bash(cat:*)",
       "Bash(killall node:*)",
       "Bash(node:*)",
-      "Bash(open:*)"
+      "Bash(open:*)",
+      "Bash(find:*)",
+      "Bash(head:*)",
+      "Bash(python3:*)",
+      "Bash(curl:*)",
+      "Bash(pkill:*)"
     ]
   }
 }

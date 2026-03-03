@@ -19,7 +19,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, ChevronRight, ChevronDown, Trash2, Plus, Check, MoreHorizontal, BookMarked } from 'lucide-react'
+import { GripVertical, ChevronRight, ChevronDown, Trash2, Plus, Check, MoreHorizontal, BookMarked, Tag } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,7 +39,10 @@ import type { LotWithChildren, SubLotWithPosts, CreatePostInput } from '@/types'
 import type { Post } from '@prisma/client'
 
 // ── Column layout ──────────────────────────────────────────────────────────────
-const COLS = '128px 1fr 72px 96px 116px 116px 44px'
+const COLS = '128px 1fr 96px 96px 116px 116px 44px'
+
+// ── Unit options ───────────────────────────────────────────────────────────────
+const UNITS = ['m²', 'm³', 'ml', 'u', 'kg', 't', 'h', 'j', 'forfait', 'ens.', 'lot', 'pm']
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type FlatRow =
@@ -55,6 +58,7 @@ interface DPGFTableProps {
   isLoading: boolean
   error: string | null
   search: string
+  isReadOnly?: boolean
   onAddLot: (name: string) => Promise<void>
   onUpdateLot: (lotId: string, data: { name?: string; position?: number }) => Promise<void>
   onDeleteLot: (lotId: string) => Promise<void>
@@ -94,9 +98,10 @@ interface LotRowProps {
   onToggle: () => void
   onRename: (name: string) => Promise<void>
   onDelete: () => Promise<void>
+  isReadOnly: boolean
 }
 
-function LotRow({ lot, collapsed, onToggle, onRename, onDelete }: LotRowProps) {
+function LotRow({ lot, collapsed, onToggle, onRename, onDelete, isReadOnly }: LotRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lot.id,
   })
@@ -151,14 +156,15 @@ function LotRow({ lot, collapsed, onToggle, onRename, onDelete }: LotRowProps) {
         />
       ) : (
         <span
-          className="flex-1 text-sm font-medium cursor-text"
-          onDoubleClick={() => setEditName(lot.name)}
+          className={`flex-1 text-sm font-medium ${isReadOnly ? '' : 'cursor-text'}`}
+          onDoubleClick={() => { if (!isReadOnly) setEditName(lot.name) }}
         >
           {lot.name}
         </span>
       )}
 
       <div className="flex items-center gap-1 ml-auto shrink-0">
+        {!isReadOnly && (
         <button
           onClick={async () => {
             if (confirm(`Supprimer le lot "${lot.name}" et tous ses postes ?`)) {
@@ -172,6 +178,7 @@ function LotRow({ lot, collapsed, onToggle, onRename, onDelete }: LotRowProps) {
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
+        )}
         <button onClick={onToggle} className="p-1" style={{ color: '#FFFFFF' }}>
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
@@ -188,9 +195,10 @@ interface SubLotRowProps {
   onToggle: () => void
   onUpdate: (data: { number?: string; name?: string }) => Promise<void>
   onDelete: () => Promise<void>
+  isReadOnly: boolean
 }
 
-function SubLotRow({ sublot, lot, collapsed, onToggle, onUpdate, onDelete }: SubLotRowProps) {
+function SubLotRow({ sublot, lot, collapsed, onToggle, onUpdate, onDelete, isReadOnly }: SubLotRowProps) {
   const [editState, setEditState] = useState<{ number: string; name: string } | null>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const depth = (sublot.number.match(/\./g) ?? []).length
@@ -233,9 +241,9 @@ function SubLotRow({ sublot, lot, collapsed, onToggle, onUpdate, onDelete }: Sub
         />
       ) : (
         <span
-          className="text-sm font-bold shrink-0 cursor-text"
+          className={`text-sm font-bold shrink-0 ${isReadOnly ? '' : 'cursor-text'}`}
           style={{ color: 'var(--green-mid)' }}
-          onDoubleClick={() => setEditState({ number: sublot.number, name: sublot.name })}
+          onDoubleClick={() => { if (!isReadOnly) setEditState({ number: sublot.number, name: sublot.name }) }}
         >
           {lot.number}.{sublot.number}
         </span>
@@ -256,14 +264,15 @@ function SubLotRow({ sublot, lot, collapsed, onToggle, onUpdate, onDelete }: Sub
         />
       ) : (
         <span
-          className="flex-1 text-sm font-semibold cursor-text"
-          onDoubleClick={() => setEditState({ number: sublot.number, name: sublot.name })}
+          className={`flex-1 text-sm font-semibold ${isReadOnly ? '' : 'cursor-text'}`}
+          onDoubleClick={() => { if (!isReadOnly) setEditState({ number: sublot.number, name: sublot.name }) }}
         >
           {sublot.name}
         </span>
       )}
 
       <div className="flex items-center gap-1 ml-auto shrink-0">
+        {!isReadOnly && (
         <button
           onClick={async () => {
             if (confirm(`Supprimer le sous-lot "${sublot.name}" et ses postes ?`)) {
@@ -283,6 +292,7 @@ function SubLotRow({ sublot, lot, collapsed, onToggle, onUpdate, onDelete }: Sub
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
+        )}
         <button onClick={onToggle} className="p-1" style={{ color: 'var(--text2)' }}>
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
@@ -295,17 +305,19 @@ function SubLotRow({ sublot, lot, collapsed, onToggle, onUpdate, onDelete }: Sub
 interface PostRowProps {
   post: Post
   sublot?: SubLotWithPosts
+  isReadOnly: boolean
   onUpdate: (data: {
     title?: string
     unit?: string
     qtyArchi?: number | null
     unitPriceArchi?: number | null
+    isOptional?: boolean
   }) => Promise<void>
   onDelete: () => Promise<void>
   onSaveToLibrary: (data: { trade?: string | null }) => Promise<void>
 }
 
-function PostRow({ post, sublot, onUpdate, onDelete, onSaveToLibrary }: PostRowProps) {
+function PostRow({ post, sublot, isReadOnly, onUpdate, onDelete, onSaveToLibrary }: PostRowProps) {
   const [localPost, setLocalPost] = useState(post)
   const [editField, setEditField] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -336,6 +348,7 @@ function PostRow({ post, sublot, onUpdate, onDelete, onSaveToLibrary }: PostRowP
       unit?: string
       qtyArchi?: number | null
       unitPriceArchi?: number | null
+      isOptional?: boolean
     } = {}
     if (field === 'title') {
       parsed = { title: raw }
@@ -355,6 +368,16 @@ function PostRow({ post, sublot, onUpdate, onDelete, onSaveToLibrary }: PostRowP
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
       setSaved(true)
       savedTimerRef.current = setTimeout(() => setSaved(false), 2000)
+    } catch {
+      // ignore
+    }
+  }
+
+  async function toggleOptional() {
+    const next = !localPost.isOptional
+    setLocalPost((p) => ({ ...p, isOptional: next }))
+    try {
+      await onUpdate({ isOptional: next })
     } catch {
       // ignore
     }
@@ -387,8 +410,8 @@ function PostRow({ post, sublot, onUpdate, onDelete, onSaveToLibrary }: PostRowP
         {editField === 'title' ? (
           <input
             autoFocus
-            className="w-full text-sm border-b outline-none bg-transparent"
-            style={{ borderColor: 'var(--border2)', color: 'var(--text)' }}
+            className="w-full text-sm outline-none rounded"
+            style={{ border: '1px solid var(--border)', padding: '4px 8px', color: 'var(--text)', background: 'var(--surface)' }}
             defaultValue={localPost.title}
             onBlur={(e) => commitEdit('title', e.target.value)}
             onKeyDown={(e) => {
@@ -398,9 +421,9 @@ function PostRow({ post, sublot, onUpdate, onDelete, onSaveToLibrary }: PostRowP
           />
         ) : (
           <span
-            className="text-sm cursor-text truncate flex-1"
+            className={`text-sm truncate flex-1 ${isReadOnly ? '' : 'cursor-text'}`}
             style={{ color: localPost.title ? 'var(--text)' : 'var(--text3)' }}
-            onClick={() => setEditField('title')}
+            onClick={() => { if (!isReadOnly) setEditField('title') }}
           >
             {localPost.title || 'Désignation…'}
           </span>
@@ -416,27 +439,25 @@ function PostRow({ post, sublot, onUpdate, onDelete, onSaveToLibrary }: PostRowP
       </div>
 
       {/* Unité */}
-      <div className="px-2 py-2">
-        {editField === 'unit' ? (
-          <input
-            autoFocus
-            className="w-full text-sm text-right border-b outline-none bg-transparent"
-            style={{ borderColor: 'var(--border2)', color: 'var(--text)' }}
-            defaultValue={localPost.unit}
-            onBlur={(e) => commitEdit('unit', e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitEdit('unit', e.currentTarget.value)
-              if (e.key === 'Escape') setEditField(null)
-            }}
-          />
-        ) : (
-          <span
-            className="text-sm text-right block cursor-text"
-            style={{ color: 'var(--text2)' }}
-            onClick={() => setEditField('unit')}
-          >
+      <div className="px-2 py-1.5">
+        {isReadOnly ? (
+          <span className="text-sm text-right block" style={{ color: 'var(--text2)' }}>
             {localPost.unit}
           </span>
+        ) : (
+          <select
+            value={UNITS.includes(localPost.unit) ? localPost.unit : ''}
+            onChange={async (e) => {
+              const val = e.target.value
+              setLocalPost((p) => ({ ...p, unit: val }))
+              try { await onUpdate({ unit: val }) } catch { /* ignore */ }
+            }}
+            className="w-full text-sm outline-none rounded"
+            style={{ border: '1px solid var(--border)', padding: '4px 6px', color: 'var(--text)', background: 'var(--surface)' }}
+          >
+            {!UNITS.includes(localPost.unit) && <option value="">{localPost.unit}</option>}
+            {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
         )}
       </div>
 
@@ -445,8 +466,8 @@ function PostRow({ post, sublot, onUpdate, onDelete, onSaveToLibrary }: PostRowP
         {editField === 'qtyArchi' ? (
           <input
             autoFocus
-            className="w-full text-sm text-right border-b outline-none bg-transparent"
-            style={{ borderColor: 'var(--border2)', color: 'var(--text)' }}
+            className="w-full text-sm text-right outline-none rounded"
+            style={{ border: '1px solid var(--border)', padding: '4px 8px', color: 'var(--text)', background: 'var(--surface)' }}
             defaultValue={localPost.qtyArchi?.toString() ?? ''}
             onBlur={(e) => commitEdit('qtyArchi', e.target.value)}
             onKeyDown={(e) => {
@@ -456,9 +477,9 @@ function PostRow({ post, sublot, onUpdate, onDelete, onSaveToLibrary }: PostRowP
           />
         ) : (
           <span
-            className="text-sm text-right block cursor-text"
+            className={`text-sm text-right block ${isReadOnly ? '' : 'cursor-text'}`}
             style={{ color: localPost.qtyArchi == null ? 'var(--amber)' : 'var(--text2)' }}
-            onClick={() => setEditField('qtyArchi')}
+            onClick={() => { if (!isReadOnly) setEditField('qtyArchi') }}
           >
             {localPost.qtyArchi != null ? localPost.qtyArchi.toLocaleString('fr-FR') : '—'}
           </span>
@@ -470,8 +491,8 @@ function PostRow({ post, sublot, onUpdate, onDelete, onSaveToLibrary }: PostRowP
         {editField === 'unitPriceArchi' ? (
           <input
             autoFocus
-            className="w-full text-sm text-right border-b outline-none bg-transparent"
-            style={{ borderColor: 'var(--border2)', color: 'var(--text)' }}
+            className="w-full text-sm text-right outline-none rounded"
+            style={{ border: '1px solid var(--border)', padding: '4px 8px', color: 'var(--text)', background: 'var(--surface)' }}
             defaultValue={localPost.unitPriceArchi?.toString() ?? ''}
             onBlur={(e) => commitEdit('unitPriceArchi', e.target.value)}
             onKeyDown={(e) => {
@@ -481,11 +502,11 @@ function PostRow({ post, sublot, onUpdate, onDelete, onSaveToLibrary }: PostRowP
           />
         ) : (
           <span
-            className="text-sm text-right block cursor-text"
+            className={`text-sm text-right block ${isReadOnly ? '' : 'cursor-text'}`}
             style={{
               color: localPost.unitPriceArchi == null ? 'var(--amber)' : 'var(--text2)',
             }}
-            onClick={() => setEditField('unitPriceArchi')}
+            onClick={() => { if (!isReadOnly) setEditField('unitPriceArchi') }}
           >
             {localPost.unitPriceArchi != null ? fmt(localPost.unitPriceArchi) + ' €' : '—'}
           </span>
@@ -502,7 +523,9 @@ function PostRow({ post, sublot, onUpdate, onDelete, onSaveToLibrary }: PostRowP
 
       {/* Actions */}
       <div className="flex items-center justify-center">
-        <PostActions post={post} onDelete={onDelete} onSaveToLibrary={onSaveToLibrary} />
+        {!isReadOnly && (
+          <PostActions post={localPost} onDelete={onDelete} onSaveToLibrary={onSaveToLibrary} onToggleOptional={toggleOptional} />
+        )}
       </div>
     </div>
   )
@@ -513,10 +536,12 @@ function PostActions({
   post,
   onDelete,
   onSaveToLibrary,
+  onToggleOptional,
 }: {
   post: Post
   onDelete: () => Promise<void>
   onSaveToLibrary: (data: { trade?: string | null }) => Promise<void>
+  onToggleOptional: () => Promise<void>
 }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [trade, setTrade] = useState<string>('')
@@ -545,6 +570,14 @@ function PostActions({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <DropdownMenuItem
+            onClick={onToggleOptional}
+            className="gap-2 cursor-pointer text-sm"
+            style={{ color: post.isOptional ? '#6D28D9' : 'var(--text)' }}
+          >
+            <Tag className="w-3.5 h-3.5" />
+            {post.isOptional ? "Retirer l'option" : 'Marquer comme optionnel'}
+          </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => setDialogOpen(true)}
             className="gap-2 cursor-pointer text-sm"
@@ -623,7 +656,7 @@ interface AddPostRowProps {
 function AddPostRow({ lot, sublot, onAdd }: AddPostRowProps) {
   const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState('')
-  const [unit, setUnit] = useState('ens')
+  const [unit, setUnit] = useState('u')
   const indentPx = sublot ? 40 : 24
 
   if (!adding) {
@@ -667,13 +700,14 @@ function AddPostRow({ lot, sublot, onAdd }: AddPostRowProps) {
         />
       </div>
       <div className="px-2 py-1.5">
-        <input
-          className="w-full text-sm text-right border-b outline-none bg-transparent"
-          style={{ borderColor: 'var(--green-mid)', color: 'var(--text)' }}
-          placeholder="ens"
+        <select
           value={unit}
           onChange={(e) => setUnit(e.target.value)}
-        />
+          className="w-full text-sm outline-none rounded"
+          style={{ border: '1px solid var(--green-mid)', padding: '4px 6px', color: 'var(--text)', background: 'var(--surface)' }}
+        >
+          {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+        </select>
       </div>
       <div /><div /><div />
       <div className="flex items-center justify-center">
@@ -825,6 +859,7 @@ export function DPGFTable({
   isLoading,
   error,
   search,
+  isReadOnly = false,
   onAddLot,
   onUpdateLot,
   onDeleteLot,
@@ -895,7 +930,7 @@ export function DPGFTable({
             for (const post of sublot.posts) {
               rows.push({ kind: 'post', post, lot, sublot })
             }
-            rows.push({ kind: 'add-post', lot, sublot })
+            if (!isReadOnly) rows.push({ kind: 'add-post', lot, sublot })
           }
         }
 
@@ -903,12 +938,12 @@ export function DPGFTable({
           rows.push({ kind: 'post', post, lot })
         }
 
-        rows.push({ kind: 'add-sublot', lot })
-        rows.push({ kind: 'add-post', lot })
+        if (!isReadOnly) rows.push({ kind: 'add-sublot', lot })
+        if (!isReadOnly) rows.push({ kind: 'add-post', lot })
       }
     }
 
-    rows.push({ kind: 'add-lot' })
+    if (!isReadOnly) rows.push({ kind: 'add-lot' })
     return rows
   }, [filteredLots, collapsedIds, search])
 
@@ -919,6 +954,7 @@ export function DPGFTable({
 
   async function handleDragEnd(event: DragEndEvent) {
     setActiveDragId(null)
+    if (isReadOnly) return
     const { active, over } = event
     if (!over || active.id === over.id) return
     const oldIndex = lots.findIndex((l) => l.id === active.id)
@@ -996,6 +1032,7 @@ export function DPGFTable({
                   onToggle={() => toggleCollapse(row.lot.id)}
                   onRename={(name) => onUpdateLot(row.lot.id, { name })}
                   onDelete={() => onDeleteLot(row.lot.id)}
+                  isReadOnly={isReadOnly}
                 />
               )
             }
@@ -1009,6 +1046,7 @@ export function DPGFTable({
                   onToggle={() => toggleCollapse(row.sublot.id)}
                   onUpdate={(data) => onUpdateSubLot(row.lot.id, row.sublot.id, data)}
                   onDelete={() => onDeleteSubLot(row.lot.id, row.sublot.id)}
+                  isReadOnly={isReadOnly}
                 />
               )
             }
@@ -1018,6 +1056,7 @@ export function DPGFTable({
                   key={row.post.id}
                   post={row.post}
                   sublot={row.sublot}
+                  isReadOnly={isReadOnly}
                   onUpdate={(data) => onUpdatePost(row.lot.id, row.post.id, data)}
                   onDelete={() => onDeletePost(row.lot.id, row.post.id)}
                   onSaveToLibrary={(data) => onSaveToLibrary(row.lot.id, row.post.id, data)}

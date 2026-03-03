@@ -17,6 +17,14 @@ function RegisterCompanyForm() {
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [companyName, setCompanyName] = useState('')
+  const [siret, setSiret] = useState('')
+  const [legalForm, setLegalForm] = useState('')
+  const [companyAddress, setCompanyAddress] = useState('')
+  const [postalCode, setPostalCode] = useState('')
+  const [city, setCity] = useState('')
+  const [phone, setPhone] = useState('')
+  const [trade, setTrade] = useState('')
+  const [signatoryQuality, setSignatoryQuality] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -42,7 +50,7 @@ function RegisterCompanyForm() {
       const res = await fetch('/api/auth/register-company', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, firstName, lastName, companyName, password }),
+        body: JSON.stringify({ token, firstName, lastName, companyName, siret: siret || undefined, legalForm: legalForm || undefined, companyAddress: companyAddress || undefined, postalCode: postalCode || undefined, city: city || undefined, phone: phone || undefined, trade: trade || undefined, signatoryQuality: signatoryQuality || undefined, password }),
       })
 
       const data = await res.json() as { error?: string; email?: string }
@@ -153,6 +161,124 @@ function RegisterCompanyForm() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
+              <Label htmlFor="siret" style={{ color: 'var(--text)' }}>
+                SIRET <span style={{ color: 'var(--text3)' }}>(optionnel)</span>
+              </Label>
+              <Input
+                id="siret"
+                placeholder="12345678901234"
+                value={siret}
+                onChange={(e) => setSiret(e.target.value.replace(/\D/g, '').slice(0, 14))}
+                maxLength={14}
+                style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="legalForm" style={{ color: 'var(--text)' }}>
+                Forme juridique <span style={{ color: 'var(--text3)' }}>(optionnel)</span>
+              </Label>
+              <select
+                id="legalForm"
+                value={legalForm}
+                onChange={(e) => setLegalForm(e.target.value)}
+                className="w-full h-10 text-sm rounded-md px-3 outline-none"
+                style={{ border: '1px solid var(--border)', color: 'var(--text)', background: 'var(--surface)' }}
+              >
+                <option value="">—</option>
+                <option>SARL</option>
+                <option>SAS</option>
+                <option>SASU</option>
+                <option>EURL</option>
+                <option>SA</option>
+                <option>EI / Auto-entrepreneur</option>
+                <option>Autre</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="companyAddress" style={{ color: 'var(--text)' }}>
+              Adresse <span style={{ color: 'var(--text3)' }}>(optionnel)</span>
+            </Label>
+            <Input
+              id="companyAddress"
+              placeholder="12 rue de la Paix"
+              value={companyAddress}
+              onChange={(e) => setCompanyAddress(e.target.value)}
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="postalCode" style={{ color: 'var(--text)' }}>
+                Code postal <span style={{ color: 'var(--text3)' }}>(optionnel)</span>
+              </Label>
+              <Input
+                id="postalCode"
+                placeholder="75001"
+                value={postalCode}
+                onChange={(e) => setPostalCode(e.target.value)}
+                maxLength={10}
+                style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="city" style={{ color: 'var(--text)' }}>
+                Ville <span style={{ color: 'var(--text3)' }}>(optionnel)</span>
+              </Label>
+              <Input
+                id="city"
+                placeholder="Paris"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="phone" style={{ color: 'var(--text)' }}>
+              Téléphone <span style={{ color: 'var(--text3)' }}>(optionnel)</span>
+            </Label>
+            <Input
+              id="phone"
+              type="tel"
+              placeholder="06 12 34 56 78"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="trade" style={{ color: 'var(--text)' }}>
+              Corps de métier <span style={{ color: 'var(--text3)' }}>(optionnel)</span>
+            </Label>
+            <select
+              id="trade"
+              value={trade}
+              onChange={(e) => setTrade(e.target.value)}
+              className="w-full h-10 text-sm rounded-md px-3 outline-none"
+              style={{ border: '1px solid var(--border)', color: 'var(--text)', background: 'var(--surface)' }}
+            >
+              <option value="">—</option>
+              <option>Gros œuvre</option>
+              <option>Plâtrerie</option>
+              <option>Électricité</option>
+              <option>Plomberie</option>
+              <option>Menuiserie</option>
+              <option>Peinture</option>
+              <option>Revêtements</option>
+              <option>Chauffage</option>
+              <option>Façade</option>
+              <option>Espaces verts</option>
+              <option>Autre</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
               <Label htmlFor="firstName" style={{ color: 'var(--text)' }}>Prénom</Label>
               <Input
                 id="firstName"
@@ -174,6 +300,24 @@ function RegisterCompanyForm() {
                 style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
               />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="signatoryQuality" style={{ color: 'var(--text)' }}>
+              Qualité du signataire <span style={{ color: 'var(--text3)' }}>(optionnel)</span>
+            </Label>
+            <select
+              id="signatoryQuality"
+              value={signatoryQuality}
+              onChange={(e) => setSignatoryQuality(e.target.value)}
+              className="w-full h-10 text-sm rounded-md px-3 outline-none"
+              style={{ border: '1px solid var(--border)', color: 'var(--text)', background: 'var(--surface)' }}
+            >
+              <option value="">—</option>
+              <option>Gérant</option>
+              <option>Directeur</option>
+              <option>Mandataire</option>
+            </select>
           </div>
 
           <div className="space-y-1.5">

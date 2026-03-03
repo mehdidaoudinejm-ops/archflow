@@ -10,6 +10,14 @@ const registerCompanySchema = z.object({
   lastName: z.string().min(1, 'Nom requis').max(50),
   companyName: z.string().min(1, 'Nom de la société requis').max(100),
   password: z.string().min(8, 'Minimum 8 caractères'),
+  siret: z.string().length(14, 'Le SIRET doit contenir 14 chiffres').optional().or(z.literal('')),
+  legalForm: z.string().max(50).optional(),
+  companyAddress: z.string().max(200).optional(),
+  postalCode: z.string().max(10).optional(),
+  city: z.string().max(100).optional(),
+  phone: z.string().max(20).optional(),
+  trade: z.string().max(50).optional(),
+  signatoryQuality: z.string().max(50).optional(),
 })
 
 export async function POST(req: Request) {
@@ -23,7 +31,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const { token, firstName, lastName, companyName, password } = parsed.data
+    const { token, firstName, lastName, companyName, password, siret, legalForm, companyAddress, postalCode, city, phone, trade, signatoryQuality } = parsed.data
 
     // 1. Vérifier le token JWT
     let tokenPayload: { email: string; aoId: string; aoCompanyId: string }
@@ -74,16 +82,39 @@ export async function POST(req: Request) {
       }
     }
 
-    // 5. Créer l'agence pour la société
+    // 5. Vérifier le SIRET via l'API Sirene (optionnel, pas bloquant)
+    let siretVerified = false
+    if (siret && siret.length === 14) {
+      try {
+        const sireneRes = await fetch(
+          `https://api.insee.fr/api-sirene/3.11/siret/${siret}`,
+          { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) }
+        )
+        siretVerified = sireneRes.ok
+      } catch {
+        // API INSEE indisponible — continuer sans vérification
+      }
+    }
+
+    // 6. Créer l'agence pour la société
     const agency = await prisma.agency.create({
       data: {
         name: companyName,
         plan: 'SOLO',
         activeModules: [],
+        siret: siret ?? null,
+        siretVerified,
+        legalForm: legalForm ?? null,
+        companyAddress: companyAddress ?? null,
+        postalCode: postalCode ?? null,
+        city: city ?? null,
+        phone: phone ?? null,
+        trade: trade ?? null,
+        signatoryQuality: signatoryQuality ?? null,
       },
     })
 
-    // 6. Mettre à jour l'utilisateur placeholder avec les vraies infos
+    // 7. Mettre à jour l'utilisateur placeholder avec les vraies infos
     await prisma.user.update({
       where: { id: placeholderUser.id },
       data: {
@@ -93,7 +124,7 @@ export async function POST(req: Request) {
       },
     })
 
-    // 7. Marquer le token comme utilisé
+    // 8. Marquer le token comme utilisé
     await prisma.aOCompany.update({
       where: { id: aoCompanyId },
       data: { tokenUsedAt: new Date() },

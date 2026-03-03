@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import {
   Clock,
   CheckCircle2,
@@ -14,6 +15,12 @@ import {
   RefreshCw,
   XCircle,
   ArrowLeft,
+  FolderOpen,
+  MessageSquare,
+  ChevronRight,
+  ShieldCheck,
+  ShieldAlert,
+  ShieldOff,
 } from 'lucide-react'
 
 interface Company {
@@ -57,6 +64,47 @@ interface Props {
   companies: Company[]
 }
 
+// ── Types fiche entreprise ───────────────────────────────
+
+interface AdminDoc {
+  id: string
+  type: string
+  status: string
+  rejectionReason: string | null
+  expiresAt: string | null
+  fileUrl: string
+}
+
+interface CompanyDetail {
+  id: string
+  status: string
+  tokenUsedAt: string | null
+  offer: { submittedAt: string | null; isComplete: boolean } | null
+  adminDocs: AdminDoc[]
+  companyUser: {
+    id: string
+    email: string
+    firstName: string | null
+    lastName: string | null
+    agency: {
+      id: string
+      name: string
+      siret: string | null
+      siretVerified: boolean
+      legalForm: string | null
+      companyAddress: string | null
+      postalCode: string | null
+      city: string | null
+      phone: string | null
+      trade: string | null
+      signatoryQuality: string | null
+    } | null
+  }
+  activityLogs: Array<{ id: string; action: string; module: string; createdAt: string }>
+}
+
+// ── Helpers ──────────────────────────────────────────────
+
 function statusBadge(status: string) {
   const map: Record<string, { label: string; bg: string; color: string; icon: React.ReactNode }> = {
     INVITED: { label: 'Invité', bg: 'var(--surface2)', color: 'var(--text2)', icon: <Circle size={14} /> },
@@ -96,6 +144,25 @@ function aoStatusBadge(status: string) {
   )
 }
 
+function docStatusBadge(status: string) {
+  const map: Record<string, { label: string; color: string }> = {
+    PENDING: { label: 'En attente', color: 'var(--amber)' },
+    VALID: { label: 'Validé', color: 'var(--green)' },
+    REJECTED: { label: 'Refusé', color: 'var(--red)' },
+    EXPIRED: { label: 'Expiré', color: 'var(--red)' },
+  }
+  const s = map[status] ?? { label: status, color: 'var(--text3)' }
+  return <span className="text-xs font-medium" style={{ color: s.color }}>{s.label}</span>
+}
+
+const DOC_LABELS: Record<string, string> = {
+  kbis: 'Kbis',
+  decennale: 'Assurance décennale',
+  rcpro: 'RC Pro',
+  rib: 'RIB',
+  urssaf: 'Attestation URSSAF',
+}
+
 function Countdown({ deadline }: { deadline: string }) {
   const now = new Date()
   const end = new Date(deadline)
@@ -115,6 +182,231 @@ function Countdown({ deadline }: { deadline: string }) {
   )
 }
 
+// ── Fiche entreprise (Sheet) ─────────────────────────────
+
+function CompanySheet({
+  aoId,
+  companyId,
+  open,
+  onClose,
+}: {
+  aoId: string
+  companyId: string
+  open: boolean
+  onClose: () => void
+}) {
+  const [detail, setDetail] = useState<CompanyDetail | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  async function loadDetail() {
+    if (loaded) return
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/ao/${aoId}/companies/${companyId}`)
+      if (res.ok) {
+        const data = await res.json() as CompanyDetail
+        setDetail(data)
+      }
+    } catch {
+      // silently ignore
+    } finally {
+      setLoading(false)
+      setLoaded(true)
+    }
+  }
+
+  function handleOpenChange(v: boolean) {
+    if (v) loadDetail()
+    else onClose()
+  }
+
+  const agency = detail?.companyUser?.agency
+
+  return (
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-lg overflow-y-auto"
+        style={{ background: 'var(--surface)', borderLeft: '1px solid var(--border)' }}
+      >
+        <SheetHeader className="mb-6">
+          <SheetTitle style={{ color: 'var(--text)', fontFamily: '"DM Serif Display", serif' }}>
+            Fiche entreprise
+          </SheetTitle>
+        </SheetHeader>
+
+        {loading && (
+          <p className="text-sm text-center py-8" style={{ color: 'var(--text3)' }}>Chargement...</p>
+        )}
+
+        {!loading && detail && (
+          <div className="space-y-6">
+            {/* Identité */}
+            <section>
+              <h3 className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--text3)' }}>
+                Identité
+              </h3>
+              <div className="space-y-2">
+                <Row label="Raison sociale" value={agency?.name ?? '—'} />
+                <Row label="Forme juridique" value={agency?.legalForm ?? '—'} />
+                <Row label="Corps de métier" value={agency?.trade ?? '—'} />
+                <Row label="Email" value={detail.companyUser.email} />
+                <Row
+                  label="Signataire"
+                  value={[detail.companyUser.firstName, detail.companyUser.lastName].filter(Boolean).join(' ') || '—'}
+                />
+                <Row label="Qualité" value={agency?.signatoryQuality ?? '—'} />
+                <Row label="Téléphone" value={agency?.phone ?? '—'} />
+              </div>
+            </section>
+
+            {/* Adresse */}
+            {(agency?.companyAddress || agency?.city) && (
+              <section>
+                <h3 className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--text3)' }}>
+                  Adresse
+                </h3>
+                <div className="space-y-2">
+                  {agency?.companyAddress && <Row label="Adresse" value={agency.companyAddress} />}
+                  {(agency?.postalCode || agency?.city) && (
+                    <Row
+                      label="Ville"
+                      value={[agency?.postalCode, agency?.city].filter(Boolean).join(' ')}
+                    />
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* SIRET */}
+            <section>
+              <h3 className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--text3)' }}>
+                SIRET
+              </h3>
+              {agency?.siret ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-mono" style={{ color: 'var(--text)' }}>
+                    {agency.siret}
+                  </span>
+                  {agency.siretVerified ? (
+                    <span
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                      style={{ background: 'var(--green-light)', color: 'var(--green)' }}
+                    >
+                      <ShieldCheck size={13} /> Vérifié
+                    </span>
+                  ) : (
+                    <span
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                      style={{ background: 'var(--amber-light)', color: 'var(--amber)' }}
+                    >
+                      <ShieldAlert size={13} /> À vérifier
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                  style={{ background: 'var(--surface2)', color: 'var(--text3)' }}
+                >
+                  <ShieldOff size={13} /> Non renseigné
+                </span>
+              )}
+            </section>
+
+            {/* Statut AO */}
+            <section>
+              <h3 className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--text3)' }}>
+                Statut sur cet AO
+              </h3>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm" style={{ color: 'var(--text2)' }}>Participation</span>
+                  {statusBadge(detail.status)}
+                </div>
+                {detail.offer?.submittedAt && (
+                  <Row
+                    label="Offre soumise le"
+                    value={new Date(detail.offer.submittedAt).toLocaleDateString('fr-FR', {
+                      day: 'numeric', month: 'long', year: 'numeric',
+                    })}
+                  />
+                )}
+                {detail.tokenUsedAt && (
+                  <Row
+                    label="Lien ouvert le"
+                    value={new Date(detail.tokenUsedAt).toLocaleDateString('fr-FR', {
+                      day: 'numeric', month: 'long', year: 'numeric',
+                    })}
+                  />
+                )}
+              </div>
+            </section>
+
+            {/* Documents admin */}
+            <section>
+              <h3 className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--text3)' }}>
+                Documents administratifs
+              </h3>
+              {detail.adminDocs.length === 0 ? (
+                <p className="text-sm" style={{ color: 'var(--text3)' }}>Aucun document déposé</p>
+              ) : (
+                <div className="space-y-2">
+                  {detail.adminDocs.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between px-3 py-2 rounded-[var(--radius)]"
+                      style={{ background: 'var(--surface2)' }}
+                    >
+                      <span className="text-sm" style={{ color: 'var(--text)' }}>
+                        {DOC_LABELS[doc.type] ?? doc.type}
+                      </span>
+                      {docStatusBadge(doc.status)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Historique */}
+            {detail.activityLogs.length > 0 && (
+              <section>
+                <h3 className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--text3)' }}>
+                  Historique
+                </h3>
+                <div className="space-y-1.5">
+                  {detail.activityLogs.map((log) => (
+                    <div key={log.id} className="flex items-start gap-2">
+                      <span className="text-xs mt-0.5 flex-shrink-0" style={{ color: 'var(--text3)' }}>
+                        {new Date(log.createdAt).toLocaleDateString('fr-FR')}
+                      </span>
+                      <span className="text-xs" style={{ color: 'var(--text2)' }}>
+                        {log.action}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-sm flex-shrink-0" style={{ color: 'var(--text2)' }}>{label}</span>
+      <span className="text-sm text-right" style={{ color: 'var(--text)' }}>{value}</span>
+    </div>
+  )
+}
+
+// ── Composant principal ───────────────────────────────────
+
 export function AOTracker({ ao, projectId, projectName, selectedLots, companies: initialCompanies }: Props) {
   const router = useRouter()
 
@@ -122,9 +414,11 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
   const [emailInput, setEmailInput] = useState('')
   const [inviting, setInviting] = useState(false)
   const [inviteError, setInviteError] = useState<string | null>(null)
+  const [lastDevLink, setLastDevLink] = useState<string | null>(null)
   const [closing, setClosing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [aoStatus, setAoStatus] = useState(ao.status)
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
 
   const deadline = new Date(ao.deadline)
   const isClosed = aoStatus === 'CLOSED' || aoStatus === 'ARCHIVED'
@@ -141,13 +435,12 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
         body: JSON.stringify({ email: emailInput.trim() }),
       })
 
-      const data = await res.json() as { error?: string; aoCompanyId?: string }
+      const data = await res.json() as { error?: string; aoCompanyId?: string; devLink?: string }
       if (!res.ok) {
         setInviteError(data.error ?? 'Erreur')
         return
       }
 
-      // Ajouter une entreprise placeholder dans la liste
       setCompanies((prev) => [
         ...prev,
         {
@@ -159,6 +452,7 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
           companyUser: { id: '', email: emailInput.trim(), firstName: null, lastName: null, agency: null },
         },
       ])
+      setLastDevLink(data.devLink ?? null)
       setEmailInput('')
     } catch {
       setInviteError('Erreur réseau')
@@ -192,13 +486,31 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
     <div className="max-w-3xl mx-auto py-6 space-y-6">
       {/* En-tête */}
       <div>
-        <button
-          onClick={() => router.push(`/dpgf/${projectId}`)}
-          className="flex items-center gap-1 text-sm mb-3 hover:underline"
-          style={{ color: 'var(--text2)' }}
-        >
-          <ArrowLeft size={14} /> {projectName}
-        </button>
+        <div className="flex items-center justify-between mb-3">
+          <button
+            onClick={() => router.push(`/dpgf/${projectId}`)}
+            className="flex items-center gap-1 text-sm hover:underline"
+            style={{ color: 'var(--text2)' }}
+          >
+            <ArrowLeft size={14} /> {projectName}
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => router.push(`/dpgf/${projectId}/dce`)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius)] text-sm"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text2)' }}
+            >
+              <FolderOpen size={14} /> DCE
+            </button>
+            <button
+              onClick={() => router.push(`/dpgf/${projectId}/qa`)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius)] text-sm"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text2)' }}
+            >
+              <MessageSquare size={14} /> Q&A
+            </button>
+          </div>
+        </div>
         <div className="flex items-start justify-between">
           <div>
             <h1
@@ -231,7 +543,7 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
               style={{ borderColor: 'var(--red)', color: 'var(--red)' }}
             >
               <XCircle size={15} className="mr-1.5" />
-              {closing ? 'Clôture...' : 'Clôturer l\'AO'}
+              {closing ? 'Clôture...' : "Clôturer l'AO"}
             </Button>
           )}
         </div>
@@ -295,7 +607,6 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
             Entreprises consultées
           </h2>
 
-          {/* Inviter une nouvelle entreprise */}
           {!isClosed && (
             <div className="flex items-center gap-2">
               <Input
@@ -326,6 +637,24 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
           </div>
         )}
 
+        {lastDevLink && (
+          <div className="px-4 py-3 flex items-center gap-3" style={{ background: 'var(--amber-light)', borderBottom: '1px solid var(--border)' }}>
+            <span className="text-xs font-medium flex-shrink-0" style={{ color: 'var(--amber)' }}>
+              [DEV] Lien :
+            </span>
+            <span className="text-xs font-mono truncate flex-1" style={{ color: 'var(--text2)' }}>
+              {lastDevLink}
+            </span>
+            <button
+              onClick={() => navigator.clipboard.writeText(lastDevLink)}
+              className="text-xs flex-shrink-0 font-medium"
+              style={{ color: 'var(--amber)' }}
+            >
+              Copier
+            </button>
+          </div>
+        )}
+
         {companies.length === 0 ? (
           <div className="p-8 text-center" style={{ color: 'var(--text3)' }}>
             <FileText size={32} className="mx-auto mb-3 opacity-30" />
@@ -344,12 +673,15 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
                 <th className="text-left px-4 py-2.5 font-medium" style={{ color: 'var(--text2)' }}>
                   Offre soumise
                 </th>
+                <th className="px-4 py-2.5" />
               </tr>
             </thead>
             <tbody>
               {companies.map((c, i) => (
                 <tr
                   key={c.id}
+                  onClick={() => setSelectedCompanyId(c.id)}
+                  className="cursor-pointer hover:bg-[var(--surface2)] transition-colors"
                   style={{
                     borderBottom: i < companies.length - 1 ? '1px solid var(--border)' : undefined,
                   }}
@@ -371,6 +703,9 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
                     ) : (
                       <span style={{ color: 'var(--text3)' }}>—</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <ChevronRight size={15} style={{ color: 'var(--text3)' }} />
                   </td>
                 </tr>
               ))}
@@ -401,6 +736,16 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
         >
           {error}
         </p>
+      )}
+
+      {/* Fiche entreprise */}
+      {selectedCompanyId && (
+        <CompanySheet
+          aoId={ao.id}
+          companyId={selectedCompanyId}
+          open={!!selectedCompanyId}
+          onClose={() => setSelectedCompanyId(null)}
+        />
       )}
     </div>
   )

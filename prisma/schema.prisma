@@ -17,6 +17,15 @@ model Agency {
   plan             Plan      @default(SOLO)
   stripeCustomerId String?
   activeModules    String[]  @default(["dpgf"])
+  siret            String?
+  siretVerified    Boolean   @default(false)
+  legalForm        String?
+  companyAddress   String?
+  postalCode       String?
+  city             String?
+  phone            String?
+  trade            String?
+  signatoryQuality String?
   createdAt        DateTime  @default(now())
   users            User[]
   projects         Project[]
@@ -176,6 +185,7 @@ model AO {
   paymentAmount     Float?
   clientPublished   Boolean     @default(false)
   publishedElements Json?
+  requiredDocs      Json?
   createdById       String
   createdAt         DateTime    @default(now())
   dpgf              DPGF        @relation(fields: [dpgfId], references: [id])

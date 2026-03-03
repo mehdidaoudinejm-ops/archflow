@@ -18,6 +18,7 @@ export async function middleware(request: NextRequest) {
 
   // Routes publiques — toujours autorisées
   const isPublic =
+    pathname === '/' ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||
     pathname.startsWith('/forgot-password') ||

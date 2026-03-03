@@ -51,7 +51,16 @@ export async function POST(
       deadline: ao.deadline,
     })
 
-    return NextResponse.json(result, { status: 201 })
+    return NextResponse.json(
+      {
+        type: result.type,
+        aoCompanyId: result.aoCompanyId,
+        ...(process.env.NODE_ENV === 'development' && result.devLink
+          ? { devLink: result.devLink }
+          : {}),
+      },
+      { status: 201 }
+    )
   } catch (error) {
     console.error('[POST /api/ao/[aoId]/invite]', error)
 

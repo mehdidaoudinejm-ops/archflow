@@ -1,5 +1,11 @@
 import { z } from 'zod'
 
+const requiredDocSchema = z.object({
+  type: z.string(),
+  label: z.string(),
+  required: z.boolean(),
+})
+
 export const createAOSchema = z.object({
   dpgfId: z.string().min(1, 'DPGF requis'),
   name: z.string().min(1, 'Nom de l\'AO requis').max(150),
@@ -9,6 +15,7 @@ export const createAOSchema = z.object({
   allowCustomQty: z.boolean().optional().default(true),
   isPaid: z.boolean().optional().default(false),
   paymentAmount: z.number().nonnegative().nullable().optional(),
+  requiredDocs: z.array(requiredDocSchema).optional(),
 })
 
 export const updateAOSchema = z.object({

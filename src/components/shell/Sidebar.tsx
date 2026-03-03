@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutGrid, Settings, FolderOpen } from 'lucide-react'
+import { LayoutGrid, Settings, FolderOpen, CreditCard } from 'lucide-react'
 
 interface NavItem {
   href: string
@@ -15,6 +15,11 @@ const navItems: NavItem[] = [
     href: '/dashboard',
     label: 'Projets',
     icon: <FolderOpen size={18} />,
+  },
+  {
+    href: '/settings/billing',
+    label: 'Facturation',
+    icon: <CreditCard size={18} />,
   },
   {
     href: '/settings',
@@ -84,7 +89,7 @@ export function Sidebar() {
           style={{ color: 'var(--text2)' }}
         >
           <LayoutGrid size={16} />
-          <span>DPGF</span>
+          <span>Consultation</span>
           <span
             className="ml-auto text-xs px-1.5 py-0.5 rounded"
             style={{ background: 'var(--green-light)', color: 'var(--green)' }}

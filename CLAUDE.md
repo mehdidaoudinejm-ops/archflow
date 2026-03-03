@@ -615,12 +615,12 @@ Ajouter dans `layout.tsx` depuis Google Fonts.
 | S02 | Modèle de données + migrations Prisma | ✅ Terminé |
 | S03 | DPGF — structure lots/postes + CRUD | ✅ Terminé |
 | S04 | DPGF — tableau éditeur en ligne | ✅ Terminé |
-| S05 | Bibliothèque d'intitulés | ⬜ À faire |
+| S05 | Bibliothèque d'intitulés | ✅ Terminé |
 | S06 | Appel d'offre — config + invitation entreprises | ✅ Terminé |
-| S07 | Portail entreprise — saisie prix + quantités | ⬜ À faire |
-| S08 | Section DCE — upload + suivi lecture | ⬜ À faire |
-| S09 | Q&A + Dashboard analyse + Espace client | ⬜ À faire |
-| S10 | Import IA (PDF/Excel) + Stripe + Emails | ⬜ À faire |
+| S07 | Portail entreprise — saisie prix + quantités | ✅ Terminé |
+| S08 | Section DCE — upload + suivi lecture | ✅ Terminé |
+| S09 | Q&A + Dashboard analyse + Espace client | ✅ Terminé |
+| S10 | Import IA (PDF/Excel) + Stripe + Emails | ✅ Terminé |
 
 ---
 

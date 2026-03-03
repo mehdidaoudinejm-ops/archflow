@@ -24,6 +24,7 @@ interface InvitedCompany {
   email: string
   aoCompanyId: string
   type: 'NEW_COMPANY' | 'EXISTING_COMPANY'
+  devLink?: string
 }
 
 const STEPS = ['Lots', 'Paramètres', 'Entreprises', 'Récapitulatif']
@@ -42,6 +43,13 @@ export function AOWizard({ dpgfId, projectId, projectName, lots }: Props) {
   const [allowCustomQty, setAllowCustomQty] = useState(true)
   const [isPaid, setIsPaid] = useState(false)
   const [paymentAmount, setPaymentAmount] = useState('')
+  const [requiredDocs, setRequiredDocs] = useState([
+    { type: 'kbis', label: 'Kbis', required: true },
+    { type: 'decennale', label: 'Décennale', required: true },
+    { type: 'rcpro', label: 'RC Pro', required: true },
+    { type: 'rib', label: 'RIB', required: true },
+    { type: 'urssaf', label: 'Attestation URSSAF', required: true },
+  ])
 
   // Step 3 — Entreprises
   const [aoId, setAoId] = useState<string | null>(null)
@@ -76,6 +84,7 @@ export function AOWizard({ dpgfId, projectId, projectName, lots }: Props) {
           allowCustomQty,
           isPaid,
           paymentAmount: isPaid && paymentAmount ? parseFloat(paymentAmount) : null,
+          requiredDocs,
         }),
       })
 
@@ -104,7 +113,7 @@ export function AOWizard({ dpgfId, projectId, projectName, lots }: Props) {
         body: JSON.stringify({ email: emailInput.trim() }),
       })
 
-      const data = await res.json() as { error?: string; type?: string; aoCompanyId?: string }
+      const data = await res.json() as { error?: string; type?: string; aoCompanyId?: string; devLink?: string }
       if (!res.ok) {
         setInviteError(data.error ?? 'Erreur lors de l\'invitation')
         return
@@ -116,6 +125,7 @@ export function AOWizard({ dpgfId, projectId, projectName, lots }: Props) {
           email: emailInput.trim(),
           aoCompanyId: data.aoCompanyId!,
           type: (data.type as 'NEW_COMPANY' | 'EXISTING_COMPANY') ?? 'NEW_COMPANY',
+          devLink: data.devLink,
         },
       ])
       setEmailInput('')
@@ -367,6 +377,40 @@ export function AOWizard({ dpgfId, projectId, projectName, lots }: Props) {
                   />
                 </div>
               )}
+
+              {/* Documents administratifs demandés */}
+              <div className="pt-2">
+                <p className="text-sm font-medium mb-2" style={{ color: 'var(--text)' }}>
+                  Documents administratifs demandés
+                </p>
+                <div className="space-y-2">
+                  {requiredDocs.map((doc, i) => (
+                    <div
+                      key={doc.type}
+                      className="flex items-center justify-between px-4 py-2.5 rounded-[var(--radius)]"
+                      style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}
+                    >
+                      <span className="text-sm" style={{ color: 'var(--text)' }}>{doc.label}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setRequiredDocs((prev) =>
+                            prev.map((d, j) => j === i ? { ...d, required: !d.required } : d)
+                          )
+                        }
+                        className="text-xs px-2.5 py-1 rounded font-medium"
+                        style={{
+                          background: doc.required ? 'var(--green-light)' : 'var(--surface)',
+                          color: doc.required ? 'var(--green)' : 'var(--text3)',
+                          border: `1px solid ${doc.required ? 'var(--green)' : 'var(--border)'}`,
+                        }}
+                      >
+                        {doc.required ? 'Obligatoire' : 'Facultatif'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="flex justify-between mt-6">
@@ -446,20 +490,38 @@ export function AOWizard({ dpgfId, projectId, projectName, lots }: Props) {
                     className="flex items-center justify-between px-4 py-3 rounded-[var(--radius)]"
                     style={{ background: 'var(--green-light)', border: '1px solid var(--green)' }}
                   >
-                    <div className="flex items-center gap-2">
-                      <CheckCircle size={16} style={{ color: 'var(--green)' }} />
-                      <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
-                        {c.email}
-                      </span>
-                      <span
-                        className="text-xs px-2 py-0.5 rounded-full"
-                        style={{
-                          background: c.type === 'NEW_COMPANY' ? 'var(--amber-light)' : 'var(--green-light)',
-                          color: c.type === 'NEW_COMPANY' ? 'var(--amber)' : 'var(--green)',
-                        }}
-                      >
-                        {c.type === 'NEW_COMPANY' ? 'Nouveau compte' : 'Compte existant'}
-                      </span>
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle size={16} style={{ color: 'var(--green)', flexShrink: 0 }} />
+                        <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                          {c.email}
+                        </span>
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
+                          style={{
+                            background: c.type === 'NEW_COMPANY' ? 'var(--amber-light)' : 'var(--green-light)',
+                            color: c.type === 'NEW_COMPANY' ? 'var(--amber)' : 'var(--green)',
+                          }}
+                        >
+                          {c.type === 'NEW_COMPANY' ? 'Nouveau compte' : 'Compte existant'}
+                        </span>
+                      </div>
+                      {c.devLink && (
+                        <div className="ml-6 flex items-center gap-2">
+                          <span className="text-xs font-mono px-2 py-1 rounded truncate max-w-xs"
+                            style={{ background: 'var(--surface)', color: 'var(--text2)', border: '1px solid var(--border)' }}>
+                            {c.devLink}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => navigator.clipboard.writeText(c.devLink!)}
+                            className="text-xs flex-shrink-0"
+                            style={{ color: 'var(--green)' }}
+                          >
+                            Copier
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

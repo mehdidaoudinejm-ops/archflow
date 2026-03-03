@@ -54,7 +54,7 @@ export async function inviteCompany({
   aoName: string
   projectName: string
   deadline: Date
-}): Promise<{ type: 'NEW_COMPANY' | 'EXISTING_COMPANY'; aoCompanyId: string }> {
+}): Promise<{ type: 'NEW_COMPANY' | 'EXISTING_COMPANY'; aoCompanyId: string; devLink?: string }> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
   // 1. Vérifier si l'email a déjà un compte
@@ -95,6 +95,11 @@ export async function inviteCompany({
 
       // Envoyer email "nouvel AO"
       const portalUrl = `${appUrl}/portal/${aoId}?token=${token}`
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`\n[DEV INVITE] Lien portail entreprise (${email}):\n${portalUrl}\n`)
+      }
+
       await sendEmail({
         to: email,
         subject: `Nouvel appel d'offre — ${aoName}`,
@@ -107,7 +112,11 @@ export async function inviteCompany({
         }),
       })
 
-      return { type: 'EXISTING_COMPANY', aoCompanyId: aoCompany.id }
+      return {
+        type: 'EXISTING_COMPANY',
+        aoCompanyId: aoCompany.id,
+        ...(process.env.NODE_ENV === 'development' && { devLink: portalUrl }),
+      }
     }
   }
 
@@ -134,6 +143,11 @@ export async function inviteCompany({
 
   // Envoyer email d'invitation (création de compte)
   const inviteUrl = `${appUrl}/register/company?token=${token}`
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`\n[DEV INVITE] Lien d'inscription entreprise (${email}):\n${inviteUrl}\n`)
+  }
+
   await sendEmail({
     to: email,
     subject: `Invitation à répondre à un appel d'offre — ${aoName}`,
@@ -146,5 +160,9 @@ export async function inviteCompany({
     }),
   })
 
-  return { type: 'NEW_COMPANY', aoCompanyId: aoCompany.id }
+  return {
+    type: 'NEW_COMPANY',
+    aoCompanyId: aoCompany.id,
+    ...(process.env.NODE_ENV === 'development' && { devLink: inviteUrl }),
+  }
 }

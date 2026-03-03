@@ -9,6 +9,7 @@ interface DPGFToolbarProps {
   onExportPdf: () => void
   onLaunchAO: () => void
   onOpenLibrary: () => void
+  aoButtonVariant: 'draft' | 'active' | 'closed'
 }
 
 export function DPGFToolbar({
@@ -18,7 +19,15 @@ export function DPGFToolbar({
   onExportPdf,
   onLaunchAO,
   onOpenLibrary,
+  aoButtonVariant,
 }: DPGFToolbarProps) {
+  const aoBtn =
+    aoButtonVariant === 'draft'
+      ? { label: "Lancer l\u2019AO", bg: 'var(--green-btn)', color: '#fff', border: 'none' }
+      : aoButtonVariant === 'active'
+      ? { label: "Appel d\u2019offre en cours", bg: 'var(--amber)', color: '#fff', border: 'none' }
+      : { label: 'AO clôturé', bg: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)' }
+
   return (
     <div
       className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg"
@@ -86,9 +95,13 @@ export function DPGFToolbar({
         <button
           onClick={onLaunchAO}
           className="px-4 py-1.5 text-sm rounded-md font-medium"
-          style={{ background: 'var(--green-btn)', color: '#fff' }}
+          style={{
+            background: aoBtn.bg,
+            color: aoBtn.color,
+            border: aoBtn.border,
+          }}
         >
-          Lancer l&apos;AO
+          {aoBtn.label}
         </button>
       </div>
     </div>

@@ -35,7 +35,19 @@ export default async function DPGFPage({ params }: Props) {
     dpgfId = created.id
   }
 
+  // Récupérer l'AO actif (hors ARCHIVED)
+  const activeAo = await prisma.aO.findFirst({
+    where: { dpgfId, status: { notIn: ['ARCHIVED'] } },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, status: true },
+  })
+
   return (
-    <DPGFPageClient dpgfId={dpgfId} projectName={project.name} />
+    <DPGFPageClient
+      dpgfId={dpgfId}
+      projectId={params.projectId}
+      projectName={project.name}
+      initialAo={activeAo ? { id: activeAo.id, status: activeAo.status } : null}
+    />
   )
 }
