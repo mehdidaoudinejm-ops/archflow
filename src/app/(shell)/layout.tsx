@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getUserWithProfile } from '@/lib/auth'
 import { Sidebar } from '@/components/shell/Sidebar'
 import { Topbar } from '@/components/shell/Topbar'
+import { AnnouncementBanner } from '@/components/shell/AnnouncementBanner'
 
 export default async function ShellLayout({
   children,
@@ -12,6 +13,10 @@ export default async function ShellLayout({
 
   if (!user) {
     redirect('/login')
+  }
+
+  if (user.suspended) {
+    redirect('/login?suspended=1')
   }
 
   return (
@@ -26,6 +31,7 @@ export default async function ShellLayout({
             avatarUrl: user.avatarUrl,
           }}
         />
+        <AnnouncementBanner />
         <main className="flex-1 p-6">{children}</main>
       </div>
     </div>

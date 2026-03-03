@@ -12,10 +12,13 @@ export default function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect') || '/dashboard'
+  const suspended = searchParams.get('suspended') === '1'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(
+    suspended ? 'Votre compte a été suspendu. Contactez support@archflow.fr pour plus d\'informations.' : null
+  )
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {

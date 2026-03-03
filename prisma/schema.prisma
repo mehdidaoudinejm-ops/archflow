@@ -40,6 +40,9 @@ model User {
   firstName     String?
   lastName      String?
   avatarUrl     String?
+  suspended     Boolean             @default(false)
+  freeAccess    Boolean             @default(false)
+  lastSeenAt    DateTime?
   createdAt     DateTime            @default(now())
   agency        Agency?             @relation(fields: [agencyId], references: [id])
   permissions   ProjectPermission[]
@@ -308,6 +311,44 @@ model AIImport {
   dpgf             DPGF           @relation(fields: [dpgfId], references: [id])
 }
 
+// ── ADMIN ─────────────────────────────────────────────
+
+model Announcement {
+  id        String           @id @default(cuid())
+  message   String
+  type      AnnouncementType @default(INFO)
+  startDate DateTime?
+  endDate   DateTime?
+  isActive  Boolean          @default(true)
+  link      String?
+  createdAt DateTime         @default(now())
+}
+
+model AdminEmail {
+  id             String   @id @default(cuid())
+  subject        String
+  body           String
+  segment        String
+  sentAt         DateTime @default(now())
+  recipientCount Int      @default(0)
+}
+
+// ── WAITLIST ───────────────────────────────────────────
+
+model WaitlistEntry {
+  id          String          @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String          @unique
+  cabinetName String
+  city        String
+  message     String?
+  status      WaitlistStatus  @default(PENDING)
+  inviteToken String?         @unique
+  createdAt   DateTime        @default(now())
+  approvedAt  DateTime?
+}
+
 // ── ENUMS ──────────────────────────────────────────────
 
 enum Role {
@@ -374,4 +415,16 @@ enum AIImportStatus {
   REVIEW
   IMPORTED
   FAILED
+}
+
+enum WaitlistStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AnnouncementType {
+  INFO
+  SUCCESS
+  WARNING
 }

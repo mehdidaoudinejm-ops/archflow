@@ -78,6 +78,16 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
+  // Routes admin — redirige vers /login si non connecté
+  if (pathname.startsWith('/admin')) {
+    if (!session) {
+      const loginUrl = new URL('/login', request.url)
+      loginUrl.searchParams.set('redirect', pathname)
+      return NextResponse.redirect(loginUrl)
+    }
+    return response
+  }
+
   // Routes shell — redirige vers /login si non connecté
   if (
     pathname.startsWith('/dashboard') ||
