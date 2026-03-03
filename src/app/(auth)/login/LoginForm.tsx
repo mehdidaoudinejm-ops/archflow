@@ -12,13 +12,10 @@ export default function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect') || '/dashboard'
-  const suspended = searchParams.get('suspended') === '1'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(
-    suspended ? 'Votre compte a été suspendu. Contactez support@archflow.fr pour plus d\'informations.' : null
-  )
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -40,10 +37,8 @@ export default function LoginForm() {
 
       router.push(redirect)
       router.refresh()
-    } catch (err) {
-      // Erreur réseau ou configuration Supabase incorrecte
-      console.error('[Login] Erreur inattendue:', err)
-      setError('Impossible de contacter le serveur. Vérifiez votre connexion ou réessayez dans quelques instants.')
+    } catch {
+      setError('Une erreur est survenue. Réessayez.')
     } finally {
       setLoading(false)
     }

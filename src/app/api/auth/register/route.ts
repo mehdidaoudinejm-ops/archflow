@@ -9,7 +9,6 @@ const registerSchema = z.object({
   agencyName: z.string().min(1, 'Nom de l\'agence requis').max(100),
   email: z.string().email('Email invalide'),
   password: z.string().min(8, 'Minimum 8 caractères'),
-  inviteToken: z.string().optional(),
 })
 
 export async function POST(req: Request) {
@@ -23,17 +22,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const { firstName, lastName, agencyName, email, password, inviteToken } = parsed.data
-
-    // Si token fourni, valider que la liste d'attente a bien approuvé cet email
-    if (inviteToken) {
-      const waitlistEntry = await prisma.waitlistEntry.findUnique({
-        where: { inviteToken },
-      })
-      if (!waitlistEntry || waitlistEntry.status !== 'APPROVED' || waitlistEntry.email !== email) {
-        return NextResponse.json({ error: 'Token d\'invitation invalide' }, { status: 403 })
-      }
-    }
+    const { firstName, lastName, agencyName, email, password } = parsed.data
 
     // Vérifier si l'email est déjà pris dans Prisma
     const existing = await prisma.user.findUnique({ where: { email } })
@@ -80,14 +69,6 @@ export async function POST(req: Request) {
         lastName,
       },
     })
-
-    // 4. Invalider le token d'invitation waitlist après utilisation
-    if (inviteToken) {
-      await prisma.waitlistEntry.update({
-        where: { inviteToken },
-        data: { inviteToken: null },
-      })
-    }
 
     return NextResponse.json({ success: true }, { status: 201 })
   } catch (error) {
