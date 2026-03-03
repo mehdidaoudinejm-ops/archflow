@@ -11,74 +11,80 @@ export default async function ShellLayout({
 }: {
   children: React.ReactNode
 }) {
-  try {
-    let user = await getUserWithProfile()
+  // Étape 1 — récupérer session + profil Prisma (opérations faillibles)
+  // redirect() est appelé APRÈS le try/catch, jamais dedans
+  let redirectTo: string | null = null
+  let resolvedUser: Awaited<ReturnType<typeof getUserWithProfile>> = null
 
-    if (!user) {
+  try {
+    resolvedUser = await getUserWithProfile()
+
+    if (!resolvedUser) {
       const session = await getSession()
 
-      // Pas de session Supabase → login
       if (!session) {
-        redirect('/login')
+        redirectTo = '/login'
+      } else {
+        const email = session.user.email!
+
+        if (isAdminEmail(email)) {
+          redirectTo = '/admin'
+        } else {
+          // Upsert du profil Prisma pour les users Supabase sans profil
+          const localPart = email.split('@')[0] ?? ''
+          const baseName = localPart.split('.')[0] ?? ''
+          const firstName = baseName
+            ? baseName.charAt(0).toUpperCase() + baseName.slice(1)
+            : 'Architecte'
+
+          await prisma.user.upsert({
+            where: { email },
+            create: {
+              id: session.user.id,
+              email,
+              role: 'ARCHITECT',
+              firstName,
+            },
+            update: {},
+          })
+
+          resolvedUser = await getUserWithProfile()
+
+          if (!resolvedUser) {
+            redirectTo = '/login'
+          }
+        }
       }
-
-      const email = session.user.email!
-
-      // Admin sans profil Prisma → /admin s'en charge (bootstrapAdminUser)
-      if (isAdminEmail(email)) {
-        redirect('/admin')
-      }
-
-      // Utilisateur Supabase sans profil Prisma :
-      // upsert pour créer le profil automatiquement au premier accès.
-      // agencyId est nullable — le dashboard gère ce cas proprement.
-      const localPart = email.split('@')[0] ?? ''
-      const baseName = localPart.split('.')[0] ?? ''
-      const firstName = baseName
-        ? baseName.charAt(0).toUpperCase() + baseName.slice(1)
-        : 'Architecte'
-
-      await prisma.user.upsert({
-        where: { email },
-        create: {
-          id: session.user.id, // UUID Supabase comme identifiant Prisma
-          email,
-          role: 'ARCHITECT',
-          firstName,
-        },
-        update: {}, // Déjà existant → aucune modification
-      })
-
-      user = await getUserWithProfile()
-
-      if (!user) {
-        redirect('/login')
-      }
+    } else if (resolvedUser.suspended) {
+      redirectTo = '/login?suspended=1'
     }
-
-    if (user!.suspended) {
-      redirect('/login?suspended=1')
-    }
-
-    return (
-      <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>
-        <Sidebar />
-        <div className="flex flex-col flex-1 min-w-0">
-          <Topbar
-            user={{
-              firstName: user!.firstName,
-              lastName: user!.lastName,
-              email: user!.email,
-              avatarUrl: user!.avatarUrl,
-            }}
-          />
-          <AnnouncementBanner />
-          <main className="flex-1 p-6">{children}</main>
-        </div>
-      </div>
-    )
   } catch (error) {
     console.error('[ShellLayout] Erreur critique:', error)
-    redirect('/login')
+    redirectTo = '/login'
   }
+
+  // Étape 2 — redirections décidées en dehors du try/catch
+  if (redirectTo) {
+    redirect(redirectTo)
+  }
+
+  const user = resolvedUser!
+
+  return (
+    <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>
+      <Sidebar />
+      <div className="flex flex-col flex-1 min-w-0">
+        <Topbar
+          user={{
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            avatarUrl: user.avatarUrl,
+          }}
+        />
+        <AnnouncementBanner />
+        <main className="flex-1 p-6">{children}</main>
+      </div>
+    </div>
+  )
 }
