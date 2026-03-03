@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getUserWithProfile, getSession } from '@/lib/auth'
-import { isAdminEmail, bootstrapRegularUser } from '@/lib/admin-auth'
+import { isAdminEmail } from '@/lib/admin-auth'
+import { prisma } from '@/lib/prisma'
 import { Sidebar } from '@/components/shell/Sidebar'
 import { Topbar } from '@/components/shell/Topbar'
 import { AnnouncementBanner } from '@/components/shell/AnnouncementBanner'
@@ -28,9 +29,26 @@ export default async function ShellLayout({
         redirect('/admin')
       }
 
-      // Utilisateur régulier avec session Supabase mais sans profil Prisma
-      // → créer automatiquement le profil (ex: compte créé hors du flux waitlist)
-      await bootstrapRegularUser(email, session.user.user_metadata as Record<string, unknown>)
+      // Utilisateur Supabase sans profil Prisma :
+      // upsert pour créer le profil automatiquement au premier accès.
+      // agencyId est nullable — le dashboard gère ce cas proprement.
+      const localPart = email.split('@')[0] ?? ''
+      const baseName = localPart.split('.')[0] ?? ''
+      const firstName = baseName
+        ? baseName.charAt(0).toUpperCase() + baseName.slice(1)
+        : 'Architecte'
+
+      await prisma.user.upsert({
+        where: { email },
+        create: {
+          id: session.user.id, // UUID Supabase comme identifiant Prisma
+          email,
+          role: 'ARCHITECT',
+          firstName,
+        },
+        update: {}, // Déjà existant → aucune modification
+      })
+
       user = await getUserWithProfile()
 
       if (!user) {
