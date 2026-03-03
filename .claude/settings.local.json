@@ -28,7 +28,11 @@
       "Bash(python3:*)",
       "Bash(curl:*)",
       "Bash(pkill:*)",
-      "Bash(pbcopy:*)"
+      "Bash(pbcopy:*)",
+      "Bash(vercel env:*)",
+      "Bash(DATABASE_URL=\"postgresql://dummy:dummy@localhost:5432/dummy\" DIRECT_URL=\"postgresql://dummy:dummy@localhost:5432/dummy\" npx prisma:*)",
+      "Bash(DATABASE_URL=\"postgresql://dummy:dummy@localhost:5432/dummy\" DIRECT_URL=\"postgresql://dummy:dummy@localhost:5432/dummy\" npx tsc:*)",
+      "Bash(DATABASE_URL=\"postgresql://dummy:dummy@localhost:5432/dummy\" DIRECT_URL=\"postgresql://dummy:dummy@localhost:5432/dummy\" npm run:*)"
     ]
   }
 }
