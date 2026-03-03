@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+
 const createProjectSchema = z.object({
   name: z.string().min(1, 'Le nom est requis').max(100),
   address: z.string().max(200).optional(),

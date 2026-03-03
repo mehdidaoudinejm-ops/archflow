@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { requirePortalAuth } from '@/lib/portal-auth'
 import { AuthError } from '@/lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(
   req: Request,
   { params }: { params: { aoId: string } }

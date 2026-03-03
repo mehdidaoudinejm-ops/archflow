@@ -3,6 +3,8 @@ import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { saveToLibrarySchema } from '@/lib/validations/library'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(
   req: Request,
   { params }: { params: { dpgfId: string; lotId: string; postId: string } }

@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+
 const registerSchema = z.object({
   firstName: z.string().min(1, 'Prénom requis').max(50),
   lastName: z.string().min(1, 'Nom requis').max(50),

@@ -3,6 +3,8 @@ import { requireRole, AuthError } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import type { ImportedLot } from '@/lib/ai-import'
 
+export const dynamic = 'force-dynamic'
+
 export const runtime = 'nodejs'
 
 export async function GET(

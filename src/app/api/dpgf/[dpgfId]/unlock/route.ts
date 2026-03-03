@@ -5,6 +5,8 @@ import { sendEmail } from '@/lib/email'
 import { DPGFModifiedEmail } from '@/emails/DPGFModifiedEmail'
 import React from 'react'
 
+export const dynamic = 'force-dynamic'
+
 async function checkDPGFAccess(dpgfId: string, agencyId: string) {
   const dpgf = await prisma.dPGF.findUnique({
     where: { id: dpgfId },

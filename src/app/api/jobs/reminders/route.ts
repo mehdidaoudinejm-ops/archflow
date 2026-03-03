@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { ReminderEmail } from '@/emails/ReminderEmail'
 
+export const dynamic = 'force-dynamic'
+
 export const runtime = 'nodejs'
 
 function addDays(date: Date, days: number): Date {

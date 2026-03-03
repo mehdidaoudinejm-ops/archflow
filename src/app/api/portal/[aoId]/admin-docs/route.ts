@@ -4,6 +4,8 @@ import { requirePortalAuth } from '@/lib/portal-auth'
 import { AuthError } from '@/lib/auth'
 import { adminDocSchema } from '@/lib/validations/offer'
 
+export const dynamic = 'force-dynamic'
+
 // GET — Liste des documents administratifs de l'entreprise pour cet AO
 export async function GET(
   req: Request,

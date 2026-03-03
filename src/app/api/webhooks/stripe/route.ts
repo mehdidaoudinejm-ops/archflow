@@ -3,6 +3,8 @@ import Stripe from 'stripe'
 import { prisma } from '@/lib/prisma'
 import type { Plan } from '@prisma/client'
 
+export const dynamic = 'force-dynamic'
+
 export const runtime = 'nodejs'
 
 // Mapper les product metadata vers les plans ArchFlow

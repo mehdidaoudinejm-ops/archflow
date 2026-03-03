@@ -3,6 +3,8 @@ import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { updatePostSchema } from '@/lib/validations/dpgf'
 
+export const dynamic = 'force-dynamic'
+
 async function checkPostAccess(
   dpgfId: string,
   lotId: string,

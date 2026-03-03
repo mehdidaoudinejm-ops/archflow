@@ -3,6 +3,8 @@ import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { updateAOSchema } from '@/lib/validations/ao'
 
+export const dynamic = 'force-dynamic'
+
 async function checkAOAccess(aoId: string, agencyId: string) {
   const ao = await prisma.aO.findUnique({
     where: { id: aoId },

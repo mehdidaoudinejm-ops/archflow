@@ -3,6 +3,8 @@ import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createLotSchema } from '@/lib/validations/dpgf'
 
+export const dynamic = 'force-dynamic'
+
 async function checkDPGFAccess(dpgfId: string, agencyId: string) {
   const dpgf = await prisma.dPGF.findUnique({
     where: { id: dpgfId },

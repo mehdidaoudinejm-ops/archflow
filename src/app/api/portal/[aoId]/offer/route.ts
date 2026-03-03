@@ -7,6 +7,8 @@ import { saveOfferSchema } from '@/lib/validations/offer'
 import { sendEmail } from '@/lib/email'
 import { OfferReceivedEmail } from '@/emails/OfferReceivedEmail'
 
+export const dynamic = 'force-dynamic'
+
 // GET — Récupérer ou créer l'offre en cours
 export async function GET(
   req: Request,

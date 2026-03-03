@@ -3,6 +3,8 @@ import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createAOSchema } from '@/lib/validations/ao'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])

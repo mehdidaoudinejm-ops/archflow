@@ -3,6 +3,8 @@ import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createLibrarySchema } from '@/lib/validations/library'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])

@@ -5,6 +5,8 @@ import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { AnalysisReport, type AnalysisReportData } from '@/lib/generate-report'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(
   _req: Request,
   { params }: { params: { aoId: string } }

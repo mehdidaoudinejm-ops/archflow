@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { inviteCompanySchema } from '@/lib/validations/ao'
 import { inviteCompany } from '@/lib/invite'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(
   req: Request,
   { params }: { params: { aoId: string } }

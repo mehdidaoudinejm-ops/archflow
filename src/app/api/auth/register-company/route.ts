@@ -4,6 +4,8 @@ import { createClient } from '@supabase/supabase-js'
 import { prisma } from '@/lib/prisma'
 import { verifyInviteToken } from '@/lib/invite'
 
+export const dynamic = 'force-dynamic'
+
 const registerCompanySchema = z.object({
   token: z.string().min(1, 'Token requis'),
   firstName: z.string().min(1, 'Prénom requis').max(50),

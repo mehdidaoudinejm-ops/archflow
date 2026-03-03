@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+
 const schema = z.object({
   libraryId: z.string().min(1),
   sublotId:  z.string().nullable().optional(),
