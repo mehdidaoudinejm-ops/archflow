@@ -27,7 +27,8 @@
       "Bash(head:*)",
       "Bash(python3:*)",
       "Bash(curl:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(gh pr:*)"
     ]
   }
 }
