@@ -51,8 +51,14 @@ export async function getUserWithProfile() {
 
   if (!session) return null
 
-  const user = await prisma.user.findUnique({
+  const user = await prisma.user.upsert({
     where: { email: session.user.email! },
+    update: {},
+    create: {
+      id: session.user.id,
+      email: session.user.email!,
+      role: 'ARCHITECT',
+    },
     include: { agency: true },
   })
 

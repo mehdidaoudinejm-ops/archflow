@@ -30,6 +30,33 @@ async function createSupabaseUser(email: string, password: string) {
 async function main() {
   console.log('🌱 Démarrage du seed...')
 
+  // ── 0. Compte admin ──────────────────────────────────────
+  const adminEmail = process.env.ADMIN_EMAILS?.split(',')[0]?.trim()
+  if (adminEmail) {
+    await createSupabaseUser(adminEmail, 'Admin1234!')
+    const adminAgency = await prisma.agency.upsert({
+      where: { id: 'seed-admin-agency' },
+      update: {},
+      create: {
+        id: 'seed-admin-agency',
+        name: 'ArchFlow Admin',
+        plan: 'AGENCY',
+        activeModules: ['dpgf'],
+      },
+    })
+    await prisma.user.upsert({
+      where: { email: adminEmail },
+      update: {},
+      create: {
+        agencyId: adminAgency.id,
+        email: adminEmail,
+        role: 'ARCHITECT',
+        firstName: 'Admin',
+      },
+    })
+    console.log(`✅ Admin créé : ${adminEmail} / Admin1234!`)
+  }
+
   // ── 1. Agence ───────────────────────────────────────────
   const agency = await prisma.agency.upsert({
     where: { id: 'seed-agency-001' },
@@ -233,9 +260,25 @@ async function main() {
   }
   console.log('✅ Bibliothèque créée (10 entrées)')
 
+  // ── 8. Compte mehdi (architecte prod) ──────────────────
+  await createSupabaseUser('mehdi.daoudi.nejm@gmail.com', 'Test1234!')
+  await prisma.user.upsert({
+    where: { email: 'mehdi.daoudi.nejm@gmail.com' },
+    update: { role: 'ARCHITECT', firstName: 'Mehdi', lastName: 'Daoudi' },
+    create: {
+      agencyId: agency.id,
+      email: 'mehdi.daoudi.nejm@gmail.com',
+      role: 'ARCHITECT',
+      firstName: 'Mehdi',
+      lastName: 'Daoudi',
+    },
+  })
+  console.log('✅ Architecte prod créé : mehdi.daoudi.nejm@gmail.com')
+
   console.log('\n🎉 Seed terminé avec succès !')
   console.log('   Compte architecte : jean@durand-archi.fr / Test1234!')
   console.log('   Entreprises : entreprise-a/b/c@test.fr / Test1234!')
+  console.log('   Architecte prod : mehdi.daoudi.nejm@gmail.com')
 }
 
 main()
