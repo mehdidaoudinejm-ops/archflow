@@ -8,8 +8,22 @@ import { WaitlistInviteEmail } from '@/emails/WaitlistInviteEmail'
 import { z } from 'zod'
 
 const schema = z.object({
-  action: z.enum(['approve', 'reject']),
+  action: z.enum(['approve', 'reject', 'resend']),
 })
+
+async function sendInviteEmail(email: string, firstName: string, inviteToken: string) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const inviteUrl = `${appUrl}/register/invite?token=${inviteToken}`
+  try {
+    await sendEmail({
+      to: email,
+      subject: 'Votre accès ArchFlow est prêt',
+      react: WaitlistInviteEmail({ firstName, inviteUrl }),
+    })
+  } catch (emailError) {
+    console.error('[waitlist] Échec envoi email:', emailError)
+  }
+}
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
@@ -23,6 +37,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: 'Introuvable' }, { status: 404 })
     }
 
+    // Rejeter
     if (action === 'reject') {
       const updated = await prisma.waitlistEntry.update({
         where: { id: params.id },
@@ -31,11 +46,22 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       return NextResponse.json(updated)
     }
 
-    // Approve: generate invite token + update DB
-    const inviteToken = crypto.randomUUID()
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-    const inviteUrl = `${appUrl}/register/invite?token=${inviteToken}`
+    // Renvoyer l'invitation (déjà approuvé — regénère le token)
+    if (action === 'resend') {
+      if (entry.status !== 'APPROVED') {
+        return NextResponse.json({ error: 'Entrée non approuvée' }, { status: 400 })
+      }
+      const inviteToken = crypto.randomUUID()
+      await prisma.waitlistEntry.update({
+        where: { id: params.id },
+        data: { inviteToken, approvedAt: new Date() }, // reset expiration 7j
+      })
+      await sendInviteEmail(entry.email, entry.firstName, inviteToken)
+      return NextResponse.json({ ok: true })
+    }
 
+    // Approuver
+    const inviteToken = crypto.randomUUID()
     const updated = await prisma.waitlistEntry.update({
       where: { id: params.id },
       data: {
@@ -44,18 +70,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         approvedAt: new Date(),
       },
     })
-
-    // Envoi email — erreur isolée pour ne pas bloquer la réponse
-    try {
-      await sendEmail({
-        to: entry.email,
-        subject: 'Votre accès ArchFlow est prêt',
-        react: WaitlistInviteEmail({ firstName: entry.firstName, inviteUrl }),
-      })
-    } catch (emailError) {
-      // L'entrée est approuvée en DB — on log l'erreur sans bloquer
-      console.error('[waitlist approve] Échec envoi email:', emailError)
-    }
+    await sendInviteEmail(entry.email, entry.firstName, inviteToken)
 
     return NextResponse.json(updated)
   } catch (error) {

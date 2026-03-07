@@ -37,23 +37,35 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   try {
     await requireAdmin()
 
-    // Supprimer de Prisma (cascade sur les relations)
-    await prisma.user.delete({ where: { id: params.id } })
+    const userId = params.id
 
-    // Supprimer de Supabase Auth (id Prisma = id Supabase)
+    // 1. Supprimer toutes les relations en transaction (ordre FK)
+    await prisma.$transaction([
+      prisma.projectPermission.deleteMany({ where: { userId } }),
+      prisma.notification.deleteMany({ where: { userId } }),
+      prisma.activityLog.deleteMany({ where: { userId } }),
+      prisma.user.delete({ where: { id: userId } }),
+    ])
+
+    // 2. Supprimer de Supabase Auth (id Prisma = id Supabase Auth)
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
-    await supabaseAdmin.auth.admin.deleteUser(params.id)
+
+    const { error: supabaseError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+    if (supabaseError) {
+      // Prisma supprimé, Supabase échoué — on log mais on ne bloque pas
+      console.error('[DELETE user] Supabase Auth error:', supabaseError.message)
+    }
 
     return NextResponse.json({ ok: true })
   } catch (error) {
     if (error instanceof AdminAuthError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
-    console.error(error)
+    console.error('[DELETE user]', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
