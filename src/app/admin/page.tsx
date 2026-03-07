@@ -3,26 +3,36 @@ import { prisma } from '@/lib/prisma'
 export const dynamic = 'force-dynamic'
 
 export default async function AdminDashboardPage() {
-  const [totalUsers, totalAgencies, totalProjects, pendingWaitlist, roleBreakdown, recentUsers] =
-    await Promise.all([
-      prisma.user.count(),
-      prisma.agency.count(),
-      prisma.project.count(),
-      prisma.waitlistEntry.count({ where: { status: 'PENDING' } }),
-      prisma.user.groupBy({ by: ['role'], _count: { _all: true } }),
-      prisma.user.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 8,
-        select: {
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          createdAt: true,
-          agency: { select: { name: true } },
-        },
-      }),
-    ])
+  let totalUsers = 0, totalAgencies = 0, totalProjects = 0, pendingWaitlist = 0
+  let roleBreakdown: { role: string; _count: { _all: number } }[] = []
+  let recentUsers: { email: string; firstName: string | null; lastName: string | null; role: string; createdAt: Date; agency: { name: string } | null }[] = []
+  let dbError = false
+
+  try {
+    ;[totalUsers, totalAgencies, totalProjects, pendingWaitlist, roleBreakdown, recentUsers] =
+      await Promise.all([
+        prisma.user.count(),
+        prisma.agency.count(),
+        prisma.project.count(),
+        prisma.waitlistEntry.count({ where: { status: 'PENDING' } }),
+        prisma.user.groupBy({ by: ['role'], _count: { _all: true } }),
+        prisma.user.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: 8,
+          select: {
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            createdAt: true,
+            agency: { select: { name: true } },
+          },
+        }),
+      ])
+  } catch (err) {
+    console.error('[AdminDashboard] Prisma error:', err)
+    dbError = true
+  }
 
   const stats = [
     { label: 'Utilisateurs', value: totalUsers },
@@ -42,6 +52,12 @@ export default async function AdminDashboardPage() {
   return (
     <div className="p-8">
       <h1 className="text-2xl font-semibold text-zinc-100 mb-8">Dashboard</h1>
+
+      {dbError && (
+        <div className="mb-6 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+          Impossible de charger les données — vérifiez la connexion à la base de données.
+        </div>
+      )}
 
       {/* KPI */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
