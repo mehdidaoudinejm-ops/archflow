@@ -1,0 +1,44 @@
+export const dynamic = 'force-dynamic'
+
+import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+import { prisma } from '@/lib/prisma'
+import { AdminAuthError, requireAdmin } from '@/lib/admin-auth'
+
+export async function POST(_req: Request, { params }: { params: { id: string } }) {
+  try {
+    await requireAdmin()
+
+    const user = await prisma.user.findUnique({
+      where: { id: params.id },
+      select: { email: true },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 404 })
+    }
+
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'magiclink',
+      email: user.email,
+    })
+
+    if (error || !data.properties?.action_link) {
+      return NextResponse.json({ error: 'Impossible de générer le lien' }, { status: 500 })
+    }
+
+    return NextResponse.json({ url: data.properties.action_link })
+  } catch (error) {
+    if (error instanceof AdminAuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+    console.error(error)
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+  }
+}

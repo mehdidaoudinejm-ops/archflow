@@ -8,9 +8,9 @@ export const dynamic = 'force-dynamic'
 const registerSchema = z.object({
   firstName: z.string().min(1, 'Prénom requis').max(50),
   lastName: z.string().min(1, 'Nom requis').max(50),
-  agencyName: z.string().min(1, 'Nom de l\'agence requis').max(100),
-  email: z.string().email('Email invalide'),
+  agencyName: z.string().min(1, "Nom de l'agence requis").max(100),
   password: z.string().min(8, 'Minimum 8 caractères'),
+  inviteToken: z.string().min(1, "Token d'invitation requis"),
 })
 
 export async function POST(req: Request) {
@@ -24,9 +24,34 @@ export async function POST(req: Request) {
       )
     }
 
-    const { firstName, lastName, agencyName, email, password } = parsed.data
+    const { firstName, lastName, agencyName, password, inviteToken } = parsed.data
 
-    // Vérifier si l'email est déjà pris dans Prisma
+    // Valider le token d'invitation
+    const entry = await prisma.waitlistEntry.findUnique({
+      where: { inviteToken },
+    })
+
+    if (!entry || entry.status !== 'APPROVED') {
+      return NextResponse.json(
+        { error: "Invitation invalide ou expirée" },
+        { status: 403 }
+      )
+    }
+
+    // Vérifier l'expiration (7 jours)
+    if (entry.approvedAt) {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      if (entry.approvedAt < sevenDaysAgo) {
+        return NextResponse.json(
+          { error: "Invitation expirée" },
+          { status: 403 }
+        )
+      }
+    }
+
+    const email = entry.email
+
+    // Vérifier si un compte Prisma existe déjà
     const existing = await prisma.user.findUnique({ where: { email } })
     if (existing) {
       return NextResponse.json(
@@ -35,7 +60,7 @@ export async function POST(req: Request) {
       )
     }
 
-    // 1. Créer le compte Supabase Auth (admin — email confirmé immédiatement)
+    // Créer le compte Supabase Auth
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -52,7 +77,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: authError.message }, { status: 400 })
     }
 
-    // 2. Créer l'agence Prisma
+    // Créer l'agence Prisma
     const agency = await prisma.agency.create({
       data: {
         name: agencyName,
@@ -61,7 +86,7 @@ export async function POST(req: Request) {
       },
     })
 
-    // 3. Créer l'utilisateur Prisma lié à l'agence
+    // Créer l'utilisateur Prisma
     await prisma.user.create({
       data: {
         agencyId: agency.id,
@@ -70,6 +95,12 @@ export async function POST(req: Request) {
         firstName,
         lastName,
       },
+    })
+
+    // Invalider le token (usage unique)
+    await prisma.waitlistEntry.update({
+      where: { id: entry.id },
+      data: { inviteToken: null },
     })
 
     return NextResponse.json({ success: true }, { status: 201 })
