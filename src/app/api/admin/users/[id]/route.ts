@@ -39,11 +39,18 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
 
     const userId = params.id
 
+    // Récupérer l'email avant suppression (pour nettoyer la waitlist)
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } })
+    if (!user) {
+      return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 404 })
+    }
+
     // 1. Supprimer toutes les relations en transaction (ordre FK)
     await prisma.$transaction([
       prisma.projectPermission.deleteMany({ where: { userId } }),
       prisma.notification.deleteMany({ where: { userId } }),
       prisma.activityLog.deleteMany({ where: { userId } }),
+      prisma.waitlistEntry.deleteMany({ where: { email: user.email } }),
       prisma.user.delete({ where: { id: userId } }),
     ])
 
