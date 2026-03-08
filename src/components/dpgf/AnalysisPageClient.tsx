@@ -325,9 +325,13 @@ function CompanyCard({
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
               <span style={{ fontSize: 15, fontWeight: 600, color: '#1A1A18' }}>{result.companyName}</span>
-              {company.siretVerified && (
+              {company.siretVerified ? (
                 <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 20, background: '#EAF3ED', color: '#1A5C3A', fontWeight: 500 }}>
                   ✓ SIRET vérifié
+                </span>
+              ) : (
+                <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 20, background: '#FEF3E2', color: '#B45309', fontWeight: 500 }}>
+                  SIRET non vérifié
                 </span>
               )}
               <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: rec.bg, color: rec.color, fontWeight: 600 }}>
@@ -829,6 +833,26 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
                   </tr>
                 )
               })}
+              {/* SIRET row */}
+              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                <td className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text2)' }}>SIRET</td>
+                {rankedResults.map((r) => {
+                  const c = companies.find((x) => x.id === r.companyId)!
+                  return (
+                    <td key={r.companyId} className="px-3 py-2.5 text-center">
+                      {c.siretVerified ? (
+                        <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 20, background: '#EAF3ED', color: '#1A5C3A', fontWeight: 500 }}>
+                          ✓ Vérifié
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 20, background: '#FEF3E2', color: '#B45309', fontWeight: 500 }}>
+                          Non vérifié
+                        </span>
+                      )}
+                    </td>
+                  )
+                })}
+              </tr>
               {/* Global score row */}
               <tr style={{ background: '#F8F8F6' }}>
                 <td className="px-4 py-3 font-semibold text-xs" style={{ color: 'var(--text)' }}>SCORE GLOBAL</td>
