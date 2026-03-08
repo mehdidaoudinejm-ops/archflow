@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { AnalysisPageClient } from '@/components/dpgf/AnalysisPageClient'
+import { DEFAULT_WEIGHTS } from '@/lib/scoring'
 
 interface Props {
   params: { projectId: string }
@@ -17,7 +18,6 @@ export default async function AnalysePage({ params }: Props) {
 
   if (!project || project.agencyId !== user.agencyId) redirect('/dashboard')
 
-  // Trouver le dernier AO non archivé
   const ao = await prisma.aO.findFirst({
     where: {
       dpgf: { projectId: params.projectId },
@@ -33,6 +33,7 @@ export default async function AnalysePage({ params }: Props) {
       lotIds: true,
       clientPublished: true,
       publishedElements: true,
+      createdAt: true,
     },
   })
 
@@ -49,7 +50,6 @@ export default async function AnalysePage({ params }: Props) {
     )
   }
 
-  // Entreprises ayant soumis une offre complète
   const aoCompanies = await prisma.aOCompany.findMany({
     where: { aoId: ao.id, offer: { isComplete: true } },
     include: {
@@ -58,31 +58,6 @@ export default async function AnalysePage({ params }: Props) {
       },
     },
   })
-
-  const companyUserIds = aoCompanies.map((c) => c.companyUserId)
-  const companyUsers = await prisma.user.findMany({
-    where: { id: { in: companyUserIds } },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      agency: { select: { name: true, siretVerified: true } },
-    },
-  })
-  const userMap = new Map(companyUsers.map((u) => [u.id, u]))
-
-  // Admin docs count per company
-  const adminDocsRaw = await prisma.adminDoc.findMany({
-    where: {
-      aoCompanyId: { in: aoCompanies.map((c) => c.id) },
-      status: { in: ['PENDING', 'VALID'] },
-    },
-    select: { aoCompanyId: true },
-  })
-  const adminDocsCountMap = new Map<string, number>()
-  for (const doc of adminDocsRaw) {
-    adminDocsCountMap.set(doc.aoCompanyId, (adminDocsCountMap.get(doc.aoCompanyId) ?? 0) + 1)
-  }
 
   if (aoCompanies.length === 0) {
     return (
@@ -97,11 +72,46 @@ export default async function AnalysePage({ params }: Props) {
     )
   }
 
+  const companyUserIds = aoCompanies.map((c) => c.companyUserId)
+  const companyUsers = await prisma.user.findMany({
+    where: { id: { in: companyUserIds } },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      agency: { select: { name: true, siretVerified: true, createdAt: true } },
+    },
+  })
+  const userMap = new Map(companyUsers.map((u) => [u.id, u]))
+
+  const adminDocsRaw = await prisma.adminDoc.findMany({
+    where: { aoCompanyId: { in: aoCompanies.map((c) => c.id) } },
+    select: { aoCompanyId: true, type: true, status: true },
+  })
+  const adminDocsMap = new Map<string, { type: string; status: string }[]>()
+  for (const doc of adminDocsRaw) {
+    const arr = adminDocsMap.get(doc.aoCompanyId) ?? []
+    arr.push({ type: doc.type, status: doc.status })
+    adminDocsMap.set(doc.aoCompanyId, arr)
+  }
+
+  // QA per company
+  const qaRaw = await prisma.qA.findMany({
+    where: { aoId: ao.id },
+    select: { aoCompanyId: true },
+  })
+  const qaCountMap = new Map<string, number>()
+  for (const qa of qaRaw) {
+    qaCountMap.set(qa.aoCompanyId, (qaCountMap.get(qa.aoCompanyId) ?? 0) + 1)
+  }
+
   const lots = await prisma.lot.findMany({
     where: { dpgfId: ao.dpgfId, id: { in: ao.lotIds } },
     include: { posts: { orderBy: { position: 'asc' } } },
     orderBy: { position: 'asc' },
   })
+
+  const totalPosts = lots.reduce((acc, l) => acc + l.posts.length, 0)
 
   type OfferPostData = { unitPrice: number | null; qtyCompany: number | null; qtyMotive: string | null }
   const offerIndex = new Map<string, Map<string, OfferPostData>>()
@@ -124,7 +134,6 @@ export default async function AnalysePage({ params }: Props) {
 
   const lotsData = lots.map((lot) => {
     let lotTotalArchi: number | null = null
-
     const postsData = lot.posts.map((post) => {
       const postTotalArchi =
         post.qtyArchi != null && post.unitPriceArchi != null
@@ -154,23 +163,12 @@ export default async function AnalysePage({ params }: Props) {
       if (hasQtyDivergence) divergenceCount++
 
       return {
-        id: post.id,
-        ref: post.ref,
-        title: post.title,
-        unit: post.unit,
-        qtyArchi: post.qtyArchi ?? null,
-        unitPriceArchi: post.unitPriceArchi ?? null,
-        totalArchi: postTotalArchi,
-        minPrice,
-        maxPrice,
-        minCompanyId,
-        maxCompanyId,
-        hasQtyDivergence,
+        id: post.id, ref: post.ref, title: post.title, unit: post.unit,
+        qtyArchi: post.qtyArchi ?? null, unitPriceArchi: post.unitPriceArchi ?? null,
+        totalArchi: postTotalArchi, minPrice, maxPrice, minCompanyId, maxCompanyId, hasQtyDivergence,
       }
     })
-
     if (lotTotalArchi != null) estimatifTotal = (estimatifTotal ?? 0) + lotTotalArchi
-
     return { id: lot.id, number: lot.number, name: lot.name, totalArchi: lotTotalArchi, posts: postsData }
   })
 
@@ -182,12 +180,14 @@ export default async function AnalysePage({ params }: Props) {
 
     let total: number | null = null
     let divergences = 0
+    let pricedPosts = 0
     const postMap = offerIndex.get(company.id) ?? new Map()
 
     for (const lot of lots) {
       for (const post of lot.posts) {
         const op = postMap.get(post.id)
         if (!op) continue
+        if (op.unitPrice !== null) pricedPosts++
         const qty = op.qtyCompany ?? post.qtyArchi
         if (qty != null && op.unitPrice != null) total = (total ?? 0) + qty * op.unitPrice
         if (op.qtyCompany != null && post.qtyArchi != null && op.qtyCompany !== post.qtyArchi) {
@@ -210,11 +210,27 @@ export default async function AnalysePage({ params }: Props) {
       total,
       offerPosts,
       submittedAt: company.offer?.submittedAt?.toISOString() ?? null,
-      adminDocsCount: adminDocsCountMap.get(company.id) ?? 0,
+      invitedAt: ao.createdAt.toISOString(),
+      adminDocs: adminDocsMap.get(company.id) ?? [],
       siretVerified: u?.agency?.siretVerified ?? false,
+      agencyCreatedAt: u?.agency?.createdAt?.toISOString() ?? null,
       divergences,
+      totalPosts,
+      pricedPosts,
+      hasAskedQuestion: (qaCountMap.get(company.id) ?? 0) > 0,
     }
   })
+
+  const scoringConfigRaw = await prisma.aOScoringConfig.findUnique({ where: { aoId: ao.id } })
+  const scoringConfig = scoringConfigRaw
+    ? {
+        weightPrice: scoringConfigRaw.weightPrice,
+        weightDocuments: scoringConfigRaw.weightDocuments,
+        weightReliability: scoringConfigRaw.weightReliability,
+        weightDivergences: scoringConfigRaw.weightDivergences,
+        weightReactivity: scoringConfigRaw.weightReactivity,
+      }
+    : DEFAULT_WEIGHTS
 
   const publishedElements = (ao.publishedElements ?? {}) as Record<string, unknown>
 
@@ -222,6 +238,7 @@ export default async function AnalysePage({ params }: Props) {
     <AnalysisPageClient
       projectId={params.projectId}
       projectName={project.name}
+      agencyName={user.agency?.name ?? ''}
       initialData={{
         ao: {
           id: ao.id,
@@ -229,7 +246,7 @@ export default async function AnalysePage({ params }: Props) {
           deadline: ao.deadline.toISOString(),
           status: ao.status,
           clientPublished: ao.clientPublished,
-          publishedElements: publishedElements,
+          publishedElements,
         },
         project: { id: project.id, name: project.name },
         companies: companiesData,
@@ -241,6 +258,7 @@ export default async function AnalysePage({ params }: Props) {
           ecart: globalMin != null && globalMax != null ? globalMax - globalMin : null,
         },
         divergenceCount,
+        scoringConfig,
       }}
     />
   )

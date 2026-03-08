@@ -13,6 +13,7 @@ datasource db {
 model Agency {
   id               String    @id @default(cuid())
   name             String
+  contacts         Contact[]
   logoUrl          String?
   plan             Plan      @default(SOLO)
   stripeCustomerId String?
@@ -51,21 +52,39 @@ model User {
 }
 
 model Project {
-  id           String              @id @default(cuid())
-  agencyId     String
-  name         String
-  address      String?
-  projectType  String?
-  surface      Float?
-  budget       Float?
-  startDate    DateTime?
-  description  String?
-  clientUserId String?
-  status       ProjectStatus       @default(ACTIVE)
-  createdAt    DateTime            @default(now())
-  agency       Agency              @relation(fields: [agencyId], references: [id])
-  dpgfs        DPGF[]
-  permissions  ProjectPermission[]
+  id              String              @id @default(cuid())
+  agencyId        String
+  name            String
+  address         String?
+  projectType     String?
+  surface         Float?
+  budget          Float?
+  startDate       DateTime?
+  description     String?
+  clientContactId String?
+  clientUserId    String?
+  status          ProjectStatus       @default(ACTIVE)
+  createdAt       DateTime            @default(now())
+  agency          Agency              @relation(fields: [agencyId], references: [id])
+  clientContact   Contact?            @relation(fields: [clientContactId], references: [id])
+  dpgfs           DPGF[]
+  permissions     ProjectPermission[]
+}
+
+model Contact {
+  id        String      @id @default(cuid())
+  agencyId  String
+  type      ContactType
+  firstName String
+  lastName  String?
+  email     String?
+  phone     String?
+  company   String?
+  address   String?
+  notes     String?
+  createdAt DateTime    @default(now())
+  agency    Agency      @relation(fields: [agencyId], references: [id])
+  projects  Project[]
 }
 
 model ProjectPermission {
@@ -181,25 +200,39 @@ model Library {
 }
 
 model AO {
-  id                String      @id @default(cuid())
+  id                String           @id @default(cuid())
   dpgfId            String
   name              String
   lotIds            String[]
   deadline          DateTime
   instructions      String?
-  status            AOStatus    @default(DRAFT)
-  allowCustomQty    Boolean     @default(true)
-  isPaid            Boolean     @default(false)
+  status            AOStatus         @default(DRAFT)
+  allowCustomQty    Boolean          @default(true)
+  isPaid            Boolean          @default(false)
   paymentAmount     Float?
-  clientPublished   Boolean     @default(false)
+  clientPublished   Boolean          @default(false)
   publishedElements Json?
   requiredDocs      Json?
   createdById       String
-  createdAt         DateTime    @default(now())
-  dpgf              DPGF        @relation(fields: [dpgfId], references: [id])
+  createdAt         DateTime         @default(now())
+  dpgf              DPGF             @relation(fields: [dpgfId], references: [id])
   aoCompanies       AOCompany[]
   documents         Document[]
   qas               QA[]
+  scoringConfig     AOScoringConfig?
+}
+
+model AOScoringConfig {
+  id                String   @id @default(cuid())
+  aoId              String   @unique
+  weightPrice       Int      @default(30)
+  weightDocuments   Int      @default(25)
+  weightReliability Int      @default(20)
+  weightDivergences Int      @default(15)
+  weightReactivity  Int      @default(10)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  ao                AO       @relation(fields: [aoId], references: [id])
 }
 
 model AOCompany {
@@ -433,4 +466,9 @@ enum AnnouncementType {
   INFO
   SUCCESS
   WARNING
+}
+
+enum ContactType {
+  CLIENT
+  ENTREPRISE
 }
