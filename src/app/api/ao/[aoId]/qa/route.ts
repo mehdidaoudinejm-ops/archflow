@@ -111,8 +111,30 @@ export async function POST(
         postRef: postRef ?? null,
         status: 'PENDING',
       },
-      include: { answer: true },
+      include: {
+        answer: true,
+        ao: { include: { dpgf: { include: { project: { select: { id: true, agencyId: true } } } } } },
+      },
     })
+
+    // Notifier les architectes de l'agence
+    const agencyId = qa.ao.dpgf.project.agencyId
+    const projectId = qa.ao.dpgf.project.id
+    const architects = await prisma.user.findMany({
+      where: { agencyId, role: { in: ['ARCHITECT', 'COLLABORATOR'] } },
+      select: { id: true },
+    })
+    if (architects.length > 0) {
+      await prisma.notification.createMany({
+        data: architects.map((a) => ({
+          userId: a.id,
+          type: 'QUESTION_ASKED',
+          title: 'Nouvelle question Q&A',
+          body: title.trim(),
+          link: `/dpgf/${projectId}/qa`,
+        })),
+      })
+    }
 
     return NextResponse.json(qa, { status: 201 })
   } catch (error) {

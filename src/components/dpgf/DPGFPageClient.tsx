@@ -162,16 +162,22 @@ export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo }: DP
       {/* Stats */}
       <StatsBar dpgf={dpgfState.dpgf} libraryCount={libraryCount} />
 
-      {/* Toolbar */}
-      <DPGFToolbar
-        search={search}
-        onSearchChange={setSearch}
-        onImport={() => setImportOpen(true)}
-        onExportPdf={() => {}}
-        onLaunchAO={handleLaunchAO}
-        onOpenLibrary={() => setLibraryOpen(true)}
-        aoButtonVariant={aoButtonVariant}
-      />
+      {/* Toolbar + Tableau dans une card */}
+      <div
+        className="rounded-[var(--radius-lg)] overflow-hidden"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+      >
+        <div className="px-4 pt-4 pb-2">
+          <DPGFToolbar
+            search={search}
+            onSearchChange={setSearch}
+            onImport={() => setImportOpen(true)}
+            onExportPdf={() => {}}
+            onLaunchAO={handleLaunchAO}
+            onOpenLibrary={() => setLibraryOpen(true)}
+            aoButtonVariant={aoButtonVariant}
+          />
+        </div>
 
       {/* Tableau */}
       <DPGFTable
@@ -192,6 +198,7 @@ export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo }: DP
         onDeletePost={dpgfState.deletePost}
         onSaveToLibrary={saveToLibrary}
       />
+      </div>
 
       {/* Library sheet */}
       <LibrarySheet

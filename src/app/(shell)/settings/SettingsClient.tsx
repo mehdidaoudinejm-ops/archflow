@@ -130,12 +130,32 @@ export function SettingsClient({ user, agency }: { user: UserData; agency: Agenc
   const [companyAddress, setCompanyAddress] = useState(agency?.companyAddress ?? '')
   const [postalCode, setPostalCode] = useState(agency?.postalCode ?? '')
   const [city, setCity] = useState(agency?.city ?? '')
+  const [country, setCountry] = useState((agency as { country?: string | null } | null)?.country ?? 'France')
   const [phone, setPhone] = useState(agency?.phone ?? '')
   const [trade, setTrade] = useState(agency?.trade ?? '')
   const [signatoryQuality, setSignatoryQuality] = useState(agency?.signatoryQuality ?? '')
+  const [logoUrl, setLogoUrl] = useState(agency?.logoUrl ?? '')
+  const [logoUploading, setLogoUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLogoUploading(true)
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await fetch('/api/upload/logo', { method: 'POST', body: fd })
+    setLogoUploading(false)
+    if (res.ok) {
+      const data = await res.json() as { logoUrl: string }
+      setLogoUrl(data.logoUrl)
+    } else {
+      const data = await res.json() as { error?: string }
+      setError(data.error ?? 'Erreur upload logo')
+    }
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -147,7 +167,7 @@ export function SettingsClient({ user, agency }: { user: UserData; agency: Agenc
     const res = await fetch(endpoint, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyName, companyAddress, postalCode, city, phone, trade, signatoryQuality }),
+      body: JSON.stringify({ companyName, companyAddress, postalCode, city, country, phone, trade, signatoryQuality }),
     })
 
     setSaving(false)
@@ -207,6 +227,33 @@ export function SettingsClient({ user, agency }: { user: UserData; agency: Agenc
           <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--text)' }}>Société</h2>
 
           <div className="space-y-4">
+            {/* Logo */}
+            <div className="space-y-1.5">
+              <Label style={{ color: 'var(--text)' }}>Logo</Label>
+              <div className="flex items-center gap-4">
+                {logoUrl ? (
+                  <img src={logoUrl} alt="Logo" className="w-16 h-16 object-contain rounded-[var(--radius)]"
+                    style={{ border: '1px solid var(--border)' }} />
+                ) : (
+                  <div className="w-16 h-16 flex items-center justify-center rounded-[var(--radius)]"
+                    style={{ border: '1px dashed var(--border2)', color: 'var(--text3)', fontSize: 11 }}>
+                    Logo
+                  </div>
+                )}
+                <div>
+                  <label className="cursor-pointer">
+                    <span className="text-sm px-3 py-1.5 rounded-[var(--radius)]"
+                      style={{ border: '1px solid var(--border)', color: 'var(--text)', background: 'var(--surface2)' }}>
+                      {logoUploading ? 'Upload...' : 'Choisir un fichier'}
+                    </span>
+                    <input type="file" accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+                      onChange={handleLogoUpload} className="hidden" disabled={logoUploading} />
+                  </label>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text3)' }}>PNG, JPG, SVG — max 2 Mo</p>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-1.5">
               <Label style={{ color: 'var(--text)' }}>Raison sociale</Label>
               <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)}
@@ -289,6 +336,12 @@ export function SettingsClient({ user, agency }: { user: UserData; agency: Agenc
                   placeholder="Paris"
                   style={{ borderColor: 'var(--border)', color: 'var(--text)' }} />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label style={{ color: 'var(--text)' }}>Pays</Label>
+              <Input value={country} onChange={(e) => setCountry(e.target.value)}
+                placeholder="France"
+                style={{ borderColor: 'var(--border)', color: 'var(--text)' }} />
             </div>
           </div>
         </section>

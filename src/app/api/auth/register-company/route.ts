@@ -17,6 +17,7 @@ const registerCompanySchema = z.object({
   companyAddress: z.string().max(200).optional(),
   postalCode: z.string().max(10).optional(),
   city: z.string().max(100).optional(),
+  country: z.string().max(100).optional(),
   phone: z.string().max(20).optional(),
   trade: z.string().max(50).optional(),
   signatoryQuality: z.string().max(50).optional(),
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const { token, firstName, lastName, companyName, password, siret, legalForm, companyAddress, postalCode, city, phone, trade, signatoryQuality } = parsed.data
+    const { token, firstName, lastName, companyName, password, siret, legalForm, companyAddress, postalCode, city, country, phone, trade, signatoryQuality } = parsed.data
 
     // 1. Vérifier le token JWT
     let tokenPayload: { email: string; aoId: string; aoCompanyId: string }
@@ -114,6 +115,7 @@ export async function POST(req: Request) {
         companyAddress: companyAddress ?? null,
         postalCode: postalCode ?? null,
         city: city ?? null,
+        country: country ?? 'France',
         phone: phone ?? null,
         trade: trade ?? null,
         signatoryQuality: signatoryQuality ?? null,

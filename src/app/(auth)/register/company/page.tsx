@@ -23,6 +23,7 @@ function RegisterCompanyForm() {
   const [companyAddress, setCompanyAddress] = useState('')
   const [postalCode, setPostalCode] = useState('')
   const [city, setCity] = useState('')
+  const [country, setCountry] = useState('France')
   const [phone, setPhone] = useState('')
   const [trade, setTrade] = useState('')
   const [signatoryQuality, setSignatoryQuality] = useState('')
@@ -52,7 +53,7 @@ function RegisterCompanyForm() {
       const res = await fetch('/api/auth/register-company', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, firstName, lastName, companyName, siret, legalForm: legalForm || undefined, companyAddress: companyAddress || undefined, postalCode: postalCode || undefined, city: city || undefined, phone: phone || undefined, trade: trade || undefined, signatoryQuality: signatoryQuality || undefined, password }),
+        body: JSON.stringify({ token, firstName, lastName, companyName, siret, legalForm: legalForm || undefined, companyAddress: companyAddress || undefined, postalCode: postalCode || undefined, city: city || undefined, country: country || undefined, phone: phone || undefined, trade: trade || undefined, signatoryQuality: signatoryQuality || undefined, password }),
       })
 
       const data = await res.json() as { error?: string; email?: string }
@@ -239,6 +240,19 @@ function RegisterCompanyForm() {
                 style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
               />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="country" style={{ color: 'var(--text)' }}>
+              Pays <span style={{ color: 'var(--text3)' }}>(optionnel)</span>
+            </Label>
+            <Input
+              id="country"
+              placeholder="France"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+            />
           </div>
 
           <div className="space-y-1.5">

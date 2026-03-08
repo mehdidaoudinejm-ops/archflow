@@ -50,6 +50,34 @@ export function AOWizard({ dpgfId, projectId, projectName, lots }: Props) {
     { type: 'rib', label: 'RIB', required: true },
     { type: 'urssaf', label: 'Attestation URSSAF', required: true },
   ])
+  const [customDocs, setCustomDocs] = useState<{ id: string; label: string; description: string; required: boolean }[]>([])
+  const [customDocLabel, setCustomDocLabel] = useState('')
+  const [customDocDesc, setCustomDocDesc] = useState('')
+  const [customDocRequired, setCustomDocRequired] = useState(false)
+  const [showCustomDocForm, setShowCustomDocForm] = useState(false)
+
+  const SUGGESTED_DOCS = [
+    'Photos de références chantiers similaires',
+    'Attestation de complétude avec contact client précédent',
+    'Planning prévisionnel d\'intervention',
+    'Mémoire technique',
+  ]
+
+  function addCustomDoc() {
+    if (!customDocLabel.trim()) return
+    setCustomDocs((prev) => [
+      ...prev,
+      { id: `custom_${Date.now()}`, label: customDocLabel.trim(), description: customDocDesc.trim(), required: customDocRequired },
+    ])
+    setCustomDocLabel('')
+    setCustomDocDesc('')
+    setCustomDocRequired(false)
+    setShowCustomDocForm(false)
+  }
+
+  function removeCustomDoc(id: string) {
+    setCustomDocs((prev) => prev.filter((d) => d.id !== id))
+  }
 
   // Step 3 — Entreprises
   const [aoId, setAoId] = useState<string | null>(null)
@@ -84,7 +112,7 @@ export function AOWizard({ dpgfId, projectId, projectName, lots }: Props) {
           allowCustomQty,
           isPaid,
           paymentAmount: isPaid && paymentAmount ? parseFloat(paymentAmount) : null,
-          requiredDocs,
+          requiredDocs: [...requiredDocs, ...customDocs],
         }),
       })
 
@@ -409,6 +437,89 @@ export function AOWizard({ dpgfId, projectId, projectName, lots }: Props) {
                       </button>
                     </div>
                   ))}
+
+                  {/* Documents personnalisés */}
+                  {customDocs.map((doc) => (
+                    <div key={doc.id}
+                      className="flex items-center justify-between px-4 py-2.5 rounded-[var(--radius)]"
+                      style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}
+                    >
+                      <div className="min-w-0">
+                        <span className="text-sm" style={{ color: 'var(--text)' }}>{doc.label}</span>
+                        {doc.description && (
+                          <p className="text-xs truncate" style={{ color: 'var(--text3)' }}>{doc.description}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                        <button type="button"
+                          onClick={() => setCustomDocs((prev) => prev.map((d) => d.id === doc.id ? { ...d, required: !d.required } : d))}
+                          className="text-xs px-2.5 py-1 rounded font-medium"
+                          style={{
+                            background: doc.required ? 'var(--green-light)' : 'var(--surface)',
+                            color: doc.required ? 'var(--green)' : 'var(--text3)',
+                            border: `1px solid ${doc.required ? 'var(--green)' : 'var(--border)'}`,
+                          }}
+                        >
+                          {doc.required ? 'Obligatoire' : 'Facultatif'}
+                        </button>
+                        <button type="button" onClick={() => removeCustomDoc(doc.id)} style={{ color: 'var(--text3)' }}>
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Suggestions */}
+                  <div className="pt-1">
+                    <p className="text-xs mb-2" style={{ color: 'var(--text3)' }}>Suggestions :</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {SUGGESTED_DOCS.filter((s) => !customDocs.some((d) => d.label === s)).map((s) => (
+                        <button key={s} type="button"
+                          onClick={() => setCustomDocs((prev) => [...prev, { id: `custom_${Date.now()}`, label: s, description: '', required: false }])}
+                          className="text-xs px-2.5 py-1 rounded-full"
+                          style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)' }}
+                        >
+                          + {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Formulaire ajout doc personnalisé */}
+                  {showCustomDocForm ? (
+                    <div className="p-3 rounded-[var(--radius)]" style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+                      <div className="space-y-2">
+                        <Input placeholder="Nom du document *" value={customDocLabel} onChange={(e) => setCustomDocLabel(e.target.value)}
+                          style={{ borderColor: 'var(--border)', fontSize: 13 }} />
+                        <Input placeholder="Description (optionnel)" value={customDocDesc} onChange={(e) => setCustomDocDesc(e.target.value)}
+                          style={{ borderColor: 'var(--border)', fontSize: 13 }} />
+                        <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: 'var(--text)' }}>
+                          <input type="checkbox" checked={customDocRequired} onChange={(e) => setCustomDocRequired(e.target.checked)}
+                            style={{ accentColor: 'var(--green)' }} />
+                          Obligatoire
+                        </label>
+                        <div className="flex gap-2">
+                          <Button type="button" size="sm" onClick={addCustomDoc} disabled={!customDocLabel.trim()}
+                            style={{ background: 'var(--green-btn)', color: '#fff', border: 'none', fontSize: 12 }}>
+                            Ajouter
+                          </Button>
+                          <Button type="button" size="sm" variant="outline" onClick={() => setShowCustomDocForm(false)}
+                            style={{ borderColor: 'var(--border)', color: 'var(--text)', fontSize: 12 }}>
+                            Annuler
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <button type="button"
+                      onClick={() => setShowCustomDocForm(true)}
+                      className="flex items-center gap-1.5 text-xs"
+                      style={{ color: 'var(--green)' }}
+                    >
+                      <Plus size={13} />
+                      Ajouter un document personnalisé
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

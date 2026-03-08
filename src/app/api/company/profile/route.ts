@@ -10,6 +10,7 @@ const updateSchema = z.object({
   companyAddress: z.string().max(200).optional(),
   postalCode: z.string().max(10).optional(),
   city: z.string().max(100).optional(),
+  country: z.string().max(100).optional(),
   phone: z.string().max(20).optional(),
   trade: z.string().max(50).optional(),
   signatoryQuality: z.string().max(50).optional(),

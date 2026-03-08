@@ -24,6 +24,7 @@ model Agency {
   companyAddress   String?
   postalCode       String?
   city             String?
+  country          String?   @default("France")
   phone            String?
   trade            String?
   signatoryQuality String?
