@@ -84,17 +84,21 @@ export async function POST(req: Request) {
       }
     }
 
-    // 5. Vérifier le SIRET via l'API Sirene (optionnel, pas bloquant)
+    // 5. Vérifier le SIRET via l'API annuaire-entreprises.data.gouv.fr (gratuite, sans auth)
     let siretVerified = false
     if (siret && siret.length === 14) {
       try {
         const sireneRes = await fetch(
-          `https://api.insee.fr/api-sirene/3.11/siret/${siret}`,
+          `https://api.annuaire-entreprises.data.gouv.fr/api/v3/etablissement/${siret}`,
           { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) }
         )
-        siretVerified = sireneRes.ok
+        if (sireneRes.ok) {
+          const data = await sireneRes.json() as { etat_administratif?: string }
+          // etat_administratif: 'A' = actif, 'F' = fermé
+          siretVerified = data.etat_administratif === 'A'
+        }
       } catch {
-        // API INSEE indisponible — continuer sans vérification
+        // API indisponible — continuer sans vérification
       }
     }
 

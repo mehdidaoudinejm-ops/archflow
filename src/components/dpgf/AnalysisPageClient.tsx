@@ -153,24 +153,28 @@ function WeightsPanel({
   const isValid = sum === 100
 
   function handleSlider(key: keyof ScoringWeights, value: number) {
-    setLocal((prev) => ({ ...prev, [key]: value }))
+    const next = { ...local, [key]: value }
+    setLocal(next)
     setSaved(false)
+    // Recalcul temps réel même si somme ≠ 100
+    onWeightsChange(next)
   }
 
   function autoBalance() {
     const keys: (keyof ScoringWeights)[] = ['weightPrice', 'weightDocuments', 'weightReliability', 'weightDivergences', 'weightReactivity']
     const diff = 100 - sum
     const newLocal = { ...local }
-    // Distribute diff to the largest weight
     let maxKey = keys[0]
     for (const k of keys) if (newLocal[k] > newLocal[maxKey]) maxKey = k
     newLocal[maxKey] = Math.max(0, newLocal[maxKey] + diff)
     setLocal(newLocal)
+    onWeightsChange(newLocal)
   }
 
   function reset() {
     setLocal(DEFAULT_WEIGHTS)
     setSaved(false)
+    onWeightsChange(DEFAULT_WEIGHTS)
   }
 
   async function save() {
@@ -182,7 +186,6 @@ function WeightsPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(local),
       })
-      onWeightsChange(local)
       setSaved(true)
     } finally {
       setSaving(false)
