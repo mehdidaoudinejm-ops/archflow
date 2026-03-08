@@ -109,6 +109,17 @@ export default function AdminUsersPage() {
     setActionLoading(null)
   }
 
+  async function impersonate(user: User) {
+    setActionLoading(`imp-${user.id}`)
+    const res = await fetch(`/api/admin/users/${user.id}/impersonate`, { method: 'POST' })
+    if (res.ok) {
+      const { url } = await res.json()
+      sessionStorage.setItem('__adminImpersonating', JSON.stringify({ email: user.email }))
+      window.open(url, '_blank', 'noopener')
+    }
+    setActionLoading(null)
+  }
+
   if (loading) {
     return <div className="p-8 text-zinc-400">Chargement...</div>
   }
@@ -174,13 +185,22 @@ export default function AdminUsersPage() {
                   </div>
                 </td>
                 <td className="px-5 py-3">
-                  <button
-                    onClick={() => deleteUser(user)}
-                    disabled={actionLoading === `del-${user.id}`}
-                    className="text-xs px-3 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50 whitespace-nowrap"
-                  >
-                    {actionLoading === `del-${user.id}` ? '...' : 'Supprimer'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => impersonate(user)}
+                      disabled={actionLoading !== null}
+                      className="text-xs px-3 py-1 rounded bg-zinc-700 text-zinc-300 hover:bg-zinc-600 transition-colors disabled:opacity-50 whitespace-nowrap"
+                    >
+                      {actionLoading === `imp-${user.id}` ? '...' : 'Voir en tant que'}
+                    </button>
+                    <button
+                      onClick={() => deleteUser(user)}
+                      disabled={actionLoading !== null}
+                      className="text-xs px-3 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50 whitespace-nowrap"
+                    >
+                      {actionLoading === `del-${user.id}` ? '...' : 'Supprimer'}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

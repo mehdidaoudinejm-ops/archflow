@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import { getUserWithProfile } from '@/lib/auth'
 import { Sidebar } from '@/components/shell/Sidebar'
 import { Topbar } from '@/components/shell/Topbar'
+import { AnnouncementBanner } from '@/components/shell/AnnouncementBanner'
+import { AdminModeBanner } from '@/components/shell/AdminModeBanner'
 
 export default async function ShellLayout({
   children,
@@ -18,6 +20,7 @@ export default async function ShellLayout({
     <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0">
+        <AdminModeBanner />
         <Topbar
           user={{
             firstName: user.firstName,
@@ -26,6 +29,7 @@ export default async function ShellLayout({
             avatarUrl: user.avatarUrl,
           }}
         />
+        <AnnouncementBanner />
         <main className="flex-1 p-6">{children}</main>
       </div>
     </div>

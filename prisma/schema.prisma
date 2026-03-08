@@ -331,6 +331,7 @@ model AdminEmail {
   segment        String
   sentAt         DateTime @default(now())
   recipientCount Int      @default(0)
+  sentBy         String?
 }
 
 // ── WAITLIST ───────────────────────────────────────────

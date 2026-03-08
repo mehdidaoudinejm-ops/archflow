@@ -1,7 +1,14 @@
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
+import { WeeklySignupsChart } from '@/components/shell/WeeklySignupsChart'
 
 export const dynamic = 'force-dynamic'
+
+const MRR_BY_PLAN: Record<string, number> = {
+  SOLO: 0,
+  STUDIO: 49,
+  AGENCY: 99,
+}
 
 const roleColors: Record<string, string> = {
   ARCHITECT: 'bg-blue-500/10 text-blue-400',
@@ -38,9 +45,15 @@ export default async function AdminDashboardPage() {
     createdAt: Date
     agency: { name: string } | null
   }[] = []
+  let weeklySignups: { label: string; users: number }[] = []
+  let funnelWaitlist = 0
+  let funnelInscrits = 0
+  let funnelProjet = 0
+  let funnelAO = 0
 
   try {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const eightWeeksAgo = new Date(Date.now() - 8 * 7 * 24 * 60 * 60 * 1000)
     ;[
       totalUsers,
       suspendedUsers,
@@ -76,6 +89,36 @@ export default async function AdminDashboardPage() {
         },
       }),
     ])
+
+    // Inscriptions par semaine (8 dernières semaines)
+    const recentSignups = await prisma.user.findMany({
+      where: { createdAt: { gte: eightWeeksAgo } },
+      select: { createdAt: true },
+    })
+    const weekBuckets = Array.from({ length: 8 }, (_, i) => {
+      const weekStart = new Date(eightWeeksAgo.getTime() + i * 7 * 24 * 60 * 60 * 1000)
+      const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000)
+      const label = weekStart.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+      const users = recentSignups.filter(
+        (u) => u.createdAt >= weekStart && u.createdAt < weekEnd
+      ).length
+      return { label, users }
+    })
+    weeklySignups = weekBuckets
+
+    // Funnel
+    const [waitlistTotal, agenciesWithProject, agenciesWithAO] = await Promise.all([
+      prisma.waitlistEntry.count(),
+      prisma.agency.count({ where: { projects: { some: {} } } }),
+      prisma.agency.count({
+        where: { projects: { some: { dpgfs: { some: { aos: { some: {} } } } } } },
+      }),
+    ])
+    funnelWaitlist = waitlistTotal
+    funnelInscrits = totalUsers
+    funnelProjet = agenciesWithProject
+    funnelAO = agenciesWithAO
+
   } catch (err) {
     console.error('[AdminDashboard] Prisma error:', err)
     dbError = true
@@ -84,6 +127,10 @@ export default async function AdminDashboardPage() {
   const waitlistMap = Object.fromEntries(
     waitlistByStatus.map((w) => [w.status, w._count._all])
   )
+
+  const mrr = agenciesByPlan.reduce((sum, { plan, _count }) => {
+    return sum + (_count._all * (MRR_BY_PLAN[plan] ?? 0))
+  }, 0)
 
   return (
     <div className="p-8 space-y-8">
@@ -118,7 +165,7 @@ export default async function AdminDashboardPage() {
           <KpiCard label="Agences" value={totalAgencies} />
           <KpiCard label="Projets" value={totalProjects} />
           <KpiCard label="Waitlist — en attente" value={waitlistMap['PENDING'] ?? 0} accent={waitlistMap['PENDING'] > 0 ? 'amber' : undefined} />
-          <KpiCard label="Waitlist — approuvés" value={waitlistMap['APPROVED'] ?? 0} accent="green" />
+          <KpiCard label="MRR estimé" value={mrr} suffix="€" accent="green" />
         </div>
       </section>
 
@@ -215,6 +262,53 @@ export default async function AdminDashboardPage() {
         </div>
 
       </div>
+
+      {/* Ligne 4 — Graphique + Funnel */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        {/* Inscriptions par semaine */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-4">
+            Inscriptions — 8 dernières semaines
+          </p>
+          <WeeklySignupsChart data={weeklySignups} />
+        </div>
+
+        {/* Funnel de conversion */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-4">
+            Funnel de conversion
+          </p>
+          <div className="space-y-3">
+            {[
+              { label: 'Demandes waitlist', value: funnelWaitlist, color: 'bg-zinc-600' },
+              { label: 'Comptes créés', value: funnelInscrits, color: 'bg-blue-500' },
+              { label: 'Agences avec projet', value: funnelProjet, color: 'bg-green-600' },
+              { label: 'Agences avec AO lancé', value: funnelAO, color: 'bg-emerald-500' },
+            ].map(({ label, value, color }) => {
+              const pct = funnelWaitlist > 0 ? Math.round((value / funnelWaitlist) * 100) : 0
+              return (
+                <div key={label}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-zinc-400">{label}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-600">{pct}%</span>
+                      <span className="text-sm font-semibold text-zinc-200 w-8 text-right">{value}</span>
+                    </div>
+                  </div>
+                  <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${color} rounded-full transition-all`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+      </div>
     </div>
   )
 }
@@ -223,10 +317,12 @@ function KpiCard({
   label,
   value,
   accent,
+  suffix,
 }: {
   label: string
   value: number
   accent?: 'red' | 'green' | 'blue' | 'amber'
+  suffix?: string
 }) {
   const accentMap: Record<string, string> = {
     red: 'text-red-400',
@@ -238,7 +334,9 @@ function KpiCard({
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-      <div className={`text-3xl font-bold mb-1 ${accentClass}`}>{value}</div>
+      <div className={`text-3xl font-bold mb-1 ${accentClass}`}>
+        {value}{suffix && <span className="text-xl ml-0.5">{suffix}</span>}
+      </div>
       <div className="text-zinc-500 text-xs">{label}</div>
     </div>
   )

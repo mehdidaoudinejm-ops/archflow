@@ -8,6 +8,7 @@ const links = [
   { href: '/admin/users', label: 'Utilisateurs', exact: false },
   { href: '/admin/waitlist', label: "Liste d'attente", exact: false },
   { href: '/admin/announcements', label: 'Annonces', exact: false },
+  { href: '/admin/emails', label: 'Emails', exact: false },
 ]
 
 export default function AdminNav() {
