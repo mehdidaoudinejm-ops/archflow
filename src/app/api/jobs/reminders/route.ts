@@ -110,7 +110,7 @@ export async function GET(req: Request) {
         await sendEmail({
           to: companyUser.email,
           subject: `Rappel — Plus que ${daysLeft} jour${daysLeft > 1 ? 's' : ''} pour soumettre votre offre`,
-          react: ReminderEmail({
+          html: ReminderEmail({
             companyName,
             aoName: ao.name,
             projectName: ao.dpgf.project.name,

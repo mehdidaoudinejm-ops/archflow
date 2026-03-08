@@ -1,5 +1,4 @@
 import { SignJWT, jwtVerify } from 'jose'
-import { createElement } from 'react'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { InvitationEmail } from '@/emails/InvitationEmail'
@@ -103,13 +102,7 @@ export async function inviteCompany({
       await sendEmail({
         to: email,
         subject: `Nouvel appel d'offre — ${aoName}`,
-        react: createElement(NewAOEmail, {
-          agencyName,
-          aoName,
-          projectName,
-          deadline: formatDeadline(deadline),
-          portalUrl,
-        }),
+        html: NewAOEmail({ agencyName, aoName, projectName, deadline: formatDeadline(deadline), portalUrl }),
       })
 
       return {
@@ -151,13 +144,7 @@ export async function inviteCompany({
   await sendEmail({
     to: email,
     subject: `Invitation à répondre à un appel d'offre — ${aoName}`,
-    react: createElement(InvitationEmail, {
-      agencyName,
-      aoName,
-      projectName,
-      deadline: formatDeadline(deadline),
-      inviteUrl,
-    }),
+    html: InvitationEmail({ agencyName, aoName, projectName, deadline: formatDeadline(deadline), inviteUrl }),
   })
 
   return {

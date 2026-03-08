@@ -3,7 +3,6 @@ import { requireRole, AuthError } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { DPGFModifiedEmail } from '@/emails/DPGFModifiedEmail'
-import React from 'react'
 
 export const dynamic = 'force-dynamic'
 
@@ -95,11 +94,7 @@ export async function POST(
         await sendEmail({
           to: email,
           subject: `Le DPGF du projet ${projectName} a été mis à jour`,
-          react: React.createElement(DPGFModifiedEmail, {
-            projectName,
-            aoName: ao.name,
-            portalUrl,
-          }),
+          html: DPGFModifiedEmail({ projectName, aoName: ao.name, portalUrl }),
         })
       }
     }

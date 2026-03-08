@@ -18,7 +18,7 @@ async function sendInviteEmail(email: string, firstName: string, inviteToken: st
     await sendEmail({
       to: email,
       subject: 'Votre accès ArchFlow est prêt',
-      react: WaitlistInviteEmail({ firstName, inviteUrl }),
+      html: WaitlistInviteEmail({ firstName, inviteUrl }),
     })
   } catch (emailError) {
     console.error('[waitlist] Échec envoi email:', emailError)

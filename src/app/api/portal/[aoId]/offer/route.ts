@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { createElement } from 'react'
 import { prisma } from '@/lib/prisma'
 import { requirePortalAuth } from '@/lib/portal-auth'
 import { AuthError } from '@/lib/auth'
@@ -275,7 +274,7 @@ export async function PUT(
         await sendEmail({
           to: architect.email,
           subject: `Nouvelle offre reçue — ${ao.name}`,
-          react: createElement(OfferReceivedEmail, {
+          html: OfferReceivedEmail({
             architectName: architect.firstName ?? 'Architecte',
             companyName,
             aoName: ao.name,

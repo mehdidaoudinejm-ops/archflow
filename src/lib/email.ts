@@ -1,14 +1,13 @@
 import { Resend } from 'resend'
-import type { ReactElement } from 'react'
 
 export async function sendEmail({
   to,
   subject,
-  react,
+  html,
 }: {
   to: string
   subject: string
-  react: ReactElement
+  html: string
 }): Promise<void> {
   // En développement sans clé Resend : on ne bloque pas
   if (process.env.NODE_ENV === 'development' && !process.env.RESEND_API_KEY) {
@@ -21,7 +20,7 @@ export async function sendEmail({
     from: process.env.RESEND_FROM_EMAIL ?? 'noreply@archflow.fr',
     to,
     subject,
-    react,
+    html,
   })
 
   if (error) throw new Error(error.message)
