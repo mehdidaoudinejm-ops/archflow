@@ -11,8 +11,13 @@ const createProjectSchema = z.object({
   projectType: z.string().max(100).optional(),
   surface: z.number().positive().optional(),
   budget: z.number().positive().optional(),
-  startDate: z.string().optional(), // ISO date string
+  startDate: z.string().optional(),
   description: z.string().max(2000).optional(),
+  // Client inline — crée un Contact de type CLIENT si renseigné
+  clientFirstName: z.string().max(100).optional(),
+  clientLastName: z.string().max(100).optional(),
+  clientEmail: z.string().email().optional().or(z.literal('')),
+  clientPhone: z.string().max(30).optional(),
 })
 
 export async function GET() {
@@ -59,7 +64,25 @@ export async function POST(req: Request) {
       )
     }
 
-    const { name, address, projectType, surface, budget, startDate, description } = parsed.data
+    const { name, address, projectType, surface, budget, startDate, description,
+      clientFirstName, clientLastName, clientEmail, clientPhone } = parsed.data
+
+    // Créer le contact client si un prénom est fourni
+    let clientContactId: string | null = null
+    if (clientFirstName?.trim()) {
+      const contact = await prisma.contact.create({
+        data: {
+          agencyId: user.agencyId,
+          type: 'CLIENT',
+          firstName: clientFirstName.trim(),
+          lastName: clientLastName?.trim() ?? null,
+          email: clientEmail || null,
+          phone: clientPhone?.trim() ?? null,
+        },
+      })
+      clientContactId = contact.id
+    }
+
     const project = await prisma.project.create({
       data: {
         agencyId: user.agencyId,
@@ -70,6 +93,7 @@ export async function POST(req: Request) {
         budget: budget ?? null,
         startDate: startDate ? new Date(startDate) : null,
         description: description ?? null,
+        clientContactId,
       },
     })
 

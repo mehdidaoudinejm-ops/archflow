@@ -638,7 +638,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
       {/* Tabs */}
       <div className="flex gap-0" style={{ borderBottom: '2px solid var(--border)' }}>
         {[
-          { label: 'Consultation', href: `/dpgf/${projectId}`, active: false },
+          { label: "DQE", href: `/dpgf/${projectId}`, active: false },
           { label: 'DCE', href: `/dpgf/${projectId}/dce`, active: false },
           { label: 'Q&A', href: `/dpgf/${projectId}/qa`, active: false },
           { label: 'Analyse', href: `/dpgf/${projectId}/analyse`, active: true },

@@ -764,7 +764,7 @@ export default function LandingPage() {
         <ProblemSection />
         <FeaturesSection />
         <HowItWorksSection />
-        <PricingSection />
+        {process.env.NEXT_PUBLIC_SHOW_PRICING === 'true' && <PricingSection />}
         <FAQSection />
         <CTASection />
       </main>

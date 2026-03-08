@@ -135,7 +135,7 @@ export async function PUT(
       include: {
         dpgf: {
           include: {
-            project: { select: { name: true, agencyId: true } },
+            project: { select: { id: true, name: true, agencyId: true } },
           },
         },
       },
@@ -202,14 +202,9 @@ export async function PUT(
       }
     }
 
+    // Prix manquants : on accepte la soumission, ils apparaîtront comme non proposés dans l'analyse
     if (missingPrices.length > 0) {
-      return NextResponse.json(
-        {
-          error: 'Prix manquants sur des postes obligatoires',
-          details: missingPrices,
-        },
-        { status: 422 }
-      )
+      console.info(`[offer/submit] ${missingPrices.length} postes sans prix acceptés pour aoCompanyId=${aoCompany.id}`)
     }
 
     // Créer / mettre à jour l'offre
@@ -285,6 +280,21 @@ export async function PUT(
         console.error('[PUT /api/portal/offer] email error', emailErr)
       }
     }
+
+    // Notifications in-app pour les architectes
+    const architectsWithId = await prisma.user.findMany({
+      where: { agencyId: ao.dpgf.project.agencyId, role: { in: ['ARCHITECT', 'COLLABORATOR'] } },
+      select: { id: true },
+    })
+    await prisma.notification.createMany({
+      data: architectsWithId.map((a) => ({
+        userId: a.id,
+        type: 'OFFER_SUBMITTED',
+        title: `Nouvelle offre reçue`,
+        body: `${companyName} a soumis une offre pour ${ao.name}`,
+        link: `/dpgf/${ao.dpgf.project.id}/analyse`,
+      })),
+    })
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {

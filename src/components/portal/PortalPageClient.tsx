@@ -93,6 +93,7 @@ function ConfirmModal({
   submitting: boolean
   errors: string[]
 }) {
+  const [docsConfirmed, setDocsConfirmed] = useState(false)
   let grandTotal = 0
 
   return (
@@ -122,13 +123,13 @@ function ConfirmModal({
         {errors.length > 0 && (
           <div
             className="mb-4 p-3 rounded-[var(--radius)]"
-            style={{ background: 'var(--red-light)', border: '1px solid var(--red)' }}
+            style={{ background: 'var(--amber-light)', border: '1px solid var(--amber)' }}
           >
-            <p className="text-sm font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--red)' }}>
+            <p className="text-sm font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--amber)' }}>
               <AlertCircle size={15} />
-              Des prix sont manquants :
+              {errors.length} poste{errors.length > 1 ? 's' : ''} non chiffré{errors.length > 1 ? 's' : ''} — ils apparaîtront comme non proposés dans l&apos;analyse
             </p>
-            <ul className="text-xs space-y-0.5 mt-1" style={{ color: 'var(--red)' }}>
+            <ul className="text-xs space-y-0.5 mt-1" style={{ color: 'var(--amber)' }}>
               {errors.map((e, i) => (
                 <li key={i}>• {e}</li>
               ))}
@@ -191,9 +192,19 @@ function ConfirmModal({
           </div>
         </div>
 
-        <p className="text-xs mb-5" style={{ color: 'var(--text3)' }}>
-          En soumettant votre offre, vous confirmez que les prix sont définitifs. Cette action ne peut pas être annulée.
-        </p>
+        {/* Checkbox confirmation documents */}
+        <label className="flex items-start gap-3 mb-5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={docsConfirmed}
+            onChange={(e) => setDocsConfirmed(e.target.checked)}
+            className="mt-0.5 flex-shrink-0"
+            style={{ width: 16, height: 16, accentColor: 'var(--green)' }}
+          />
+          <span className="text-sm" style={{ color: 'var(--text)' }}>
+            J&apos;atteste avoir téléchargé et pris connaissance de l&apos;ensemble des documents graphiques et que les prix soumis sont définitifs.
+          </span>
+        </label>
 
         <div className="flex gap-3">
           <Button
@@ -207,15 +218,15 @@ function ConfirmModal({
           </Button>
           <Button
             onClick={onConfirm}
-            disabled={submitting || errors.length > 0}
+            disabled={submitting || !docsConfirmed}
             className="flex-1"
             style={{
-              background: errors.length > 0 ? 'var(--border2)' : 'var(--green-btn)',
+              background: docsConfirmed ? 'var(--green-btn)' : 'var(--border2)',
               color: '#fff',
               border: 'none',
             }}
           >
-            {submitting ? 'Envoi...' : 'Confirmer et soumettre'}
+            {submitting ? 'Envoi...' : errors.length > 0 ? 'Soumettre quand même' : 'Confirmer et soumettre'}
           </Button>
         </div>
       </div>
@@ -232,7 +243,7 @@ function PortalPageClientInner({
   requiredDocs,
   uploadedDocTypes,
 }: PortalPageClientProps) {
-  const { posts, updatePost, saveStatus, submit, isSubmitted } = useOffer({
+  const { posts, updatePost, saveStatus, save, submit, isSubmitted } = useOffer({
     aoId: ao.id,
     initialOffer,
     token,
@@ -303,6 +314,7 @@ function PortalPageClientInner({
         progress={progress}
         saveStatus={saveStatus}
         isSubmitted={isSubmitted}
+        onSave={save}
       >
         {/* Instructions */}
         {ao.instructions && (

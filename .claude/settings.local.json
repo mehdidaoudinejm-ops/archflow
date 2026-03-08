@@ -28,7 +28,9 @@
       "Bash(python3:*)",
       "Bash(curl:*)",
       "Bash(pkill:*)",
-      "Bash(gh pr:*)"
+      "Bash(gh pr:*)",
+      "Bash(sed:*)",
+      "Bash(grep:*)"
     ]
   }
 }

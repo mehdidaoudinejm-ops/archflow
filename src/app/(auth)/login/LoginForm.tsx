@@ -7,6 +7,7 @@ import { createBrowserClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Eye, EyeOff } from 'lucide-react'
 
 export default function LoginForm() {
   const router = useRouter()
@@ -15,6 +16,7 @@ export default function LoginForm() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPwd, setShowPwd] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -79,20 +81,31 @@ export default function LoginForm() {
             Mot de passe oublié ?
           </Link>
         </div>
-        <Input
-          id="password"
-          type="password"
-          placeholder="••••••••"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          autoComplete="current-password"
-          style={{
-            borderColor: 'var(--border)',
-            background: 'var(--surface)',
-            color: 'var(--text)',
-          }}
-        />
+        <div className="relative">
+          <Input
+            id="password"
+            type={showPwd ? 'text' : 'password'}
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+            style={{
+              borderColor: 'var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text)',
+              paddingRight: 40,
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPwd(!showPwd)}
+            className="absolute right-3 top-1/2 -translate-y-1/2"
+            style={{ color: 'var(--text3)' }}
+          >
+            {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
       </div>
 
       {error && (

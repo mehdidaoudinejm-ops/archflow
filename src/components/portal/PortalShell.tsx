@@ -2,17 +2,19 @@
 
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { FileText, FolderOpen, MessageSquare, Shield, Clock, CheckCircle2 } from 'lucide-react'
+import { FileText, FolderOpen, MessageSquare, Shield, Clock, CheckCircle2, Save, Settings } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 interface PortalShellProps {
   aoId: string
   aoName: string
   deadline: string
   companyName: string
-  activeSection: 'offer' | 'documents' | 'plans' | 'questions'
+  activeSection: 'offer' | 'documents' | 'plans' | 'questions' | 'settings'
   progress: number
   saveStatus: 'saved' | 'saving' | 'unsaved'
   isSubmitted: boolean
+  onSave?: () => void
   children: React.ReactNode
 }
 
@@ -43,6 +45,7 @@ export function PortalShell({
   progress,
   saveStatus,
   isSubmitted,
+  onSave,
   children,
 }: PortalShellProps) {
   const searchParams = useSearchParams()
@@ -57,9 +60,13 @@ export function PortalShell({
   ]
 
   const saveLabel =
-    saveStatus === 'saving' ? 'Sauvegarde...' : saveStatus === 'unsaved' ? 'Non sauvegardé' : 'Sauvegardé'
+    saveStatus === 'saving'
+      ? 'Sauvegarde...'
+      : saveStatus === 'unsaved'
+      ? '● Modifications non sauvegardées'
+      : '✓ Sauvegardé'
   const saveColor =
-    saveStatus === 'saving' ? 'var(--amber)' : saveStatus === 'unsaved' ? 'var(--red)' : 'var(--green)'
+    saveStatus === 'saving' ? 'var(--amber)' : saveStatus === 'unsaved' ? 'var(--amber)' : 'var(--green)'
 
   return (
     <div className="flex min-h-screen">
@@ -67,22 +74,22 @@ export function PortalShell({
       <aside
         className="w-56 flex-shrink-0 flex flex-col"
         style={{
-          background: 'var(--surface)',
-          borderRight: '1px solid var(--border)',
+          background: '#7ADFBB',
+          borderRight: '1px solid rgba(0,0,0,0.08)',
           position: 'sticky',
           top: 0,
           height: '100vh',
         }}
       >
         {/* Logo */}
-        <div className="px-5 py-5 border-b" style={{ borderColor: 'var(--border)' }}>
+        <div className="px-5 py-5 border-b" style={{ borderColor: 'rgba(0,0,0,0.1)' }}>
           <p
             className="text-xl font-semibold"
-            style={{ fontFamily: '"DM Serif Display", serif', color: 'var(--green)' }}
+            style={{ fontFamily: '"DM Serif Display", serif', color: '#1A3A2A' }}
           >
             ArchFlow
           </p>
-          <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text3)' }}>
+          <p className="text-xs mt-0.5 truncate" style={{ color: '#1A3A2A', opacity: 0.6 }}>
             Portail entreprise
           </p>
         </div>
@@ -97,9 +104,9 @@ export function PortalShell({
                 href={item.href}
                 className="flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius)] text-sm transition-colors"
                 style={{
-                  background: isActive ? 'var(--green-light)' : 'transparent',
-                  color: isActive ? 'var(--green)' : 'var(--text2)',
-                  fontWeight: isActive ? 500 : 400,
+                  background: isActive ? 'rgba(255,255,255,0.3)' : 'transparent',
+                  color: '#1A3A2A',
+                  fontWeight: isActive ? 600 : 400,
                 }}
               >
                 {item.icon}
@@ -107,7 +114,19 @@ export function PortalShell({
               </Link>
             )
           })}
-
+          {/* Paramètres */}
+          <Link
+            href={`/settings${tokenSuffix}`}
+            className="flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius)] text-sm transition-colors"
+            style={{
+              background: activeSection === 'settings' ? 'rgba(255,255,255,0.3)' : 'transparent',
+              color: '#1A3A2A',
+              fontWeight: 400,
+            }}
+          >
+            <Settings size={16} />
+            Paramètres
+          </Link>
         </nav>
 
         {/* Progression */}
@@ -165,11 +184,23 @@ export function PortalShell({
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Statut sauvegarde */}
+            {/* Statut sauvegarde + bouton save */}
             {!isSubmitted && (
-              <span className="text-xs" style={{ color: saveColor }}>
-                {saveLabel}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs" style={{ color: saveColor }}>
+                  {saveLabel}
+                </span>
+                {onSave && saveStatus === 'unsaved' && (
+                  <Button
+                    size="sm"
+                    onClick={onSave}
+                    style={{ background: 'var(--green-btn)', color: '#fff', border: 'none', height: 30, fontSize: 12 }}
+                  >
+                    <Save size={13} className="mr-1" />
+                    Sauvegarder
+                  </Button>
+                )}
+              </div>
             )}
             {isSubmitted && (
               <span

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 
 export interface OfferPostData {
   unitPrice: number | null
@@ -57,11 +57,61 @@ export function useOffer({ aoId, initialOffer, token }: UseOfferOptions) {
   const [isSubmitted, setIsSubmitted] = useState(initialOffer?.isComplete ?? false)
   const [submittedAt, setSubmittedAt] = useState<string | null>(initialOffer?.submittedAt ?? null)
 
+  // Always points to latest posts — fixes stale closure bug
+  const postsRef = useRef(posts)
+  useEffect(() => { postsRef.current = posts }, [posts])
+
+  const hasUnsavedRef = useRef(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...(token ? { 'X-Portal-Token': token } : {}),
+  }
+
+  // Warn before page close if unsaved changes
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (hasUnsavedRef.current) {
+        e.preventDefault()
+        e.returnValue = 'Vous avez des modifications non sauvegardées. Quitter quand même ?'
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [])
+
+  // Autosave every 30s if unsaved
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (hasUnsavedRef.current) void saveNow()
+    }, 30_000)
+    return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aoId, token])
+
+  async function saveNow() {
+    setSaveStatus('saving')
+    const postsArray = Array.from(postsRef.current.entries()).map(([postId, data]) => ({
+      postId,
+      ...data,
+    }))
+
+    try {
+      const res = await fetch(`/api/portal/${aoId}/offer`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ posts: postsArray }),
+      })
+      if (res.ok) {
+        setSaveStatus('saved')
+        hasUnsavedRef.current = false
+      } else {
+        setSaveStatus('unsaved')
+      }
+    } catch {
+      setSaveStatus('unsaved')
+    }
   }
 
   const updatePost = useCallback(
@@ -73,41 +123,21 @@ export function useOffer({ aoId, initialOffer, token }: UseOfferOptions) {
       })
 
       setSaveStatus('unsaved')
+      hasUnsavedRef.current = true
 
       if (timerRef.current) clearTimeout(timerRef.current)
-      timerRef.current = setTimeout(async () => {
-        await save()
-      }, 3000)
+      timerRef.current = setTimeout(() => { void saveNow() }, 3000)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [aoId, token]
   )
-
-  async function save() {
-    setSaveStatus('saving')
-    const postsArray = Array.from(posts.entries()).map(([postId, data]) => ({
-      postId,
-      ...data,
-    }))
-
-    try {
-      await fetch(`/api/portal/${aoId}/offer`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ posts: postsArray }),
-      })
-      setSaveStatus('saved')
-    } catch {
-      setSaveStatus('unsaved')
-    }
-  }
 
   async function submit(
     allPostIds: string[]
   ): Promise<{ success: boolean; error?: string; details?: string[] }> {
     const postsArray = allPostIds.map((postId) => ({
       postId,
-      ...(posts.get(postId) ?? EMPTY_POST),
+      ...(postsRef.current.get(postId) ?? EMPTY_POST),
     }))
 
     try {
@@ -120,6 +150,7 @@ export function useOffer({ aoId, initialOffer, token }: UseOfferOptions) {
       if (res.ok) {
         setIsSubmitted(true)
         setSubmittedAt(new Date().toISOString())
+        hasUnsavedRef.current = false
         return { success: true }
       }
 
@@ -130,5 +161,5 @@ export function useOffer({ aoId, initialOffer, token }: UseOfferOptions) {
     }
   }
 
-  return { posts, updatePost, saveStatus, save, submit, isSubmitted, submittedAt }
+  return { posts, updatePost, saveStatus, save: saveNow, submit, isSubmitted, submittedAt }
 }

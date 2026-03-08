@@ -6,6 +6,7 @@ import { createBrowserClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Eye, EyeOff } from 'lucide-react'
 
 function RegisterCompanyForm() {
   const searchParams = useSearchParams()
@@ -26,6 +27,7 @@ function RegisterCompanyForm() {
   const [trade, setTrade] = useState('')
   const [signatoryQuality, setSignatoryQuality] = useState('')
   const [password, setPassword] = useState('')
+  const [showPwd, setShowPwd] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -50,7 +52,7 @@ function RegisterCompanyForm() {
       const res = await fetch('/api/auth/register-company', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, firstName, lastName, companyName, siret: siret || undefined, legalForm: legalForm || undefined, companyAddress: companyAddress || undefined, postalCode: postalCode || undefined, city: city || undefined, phone: phone || undefined, trade: trade || undefined, signatoryQuality: signatoryQuality || undefined, password }),
+        body: JSON.stringify({ token, firstName, lastName, companyName, siret, legalForm: legalForm || undefined, companyAddress: companyAddress || undefined, postalCode: postalCode || undefined, city: city || undefined, phone: phone || undefined, trade: trade || undefined, signatoryQuality: signatoryQuality || undefined, password }),
       })
 
       const data = await res.json() as { error?: string; email?: string }
@@ -161,17 +163,19 @@ function RegisterCompanyForm() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="siret" style={{ color: 'var(--text)' }}>
-                SIRET <span style={{ color: 'var(--text3)' }}>(optionnel)</span>
-              </Label>
+              <Label htmlFor="siret" style={{ color: 'var(--text)' }}>SIRET</Label>
               <Input
                 id="siret"
                 placeholder="12345678901234"
                 value={siret}
                 onChange={(e) => setSiret(e.target.value.replace(/\D/g, '').slice(0, 14))}
                 maxLength={14}
+                required
                 style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
               />
+              {siret.length > 0 && siret.length < 14 && (
+                <p className="text-xs" style={{ color: 'var(--red)' }}>Le SIRET est obligatoire (14 chiffres)</p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="legalForm" style={{ color: 'var(--text)' }}>
@@ -263,6 +267,7 @@ function RegisterCompanyForm() {
               style={{ border: '1px solid var(--border)', color: 'var(--text)', background: 'var(--surface)' }}
             >
               <option value="">—</option>
+              <option>TCE (Tous Corps d&apos;État)</option>
               <option>Gros œuvre</option>
               <option>Plâtrerie</option>
               <option>Électricité</option>
@@ -322,17 +327,27 @@ function RegisterCompanyForm() {
 
           <div className="space-y-1.5">
             <Label htmlFor="password" style={{ color: 'var(--text)' }}>Mot de passe</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="Minimum 8 caractères"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-              autoComplete="new-password"
-              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPwd ? 'text' : 'password'}
+                placeholder="Minimum 8 caractères"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+                autoComplete="new-password"
+                style={{ borderColor: 'var(--border)', color: 'var(--text)', paddingRight: 40 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwd(!showPwd)}
+                className="absolute right-3 top-1/2 -translate-y-1/2"
+                style={{ color: 'var(--text3)' }}
+              >
+                {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
 
           {error && (

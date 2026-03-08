@@ -44,35 +44,57 @@ function InputField({
   autoComplete?: string
 }) {
   const [focused, setFocused] = useState(false)
+  const [showPwd, setShowPwd] = useState(false)
+  const isPassword = type === 'password'
+  const inputType = isPassword ? (showPwd ? 'text' : 'password') : type
+
   return (
     <div>
       <label style={{ display: 'block', fontSize: 12.5, fontWeight: 500, color: '#6B6B65', marginBottom: 5 }}>
         {label}
         {required && <span style={{ color: '#9B1C1C', marginLeft: 2 }}>*</span>}
       </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-        minLength={minLength}
-        autoComplete={autoComplete}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        style={{
-          width: '100%',
-          boxSizing: 'border-box',
-          border: focused ? '1.5px solid #1A5C3A' : '1.5px solid #E0E0DA',
-          borderRadius: 12,
-          padding: '11px 14px',
-          fontSize: 14,
-          color: '#1A1A18',
-          background: '#fff',
-          outline: 'none',
-          boxShadow: focused ? '0 0 0 3px rgba(26,92,58,0.08)' : 'none',
-          transition: 'border-color 0.15s, box-shadow 0.15s',
-        }}
-      />
+      <div style={{ position: 'relative' }}>
+        <input
+          type={inputType}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          required={required}
+          minLength={minLength}
+          autoComplete={autoComplete}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          style={{
+            width: '100%',
+            boxSizing: 'border-box',
+            border: focused ? '1.5px solid #1A5C3A' : '1.5px solid #E0E0DA',
+            borderRadius: 12,
+            padding: isPassword ? '11px 40px 11px 14px' : '11px 14px',
+            fontSize: 14,
+            color: '#1A1A18',
+            background: '#fff',
+            outline: 'none',
+            boxShadow: focused ? '0 0 0 3px rgba(26,92,58,0.08)' : 'none',
+            transition: 'border-color 0.15s, box-shadow 0.15s',
+          }}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPwd(!showPwd)}
+            style={{
+              position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+              color: '#9B9B94', background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+              display: 'flex', alignItems: 'center',
+            }}
+          >
+            {showPwd
+              ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            }
+          </button>
+        )}
+      </div>
       {hint && <p style={{ fontSize: 11, color: '#9B9B94', marginTop: 4 }}>{hint}</p>}
     </div>
   )

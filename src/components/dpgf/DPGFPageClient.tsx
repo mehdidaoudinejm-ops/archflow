@@ -111,7 +111,7 @@ export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo }: DP
             className="text-2xl font-semibold mt-0.5"
             style={{ fontFamily: 'var(--font-dm-serif)', color: 'var(--text)' }}
           >
-            Consultation
+            DQE
           </h1>
         </div>
       </div>
@@ -119,7 +119,7 @@ export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo }: DP
       {/* Onglets de navigation */}
       <div className="flex gap-0" style={{ borderBottom: '2px solid var(--border)' }}>
         {[
-          { label: 'Consultation', href: `/dpgf/${projectId}`, active: true },
+          { label: "DQE", href: `/dpgf/${projectId}`, active: true },
           { label: 'DCE', href: `/dpgf/${projectId}/dce`, active: false },
           { label: 'Q&A', href: `/dpgf/${projectId}/qa`, active: false },
           { label: 'Analyse', href: `/dpgf/${projectId}/analyse`, active: false },

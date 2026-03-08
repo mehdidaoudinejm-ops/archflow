@@ -88,7 +88,7 @@ export function Navbar() {
               fontSize: '14px', fontWeight: 500, textDecoration: 'none', whiteSpace: 'nowrap',
             }}
           >
-            Essai gratuit →
+            Commencer →
           </Link>
         </div>
 
@@ -144,7 +144,7 @@ export function Navbar() {
                 fontSize: '14px', fontWeight: 500, textDecoration: 'none',
               }}
             >
-              Essai gratuit →
+              Commencer →
             </Link>
           </div>
         </div>

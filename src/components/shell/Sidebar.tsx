@@ -31,15 +31,21 @@ export function Sidebar({ role }: { role?: Role }) {
 
   return (
     <aside
-      className="flex flex-col w-56 shrink-0 min-h-screen border-r py-6"
-      style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+      className="flex flex-col w-56 shrink-0 min-h-screen py-6"
+      style={{
+        background: role === 'COMPANY' ? '#7ADFBB' : 'var(--green)',
+        borderRight: role === 'COMPANY' ? '1px solid rgba(0,0,0,0.08)' : 'none',
+      }}
     >
       {/* Logo */}
       <div className="px-5 mb-8">
         <Link href={role === 'COMPANY' ? '/mes-appels-doffres' : '/dashboard'}>
           <span
             className="text-2xl leading-none"
-            style={{ fontFamily: '"DM Serif Display", serif', color: 'var(--green)' }}
+            style={{
+              fontFamily: '"DM Serif Display", serif',
+              color: role === 'COMPANY' ? '#1A3A2A' : '#fff',
+            }}
           >
             ArchFlow
           </span>
@@ -50,15 +56,18 @@ export function Sidebar({ role }: { role?: Role }) {
       <nav className="flex-1 px-3 space-y-1">
         {navItems.map((item) => {
           const isActive = pathname === item.href || (item.href !== '/settings' && pathname.startsWith(item.href))
+          const activeColor = role === 'COMPANY' ? '#1A3A2A' : '#fff'
+          const inactiveColor = role === 'COMPANY' ? '#1A3A2A' : 'rgba(255,255,255,0.7)'
+          const activeBg = role === 'COMPANY' ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.15)'
           return (
             <Link
               key={item.href}
               href={item.href}
               className="flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius)] text-sm transition-colors"
               style={{
-                background: isActive ? 'var(--green-light)' : 'transparent',
-                color: isActive ? 'var(--green)' : 'var(--text2)',
-                fontWeight: isActive ? 500 : 400,
+                background: isActive ? activeBg : 'transparent',
+                color: isActive ? activeColor : inactiveColor,
+                fontWeight: isActive ? 600 : 400,
               }}
             >
               {item.icon}
@@ -73,19 +82,19 @@ export function Sidebar({ role }: { role?: Role }) {
         <div className="px-5 mt-4">
           <p
             className="text-xs font-medium uppercase tracking-wider mb-2"
-            style={{ color: 'var(--text3)' }}
+            style={{ color: 'rgba(255,255,255,0.5)' }}
           >
             Modules
           </p>
           <div
             className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius)] text-sm"
-            style={{ color: 'var(--text2)' }}
+            style={{ color: 'rgba(255,255,255,0.7)' }}
           >
             <LayoutGrid size={16} />
-            <span>Consultation</span>
+            <span>DQE</span>
             <span
               className="ml-auto text-xs px-1.5 py-0.5 rounded"
-              style={{ background: 'var(--green-light)', color: 'var(--green)' }}
+              style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}
             >
               Actif
             </span>

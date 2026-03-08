@@ -12,7 +12,7 @@ const registerCompanySchema = z.object({
   lastName: z.string().min(1, 'Nom requis').max(50),
   companyName: z.string().min(1, 'Nom de la société requis').max(100),
   password: z.string().min(8, 'Minimum 8 caractères'),
-  siret: z.string().length(14, 'Le SIRET doit contenir 14 chiffres').optional().or(z.literal('')),
+  siret: z.string().length(14, 'Le SIRET est obligatoire (14 chiffres)'),
   legalForm: z.string().max(50).optional(),
   companyAddress: z.string().max(200).optional(),
   postalCode: z.string().max(10).optional(),
