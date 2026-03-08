@@ -18,7 +18,7 @@ export default async function ShellLayout({
 
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>
-      <Sidebar />
+      <Sidebar role={user.role} />
       <div className="flex flex-col flex-1 min-w-0">
         <AdminModeBanner />
         <Topbar

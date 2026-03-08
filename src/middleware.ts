@@ -82,7 +82,9 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/settings') ||
-    pathname.startsWith('/dpgf')
+    pathname.startsWith('/dpgf') ||
+    pathname.startsWith('/mes-appels-doffres') ||
+    pathname.startsWith('/annuaire')
   ) {
     if (!session) {
       const loginUrl = new URL('/login', request.url)

@@ -73,7 +73,7 @@ function RegisterCompanyForm() {
       }
 
       // 3. Rediriger vers le portail (reconstruit depuis le token, sera géré par le portail)
-      router.push('/dashboard')
+      router.push('/mes-appels-doffres')
       router.refresh()
     } catch {
       setError('Une erreur est survenue. Réessayez.')
