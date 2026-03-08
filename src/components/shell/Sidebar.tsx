@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutGrid, Settings, FolderOpen, CreditCard } from 'lucide-react'
+import { LayoutGrid, Settings, FolderOpen, CreditCard, BookUser } from 'lucide-react'
 
 interface NavItem {
   href: string
@@ -15,6 +15,11 @@ const navItems: NavItem[] = [
     href: '/dashboard',
     label: 'Projets',
     icon: <FolderOpen size={18} />,
+  },
+  {
+    href: '/annuaire',
+    label: 'Annuaire',
+    icon: <BookUser size={18} />,
   },
   {
     href: '/settings/billing',

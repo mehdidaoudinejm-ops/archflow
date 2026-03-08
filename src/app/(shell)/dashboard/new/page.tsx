@@ -246,6 +246,11 @@ export default function NewProjectPage() {
   const [budget, setBudget] = useState('')
   const [startDate, setStartDate] = useState('')
   const [description, setDescription] = useState('')
+  // Client
+  const [clientFirstName, setClientFirstName] = useState('')
+  const [clientLastName, setClientLastName] = useState('')
+  const [clientEmail, setClientEmail] = useState('')
+  const [clientPhone, setClientPhone] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -262,6 +267,10 @@ export default function NewProjectPage() {
       if (budget) body.budget = parseFloat(budget)
       if (startDate) body.startDate = startDate
       if (description.trim()) body.description = description.trim()
+      if (clientFirstName.trim()) body.clientFirstName = clientFirstName.trim()
+      if (clientLastName.trim()) body.clientLastName = clientLastName.trim()
+      if (clientEmail.trim()) body.clientEmail = clientEmail.trim()
+      if (clientPhone.trim()) body.clientPhone = clientPhone.trim()
 
       const res = await fetch('/api/projects', {
         method: 'POST',
@@ -380,6 +389,33 @@ export default function NewProjectPage() {
               placeholder="Contexte du projet, contraintes particulières, objectifs..."
               rows={3}
             />
+          </div>
+
+          <Divider />
+
+          {/* ── Section 3 — Client du projet ── */}
+          <SectionTitle>Client du projet</SectionTitle>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+            <div>
+              <FieldLabel optional>Prénom</FieldLabel>
+              <TextInput value={clientFirstName} onChange={setClientFirstName} placeholder="ex. Marie" />
+            </div>
+            <div>
+              <FieldLabel optional>Nom</FieldLabel>
+              <TextInput value={clientLastName} onChange={setClientLastName} placeholder="ex. Dupont" />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div>
+              <FieldLabel optional>Email</FieldLabel>
+              <TextInput value={clientEmail} onChange={setClientEmail} placeholder="marie@exemple.fr" />
+            </div>
+            <div>
+              <FieldLabel optional>Téléphone</FieldLabel>
+              <TextInput value={clientPhone} onChange={setClientPhone} placeholder="06 12 34 56 78" />
+            </div>
           </div>
 
           {/* Error */}
