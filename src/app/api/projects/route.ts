@@ -8,6 +8,11 @@ export const dynamic = 'force-dynamic'
 const createProjectSchema = z.object({
   name: z.string().min(1, 'Le nom est requis').max(100),
   address: z.string().max(200).optional(),
+  projectType: z.string().max(100).optional(),
+  surface: z.number().positive().optional(),
+  budget: z.number().positive().optional(),
+  startDate: z.string().optional(), // ISO date string
+  description: z.string().max(2000).optional(),
 })
 
 export async function GET() {
@@ -54,11 +59,17 @@ export async function POST(req: Request) {
       )
     }
 
+    const { name, address, projectType, surface, budget, startDate, description } = parsed.data
     const project = await prisma.project.create({
       data: {
         agencyId: user.agencyId,
-        name: parsed.data.name,
-        address: parsed.data.address,
+        name,
+        address: address ?? null,
+        projectType: projectType ?? null,
+        surface: surface ?? null,
+        budget: budget ?? null,
+        startDate: startDate ? new Date(startDate) : null,
+        description: description ?? null,
       },
     })
 

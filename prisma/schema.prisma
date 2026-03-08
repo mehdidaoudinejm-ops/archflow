@@ -55,6 +55,11 @@ model Project {
   agencyId     String
   name         String
   address      String?
+  projectType  String?
+  surface      Float?
+  budget       Float?
+  startDate    DateTime?
+  description  String?
   clientUserId String?
   status       ProjectStatus       @default(ACTIVE)
   createdAt    DateTime            @default(now())
