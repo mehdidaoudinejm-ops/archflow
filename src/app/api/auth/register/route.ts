@@ -9,6 +9,8 @@ const registerSchema = z.object({
   firstName: z.string().min(1, 'Prénom requis').max(50),
   lastName: z.string().min(1, 'Nom requis').max(50),
   agencyName: z.string().min(1, "Nom de l'agence requis").max(100),
+  city: z.string().min(1, 'Ville requise').max(100),
+  phone: z.string().max(30).optional(),
   password: z.string().min(8, 'Minimum 8 caractères'),
   inviteToken: z.string().min(1, "Token d'invitation requis"),
 })
@@ -24,7 +26,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const { firstName, lastName, agencyName, password, inviteToken } = parsed.data
+    const { firstName, lastName, agencyName, city, phone, password, inviteToken } = parsed.data
 
     // Valider le token d'invitation
     const entry = await prisma.waitlistEntry.findUnique({
@@ -81,6 +83,8 @@ export async function POST(req: Request) {
     const agency = await prisma.agency.create({
       data: {
         name: agencyName,
+        city: city,
+        phone: phone ?? null,
         plan: 'SOLO',
         activeModules: ['dpgf'],
       },
