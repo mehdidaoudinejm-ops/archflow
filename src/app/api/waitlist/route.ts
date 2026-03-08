@@ -27,17 +27,39 @@ export async function POST(req: Request) {
 
     const { firstName, lastName, email, cabinetName, city, message } = parsed.data
 
-    // Vérifier si l'email est déjà dans la waitlist
-    const existing = await prisma.waitlistEntry.findUnique({ where: { email } })
-    if (existing) {
+    // Bloquer si un compte actif existe déjà
+    const existingUser = await prisma.user.findUnique({ where: { email }, select: { id: true } })
+    if (existingUser) {
       return NextResponse.json(
-        { error: 'Cette adresse email est déjà enregistrée' },
+        { error: 'Un compte existe déjà avec cet email' },
         { status: 409 }
       )
     }
 
-    await prisma.waitlistEntry.create({
-      data: { firstName, lastName, email, cabinetName, city, message: message ?? null },
+    // Bloquer si une demande est déjà en cours (PENDING)
+    const existingEntry = await prisma.waitlistEntry.findUnique({ where: { email } })
+    if (existingEntry?.status === 'PENDING') {
+      return NextResponse.json(
+        { error: 'Une demande est déjà en cours pour cet email' },
+        { status: 409 }
+      )
+    }
+
+    // Si une entrée existe (APPROVED/REJECTED, user supprimé) → réinitialiser
+    // Sinon → créer
+    await prisma.waitlistEntry.upsert({
+      where: { email },
+      create: { firstName, lastName, email, cabinetName, city, message: message ?? null },
+      update: {
+        firstName,
+        lastName,
+        cabinetName,
+        city,
+        message: message ?? null,
+        status: 'PENDING',
+        inviteToken: null,
+        approvedAt: null,
+      },
     })
 
     return NextResponse.json({ success: true }, { status: 201 })
