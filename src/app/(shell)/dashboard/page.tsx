@@ -12,6 +12,10 @@ export default async function DashboardPage() {
     redirect('/login')
   }
 
+  if (user.role === 'COMPANY') {
+    redirect('/mes-appels-doffres')
+  }
+
   if (!user.agencyId) {
     return (
       <div className="max-w-lg mx-auto mt-16 text-center">

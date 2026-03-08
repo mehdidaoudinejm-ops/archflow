@@ -4,7 +4,6 @@ import { useState, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { PortalShell } from '@/components/portal/PortalShell'
 import { Upload, CheckCircle2, Clock, XCircle, AlertCircle, FileText } from 'lucide-react'
-import { createBrowserClient } from '@/lib/supabase'
 
 const DOC_TYPES = [
   { key: 'kbis', label: 'Extrait Kbis', description: 'Moins de 3 mois' },
@@ -74,22 +73,25 @@ function DocumentsContent({ aoId, aoName, deadline, companyName, initialDocs }: 
     setUploading(pendingDocType)
 
     try {
-      // 1. Upload vers Supabase Storage
-      const supabase = createBrowserClient()
+      // 1. Upload via route API serveur (service role — bypass RLS)
       const ext = file.name.split('.').pop()
       const path = `${aoId}/${pendingDocType}/${Date.now()}.${ext}`
 
-      const { data: uploadData, error: uploadErr } = await supabase.storage
-        .from('admin-docs')
-        .upload(path, file, { upsert: true })
+      const uploadForm = new FormData()
+      uploadForm.append('file', file)
+      uploadForm.append('bucket', 'admin-docs')
+      uploadForm.append('path', path)
 
-      if (uploadErr) throw new Error(uploadErr.message)
+      const uploadHeaders: HeadersInit = token ? { 'X-Portal-Token': token } : {}
+      const uploadRes = await fetch(`/api/portal/upload?aoId=${aoId}`, {
+        method: 'POST',
+        headers: uploadHeaders,
+        body: uploadForm,
+      })
+      const uploadData = await uploadRes.json() as { fileUrl?: string; error?: string }
+      if (!uploadRes.ok) throw new Error(uploadData.error ?? 'Erreur upload')
 
-      const { data: urlData } = supabase.storage
-        .from('admin-docs')
-        .getPublicUrl(uploadData.path)
-
-      const fileUrl = urlData.publicUrl
+      const fileUrl = uploadData.fileUrl!
 
       // 2. Enregistrer via l'API
       const headers: HeadersInit = {
