@@ -28,7 +28,7 @@ export interface AIImportResult {
   globalConfidence: number
 }
 
-const MODEL = 'claude-sonnet-4-5'
+const MODEL = 'claude-sonnet-4-6'
 
 const SYSTEM_PROMPT = `Tu es un assistant spécialisé dans l'analyse de documents DPGF (Décomposition du Prix Global et Forfaitaire) du bâtiment.
 

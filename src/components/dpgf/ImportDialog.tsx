@@ -90,7 +90,15 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
         body: form,
       })
 
-      const data = await res.json() as { importId?: string; error?: string }
+      let data: { importId?: string; error?: string } = {}
+      try {
+        data = await res.json() as { importId?: string; error?: string }
+      } catch {
+        // La réponse n'est pas du JSON (ex: timeout 504, erreur serveur HTML)
+        setError(`Erreur serveur (HTTP ${res.status}). Vérifiez que ANTHROPIC_API_KEY est définie en production.`)
+        setLoading(false)
+        return
+      }
 
       if (!res.ok || !data.importId) {
         setError(data.error ?? "Échec de l'analyse IA")
@@ -100,8 +108,9 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
 
       handleClose()
       router.push(`/dpgf/${projectId}/import?importId=${data.importId}`)
-    } catch {
-      setError('Erreur réseau, veuillez réessayer.')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erreur réseau'
+      setError(msg)
       setLoading(false)
     }
   }
