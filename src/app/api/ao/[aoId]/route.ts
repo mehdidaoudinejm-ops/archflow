@@ -21,14 +21,10 @@ export async function GET(
   try {
     const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
 
-    const access = await checkAOAccess(params.aoId, user.agencyId!)
-    if (!access) {
-      return NextResponse.json({ error: 'AO introuvable' }, { status: 404 })
-    }
-
     const ao = await prisma.aO.findUnique({
       where: { id: params.aoId },
       include: {
+        dpgf: { include: { project: { select: { agencyId: true } } } },
         aoCompanies: {
           include: {
             offer: { select: { id: true, submittedAt: true, isComplete: true } },
@@ -38,6 +34,10 @@ export async function GET(
         documents: { orderBy: { createdAt: 'asc' } },
       },
     })
+
+    if (!ao || ao.dpgf.project.agencyId !== user.agencyId!) {
+      return NextResponse.json({ error: 'AO introuvable' }, { status: 404 })
+    }
 
     return NextResponse.json(ao, { status: 200 })
   } catch (error) {

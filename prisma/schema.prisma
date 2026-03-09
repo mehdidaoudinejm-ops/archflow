@@ -50,6 +50,8 @@ model User {
   permissions   ProjectPermission[]
   notifications Notification[]
   activityLogs  ActivityLog[]
+
+  @@index([agencyId])
 }
 
 model Project {
@@ -71,6 +73,8 @@ model Project {
   clientContact   Contact?            @relation(fields: [clientContactId], references: [id])
   dpgfs           DPGF[]
   permissions     ProjectPermission[]
+
+  @@index([agencyId])
 }
 
 model Contact {
@@ -87,6 +91,8 @@ model Contact {
   createdAt DateTime    @default(now())
   agency    Agency      @relation(fields: [agencyId], references: [id])
   projects  Project[]
+
+  @@index([agencyId])
 }
 
 model ProjectPermission {
@@ -97,6 +103,9 @@ model ProjectPermission {
   permissions Json
   project     Project @relation(fields: [projectId], references: [id])
   user        User    @relation(fields: [userId], references: [id])
+
+  @@index([projectId])
+  @@index([userId])
 }
 
 model Notification {
@@ -109,6 +118,9 @@ model Notification {
   readAt    DateTime?
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([userId, readAt])
 }
 
 model ActivityLog {
@@ -120,6 +132,9 @@ model ActivityLog {
   metadata  Json?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([projectId])
 }
 
 // ── MODULE DPGF ────────────────────────────────────────
@@ -137,6 +152,8 @@ model DPGF {
   aos              AO[]
   aiImports        AIImport[]
   documents        Document[]
+
+  @@index([projectId])
 }
 
 model DPGFVersion {
@@ -147,6 +164,8 @@ model DPGFVersion {
   createdById  String
   createdAt    DateTime @default(now())
   dpgf         DPGF     @relation(fields: [dpgfId], references: [id])
+
+  @@index([dpgfId])
 }
 
 model Lot {
@@ -158,6 +177,8 @@ model Lot {
   dpgf     DPGF     @relation(fields: [dpgfId], references: [id])
   sublots  SubLot[]
   posts    Post[]
+
+  @@index([dpgfId])
 }
 
 model SubLot {
@@ -168,6 +189,8 @@ model SubLot {
   position Int
   lot      Lot    @relation(fields: [lotId], references: [id])
   posts    Post[]
+
+  @@index([lotId])
 }
 
 model Post {
@@ -186,6 +209,9 @@ model Post {
   lot            Lot         @relation(fields: [lotId], references: [id])
   sublot         SubLot?     @relation(fields: [sublotId], references: [id])
   offerPosts     OfferPost[]
+
+  @@index([lotId])
+  @@index([sublotId])
 }
 
 model Library {
@@ -200,6 +226,8 @@ model Library {
   usageCount Int      @default(0)
   createdAt  DateTime @default(now())
   agency     Agency   @relation(fields: [agencyId], references: [id])
+
+  @@index([agencyId])
 }
 
 model AO {
@@ -223,6 +251,8 @@ model AO {
   documents         Document[]
   qas               QA[]
   scoringConfig     AOScoringConfig?
+
+  @@index([dpgfId])
 }
 
 model AOScoringConfig {
@@ -251,6 +281,9 @@ model AOCompany {
   adminDocs     AdminDoc[]
   documentReads DocumentRead[]
   qas           QA[]
+
+  @@index([aoId])
+  @@index([companyUserId])
 }
 
 model Offer {
@@ -262,6 +295,8 @@ model Offer {
   vatRate     Float       @default(20)
   aoCompany   AOCompany   @relation(fields: [aoCompanyId], references: [id])
   offerPosts  OfferPost[]
+
+  @@index([aoId])
 }
 
 model OfferPost {
@@ -276,6 +311,9 @@ model OfferPost {
   variantDescription String?
   offer              Offer   @relation(fields: [offerId], references: [id])
   post               Post    @relation(fields: [postId], references: [id])
+
+  @@index([offerId])
+  @@index([postId])
 }
 
 model Document {
@@ -292,6 +330,9 @@ model Document {
   dpgf         DPGF           @relation(fields: [dpgfId], references: [id])
   ao           AO?            @relation(fields: [aoId], references: [id])
   reads        DocumentRead[]
+
+  @@index([dpgfId])
+  @@index([aoId])
 }
 
 model DocumentRead {
@@ -314,6 +355,8 @@ model AdminDoc {
   rejectionReason String?
   expiresAt       DateTime?
   aoCompany       AOCompany      @relation(fields: [aoCompanyId], references: [id])
+
+  @@index([aoCompanyId])
 }
 
 model QA {
@@ -330,6 +373,9 @@ model QA {
   ao            AO           @relation(fields: [aoId], references: [id])
   aoCompany     AOCompany    @relation(fields: [aoCompanyId], references: [id])
   answer        QAAnswer?
+
+  @@index([aoId])
+  @@index([aoCompanyId])
 }
 
 model QAAnswer {
@@ -353,6 +399,8 @@ model AIImport {
   createdById      String
   createdAt        DateTime       @default(now())
   dpgf             DPGF           @relation(fields: [dpgfId], references: [id])
+
+  @@index([dpgfId])
 }
 
 // ── ADMIN ─────────────────────────────────────────────

@@ -70,39 +70,30 @@ export async function PATCH(
       return NextResponse.json({ error: 'L\'offre a déjà été soumise' }, { status: 400 })
     }
 
-    // Upsert des postes
-    for (const post of parsed.data.posts) {
-      const existing = await prisma.offerPost.findFirst({
-        where: { offerId: offer.id, postId: post.postId },
-      })
+    // Upsert des postes (batch — une seule requête de lecture + transaction)
+    const postIds = parsed.data.posts.map((p) => p.postId)
+    const existingPosts = await prisma.offerPost.findMany({
+      where: { offerId: offer.id, postId: { in: postIds } },
+      select: { id: true, postId: true },
+    })
+    const existingMap = new Map(existingPosts.map((p) => [p.postId, p.id]))
 
-      if (existing) {
-        await prisma.offerPost.update({
-          where: { id: existing.id },
-          data: {
-            unitPrice: post.unitPrice ?? null,
-            qtyCompany: post.qtyCompany ?? null,
-            qtyMotive: post.qtyMotive ?? null,
-            comment: post.comment ?? null,
-            isVariant: post.isVariant ?? false,
-            variantDescription: post.variantDescription ?? null,
-          },
-        })
-      } else {
-        await prisma.offerPost.create({
-          data: {
-            offerId: offer.id,
-            postId: post.postId,
-            unitPrice: post.unitPrice ?? null,
-            qtyCompany: post.qtyCompany ?? null,
-            qtyMotive: post.qtyMotive ?? null,
-            comment: post.comment ?? null,
-            isVariant: post.isVariant ?? false,
-            variantDescription: post.variantDescription ?? null,
-          },
-        })
-      }
-    }
+    await prisma.$transaction(
+      parsed.data.posts.map((post) => {
+        const existingId = existingMap.get(post.postId)
+        const data = {
+          unitPrice: post.unitPrice ?? null,
+          qtyCompany: post.qtyCompany ?? null,
+          qtyMotive: post.qtyMotive ?? null,
+          comment: post.comment ?? null,
+          isVariant: post.isVariant ?? false,
+          variantDescription: post.variantDescription ?? null,
+        }
+        return existingId
+          ? prisma.offerPost.update({ where: { id: existingId }, data })
+          : prisma.offerPost.create({ data: { offerId: offer.id, postId: post.postId, ...data } })
+      })
+    )
 
     // Mettre à jour le statut AOCompany
     if (aoCompany.status === 'INVITED' || aoCompany.status === 'OPENED') {
@@ -219,27 +210,30 @@ export async function PUT(
       return NextResponse.json({ error: 'L\'offre a déjà été soumise' }, { status: 400 })
     }
 
-    // Sauvegarder tous les postes
-    for (const post of parsed.data.posts) {
-      const existing = await prisma.offerPost.findFirst({
-        where: { offerId: offer.id, postId: post.postId },
+    // Sauvegarder tous les postes (batch)
+    const submitPostIds = parsed.data.posts.map((p) => p.postId)
+    const existingSubmitPosts = await prisma.offerPost.findMany({
+      where: { offerId: offer.id, postId: { in: submitPostIds } },
+      select: { id: true, postId: true },
+    })
+    const submitExistingMap = new Map(existingSubmitPosts.map((p) => [p.postId, p.id]))
+
+    await prisma.$transaction(
+      parsed.data.posts.map((post) => {
+        const existingId = submitExistingMap.get(post.postId)
+        const data = {
+          unitPrice: post.unitPrice ?? null,
+          qtyCompany: post.qtyCompany ?? null,
+          qtyMotive: post.qtyMotive ?? null,
+          comment: post.comment ?? null,
+          isVariant: post.isVariant ?? false,
+          variantDescription: post.variantDescription ?? null,
+        }
+        return existingId
+          ? prisma.offerPost.update({ where: { id: existingId }, data })
+          : prisma.offerPost.create({ data: { offerId: offer.id, postId: post.postId, ...data } })
       })
-      const data = {
-        unitPrice: post.unitPrice ?? null,
-        qtyCompany: post.qtyCompany ?? null,
-        qtyMotive: post.qtyMotive ?? null,
-        comment: post.comment ?? null,
-        isVariant: post.isVariant ?? false,
-        variantDescription: post.variantDescription ?? null,
-      }
-      if (existing) {
-        await prisma.offerPost.update({ where: { id: existing.id }, data })
-      } else {
-        await prisma.offerPost.create({
-          data: { offerId: offer.id, postId: post.postId, ...data },
-        })
-      }
-    }
+    )
 
     // Marquer l'offre comme soumise
     await prisma.offer.update({
@@ -253,20 +247,21 @@ export async function PUT(
       data: { status: 'SUBMITTED' },
     })
 
-    // Notifier les architectes de l'agence
-    const architects = await prisma.user.findMany({
-      where: { agencyId: ao.dpgf.project.agencyId, role: { in: ['ARCHITECT', 'COLLABORATOR'] } },
-      select: { email: true, firstName: true },
-    })
-
     const companyName =
       companyUser.agency?.name ??
       [companyUser.firstName, companyUser.lastName].filter(Boolean).join(' ') ??
       companyUser.email
 
-    for (const architect of architects) {
-      try {
-        await sendEmail({
+    // Notifier les architectes — une seule requête pour emails + notifications
+    const architects = await prisma.user.findMany({
+      where: { agencyId: ao.dpgf.project.agencyId, role: { in: ['ARCHITECT', 'COLLABORATOR'] } },
+      select: { id: true, email: true, firstName: true },
+    })
+
+    await Promise.allSettled([
+      // Emails en parallèle
+      ...architects.map((architect) =>
+        sendEmail({
           to: architect.email,
           subject: `Nouvelle offre reçue — ${ao.name}`,
           html: OfferReceivedEmail({
@@ -275,26 +270,19 @@ export async function PUT(
             aoName: ao.name,
             projectName: ao.dpgf.project.name,
           }),
-        })
-      } catch (emailErr) {
-        console.error('[PUT /api/portal/offer] email error', emailErr)
-      }
-    }
-
-    // Notifications in-app pour les architectes
-    const architectsWithId = await prisma.user.findMany({
-      where: { agencyId: ao.dpgf.project.agencyId, role: { in: ['ARCHITECT', 'COLLABORATOR'] } },
-      select: { id: true },
-    })
-    await prisma.notification.createMany({
-      data: architectsWithId.map((a) => ({
-        userId: a.id,
-        type: 'OFFER_SUBMITTED',
-        title: `Nouvelle offre reçue`,
-        body: `${companyName} a soumis une offre pour ${ao.name}`,
-        link: `/dpgf/${ao.dpgf.project.id}/analyse`,
-      })),
-    })
+        }).catch((emailErr) => console.error('[PUT /api/portal/offer] email error', emailErr))
+      ),
+      // Notifications in-app (createMany = une seule requête)
+      prisma.notification.createMany({
+        data: architects.map((a) => ({
+          userId: a.id,
+          type: 'OFFER_SUBMITTED',
+          title: `Nouvelle offre reçue`,
+          body: `${companyName} a soumis une offre pour ${ao.name}`,
+          link: `/dpgf/${ao.dpgf.project.id}/analyse`,
+        })),
+      }),
+    ])
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {

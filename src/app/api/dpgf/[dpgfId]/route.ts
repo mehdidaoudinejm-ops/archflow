@@ -21,14 +21,10 @@ export async function GET(
   try {
     const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
 
-    const access = await checkDPGFAccess(params.dpgfId, user.agencyId!)
-    if (!access) {
-      return NextResponse.json({ error: 'DPGF introuvable' }, { status: 404 })
-    }
-
     const dpgf = await prisma.dPGF.findUnique({
       where: { id: params.dpgfId },
       include: {
+        project: { select: { agencyId: true } },
         lots: {
           orderBy: { position: 'asc' },
           include: {
@@ -46,6 +42,10 @@ export async function GET(
         },
       },
     })
+
+    if (!dpgf || dpgf.project.agencyId !== user.agencyId!) {
+      return NextResponse.json({ error: 'DPGF introuvable' }, { status: 404 })
+    }
 
     return NextResponse.json(dpgf, { status: 200 })
   } catch (error) {
