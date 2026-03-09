@@ -4,6 +4,7 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { AnalysisReport, type AnalysisReportData } from '@/lib/generate-report'
+import { canSeeEstimate } from '@/lib/dpgf-permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,8 @@ export async function GET(
     if (!ao || ao.dpgf.project.agencyId !== user.agencyId) {
       return NextResponse.json({ error: 'AO introuvable' }, { status: 404 })
     }
+
+    const seeEstimate = await canSeeEstimate(ao.dpgf.project.id, user.id, user.role)
 
     const aoCompanies = await prisma.aOCompany.findMany({
       where: { aoId: params.aoId, offer: { isComplete: true } },
@@ -112,8 +115,8 @@ export async function GET(
           title: post.title,
           unit: post.unit,
           qtyArchi: post.qtyArchi ?? null,
-          unitPriceArchi: post.unitPriceArchi ?? null,
-          totalArchi: postTotalArchi,
+          unitPriceArchi: seeEstimate ? (post.unitPriceArchi ?? null) : null,
+          totalArchi: seeEstimate ? postTotalArchi : null,
           minPrice,
           maxPrice,
           minCompanyId,
@@ -124,7 +127,7 @@ export async function GET(
 
       if (lotTotalArchi != null) estimatifTotal = (estimatifTotal ?? 0) + lotTotalArchi
 
-      return { id: lot.id, number: lot.number, name: lot.name, totalArchi: lotTotalArchi, posts: postsData }
+      return { id: lot.id, number: lot.number, name: lot.name, totalArchi: seeEstimate ? lotTotalArchi : null, posts: postsData }
     })
 
     const companiesData = aoCompanies.map((company) => {
@@ -171,7 +174,7 @@ export async function GET(
       companies: companiesData,
       lots: lotsData,
       totals: {
-        estimatif: estimatifTotal,
+        estimatif: seeEstimate ? estimatifTotal : null,
         min: globalMin,
         max: globalMax,
         ecart: globalMin != null && globalMax != null ? globalMax - globalMin : null,

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { saveToLibrarySchema } from '@/lib/validations/library'
+import { canSeeEstimate } from '@/lib/dpgf-permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,12 +33,14 @@ export async function POST(
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
+    const seeEst = await canSeeEstimate(post.lot.dpgf.project.id, user.id, user.role)
+
     const item = await prisma.library.create({
       data: {
         agencyId: user.agencyId!,
         title:    post.title,
         unit:     post.unit,
-        avgPrice: post.unitPriceArchi ?? null,
+        avgPrice: seeEst ? (post.unitPriceArchi ?? null) : null,
         trade:    parsed.data.trade ?? null,
       },
     })
