@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface User {
   id: string
@@ -10,6 +10,8 @@ interface User {
   role: string
   suspended: boolean
   freeAccess: boolean
+  aiImportCount: number
+  aiImportLimit: number
   lastSeenAt: string | null
   createdAt: string
   agency: { name: string } | null
@@ -52,6 +54,87 @@ function Toggle({
         }`}
       />
     </button>
+  )
+}
+
+function ImportLimitCell({ user, onUpdate }: { user: User; onUpdate: (id: string, limit: number) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(String(user.aiImportLimit))
+  const [saving, setSaving] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const ratio = user.aiImportCount / user.aiImportLimit
+  const badgeColor =
+    user.aiImportCount >= user.aiImportLimit
+      ? 'text-red-400 bg-red-500/10'
+      : ratio >= 0.8
+      ? 'text-amber-400 bg-amber-500/10'
+      : 'text-emerald-400 bg-emerald-500/10'
+
+  function startEdit() {
+    setValue(String(user.aiImportLimit))
+    setEditing(true)
+    setTimeout(() => inputRef.current?.select(), 0)
+  }
+
+  async function save() {
+    const parsed = parseInt(value, 10)
+    if (isNaN(parsed) || parsed < 0) { setEditing(false); return }
+    setSaving(true)
+    const res = await fetch(`/api/admin/users/${user.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aiImportLimit: parsed }),
+    })
+    if (res.ok) onUpdate(user.id, parsed)
+    setSaving(false)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="text-zinc-500 text-xs">{user.aiImportCount} /</span>
+        <input
+          ref={inputRef}
+          type="number"
+          min={0}
+          max={9999}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') void save(); if (e.key === 'Escape') setEditing(false) }}
+          className="w-14 text-xs px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-600 text-zinc-100 focus:outline-none focus:border-zinc-400"
+        />
+        <button
+          onClick={() => void save()}
+          disabled={saving}
+          className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-50"
+        >
+          {saving ? '…' : '✓'}
+        </button>
+        <button
+          onClick={() => setEditing(false)}
+          className="text-xs px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-400 hover:bg-zinc-600"
+        >
+          ✕
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`text-xs px-2 py-0.5 rounded font-mono font-medium ${badgeColor}`}>
+        {user.aiImportCount} / {user.aiImportLimit}
+      </span>
+      <button
+        onClick={startEdit}
+        className="text-zinc-600 hover:text-zinc-300 transition-colors text-xs"
+        title="Modifier la limite"
+      >
+        ✎
+      </button>
+    </div>
   )
 }
 
@@ -109,6 +192,10 @@ export default function AdminUsersPage() {
     setActionLoading(null)
   }
 
+  function updateImportLimit(id: string, limit: number) {
+    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, aiImportLimit: limit } : u)))
+  }
+
   async function impersonate(user: User) {
     setActionLoading(`imp-${user.id}`)
     const res = await fetch(`/api/admin/users/${user.id}/impersonate`, { method: 'POST' })
@@ -141,6 +228,7 @@ export default function AdminUsersPage() {
               <th className="text-left px-5 py-3 text-zinc-500 font-medium">Inscrit le</th>
               <th className="text-center px-5 py-3 text-zinc-500 font-medium">Suspendu</th>
               <th className="text-center px-5 py-3 text-zinc-500 font-medium">Accès gratuit</th>
+              <th className="text-left px-5 py-3 text-zinc-500 font-medium">Imports IA</th>
               <th className="px-5 py-3"></th>
             </tr>
           </thead>
@@ -183,6 +271,9 @@ export default function AdminUsersPage() {
                       onClick={() => toggleFreeAccess(user)}
                     />
                   </div>
+                </td>
+                <td className="px-5 py-3">
+                  <ImportLimitCell user={user} onUpdate={updateImportLimit} />
                 </td>
                 <td className="px-5 py-3">
                   <div className="flex gap-2">

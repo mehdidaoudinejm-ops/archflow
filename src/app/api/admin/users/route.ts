@@ -8,12 +8,26 @@ export async function GET() {
   try {
     await requireAdmin()
 
-    const users = await prisma.user.findMany({
-      include: { agency: { select: { name: true } } },
-      orderBy: { createdAt: 'desc' },
-    })
+    const [users, importCounts] = await Promise.all([
+      prisma.user.findMany({
+        include: { agency: { select: { name: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.aIImport.groupBy({
+        by: ['createdById'],
+        _count: { id: true },
+      }),
+    ])
 
-    return NextResponse.json(users)
+    const importCountMap = new Map(importCounts.map((r) => [r.createdById, r._count.id]))
+
+    const result = users.map((u) => ({
+      ...u,
+      aiImportCount: importCountMap.get(u.id) ?? 0,
+      aiImportLimit: u.aiImportLimit ?? 5,
+    }))
+
+    return NextResponse.json(result)
   } catch (error) {
     if (error instanceof AdminAuthError) {
       return NextResponse.json({ error: error.message }, { status: error.status })

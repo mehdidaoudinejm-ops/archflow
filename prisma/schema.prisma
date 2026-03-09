@@ -42,10 +42,11 @@ model User {
   firstName     String?
   lastName      String?
   avatarUrl     String?
-  suspended     Boolean             @default(false)
-  freeAccess    Boolean             @default(false)
-  lastSeenAt    DateTime?
-  createdAt     DateTime            @default(now())
+  suspended       Boolean             @default(false)
+  freeAccess      Boolean             @default(false)
+  aiImportLimit   Int?                // null = limite globale (5), 0 = bloqué
+  lastSeenAt      DateTime?
+  createdAt       DateTime            @default(now())
   agency        Agency?             @relation(fields: [agencyId], references: [id])
   permissions   ProjectPermission[]
   notifications Notification[]

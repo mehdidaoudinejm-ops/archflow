@@ -9,6 +9,7 @@ import { z } from 'zod'
 const schema = z.object({
   suspended: z.boolean().optional(),
   freeAccess: z.boolean().optional(),
+  aiImportLimit: z.number().int().min(0).max(9999).nullable().optional(),
 })
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
