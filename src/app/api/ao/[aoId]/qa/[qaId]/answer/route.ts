@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { z } from 'zod'
+
+const answerSchema = z.object({
+  body: z.string().min(1).max(5000),
+})
 
 export const dynamic = 'force-dynamic'
 
@@ -21,11 +26,11 @@ export async function POST(
     }
 
     const body: unknown = await req.json()
-    const { body: answerBody } = body as { body?: string }
-
-    if (!answerBody?.trim()) {
-      return NextResponse.json({ error: 'La réponse ne peut pas être vide' }, { status: 422 })
+    const parsed = answerSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten() }, { status: 422 })
     }
+    const { body: answerBody } = parsed.data
 
     // Upsert de la réponse (on peut modifier une réponse existante)
     const answer = await prisma.qAAnswer.upsert({

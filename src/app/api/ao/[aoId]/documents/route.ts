@@ -1,6 +1,29 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { z } from 'zod'
+
+const SUPABASE_HOST = process.env.NEXT_PUBLIC_SUPABASE_URL
+  ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname
+  : null
+
+function isAllowedFileUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:') return false
+    if (SUPABASE_HOST && parsed.hostname !== SUPABASE_HOST) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
+const createDocSchema = z.object({
+  name: z.string().min(1).max(255),
+  category: z.string().min(1).max(50),
+  fileUrl: z.string().url(),
+  isMandatory: z.boolean().optional(),
+})
 
 export const dynamic = 'force-dynamic'
 
@@ -53,15 +76,14 @@ export async function POST(
     }
 
     const body: unknown = await req.json()
-    const { name, category, fileUrl, isMandatory } = body as {
-      name?: string
-      category?: string
-      fileUrl?: string
-      isMandatory?: boolean
+    const parsed = createDocSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten() }, { status: 422 })
     }
+    const { name, category, fileUrl, isMandatory } = parsed.data
 
-    if (!name || !category || !fileUrl) {
-      return NextResponse.json({ error: 'name, category et fileUrl sont requis' }, { status: 422 })
+    if (!isAllowedFileUrl(fileUrl)) {
+      return NextResponse.json({ error: 'URL de fichier non autorisée' }, { status: 422 })
     }
 
     // Incrémenter la révision si un fichier du même nom existe

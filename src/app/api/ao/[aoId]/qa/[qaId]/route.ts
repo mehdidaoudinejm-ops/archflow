@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { z } from 'zod'
+
+const patchQASchema = z.object({
+  visibility: z.enum(['PUBLIC', 'PRIVATE']).optional(),
+})
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +26,11 @@ export async function PATCH(
     }
 
     const body: unknown = await req.json()
-    const { visibility } = body as { visibility?: 'PUBLIC' | 'PRIVATE' }
+    const parsed = patchQASchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten() }, { status: 422 })
+    }
+    const { visibility } = parsed.data
 
     const updated = await prisma.qA.update({
       where: { id: params.qaId },

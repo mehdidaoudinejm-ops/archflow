@@ -2,6 +2,14 @@ import { NextResponse } from 'next/server'
 import { requireRole, AuthError } from '@/lib/auth'
 import { requirePortalAuth } from '@/lib/portal-auth'
 import { prisma } from '@/lib/prisma'
+import { z } from 'zod'
+
+const createQASchema = z.object({
+  title: z.string().min(1).max(300),
+  body: z.string().min(1).max(5000),
+  visibility: z.enum(['PUBLIC', 'PRIVATE']).optional(),
+  postRef: z.string().max(50).optional(),
+})
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +34,7 @@ export async function GET(
       const qas = await prisma.qA.findMany({
         where: { aoId: params.aoId },
         orderBy: { createdAt: 'desc' },
+        take: 200,
         include: {
           answer: true,
           aoCompany: { select: { companyUserId: true } },
@@ -90,23 +99,18 @@ export async function POST(
     const { aoCompany } = await requirePortalAuth(req, params.aoId)
 
     const body: unknown = await req.json()
-    const { title, body: qaBody, visibility, postRef } = body as {
-      title?: string
-      body?: string
-      visibility?: 'PUBLIC' | 'PRIVATE'
-      postRef?: string
+    const parsed = createQASchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten() }, { status: 422 })
     }
-
-    if (!title?.trim() || !qaBody?.trim()) {
-      return NextResponse.json({ error: 'Le titre et le corps sont requis' }, { status: 422 })
-    }
+    const { title, body: qaBody, visibility, postRef } = parsed.data
 
     const qa = await prisma.qA.create({
       data: {
         aoId: params.aoId,
         aoCompanyId: aoCompany.id,
-        title: title.trim(),
-        body: qaBody.trim(),
+        title: title,
+        body: qaBody,
         visibility: visibility === 'PRIVATE' ? 'PRIVATE' : 'PUBLIC',
         postRef: postRef ?? null,
         status: 'PENDING',

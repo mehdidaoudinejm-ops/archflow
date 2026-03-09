@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { requireRole, AuthError } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { z } from 'zod'
+
+const checkoutSchema = z.object({
+  priceId: z.string().min(1).max(100),
+})
 
 export const dynamic = 'force-dynamic'
 
@@ -12,10 +17,12 @@ export async function POST(req: Request) {
   try {
     const user = await requireRole(['ARCHITECT'])
 
-    const { priceId } = (await req.json()) as { priceId: string }
-    if (!priceId) {
+    const rawBody: unknown = await req.json()
+    const parsed = checkoutSchema.safeParse(rawBody)
+    if (!parsed.success) {
       return NextResponse.json({ error: 'priceId manquant' }, { status: 400 })
     }
+    const { priceId } = parsed.data
 
     const agency = await prisma.agency.findUnique({ where: { id: user.agencyId! } })
     if (!agency) {

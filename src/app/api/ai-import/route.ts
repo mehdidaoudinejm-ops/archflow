@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-const MAX_SIZE = 20 * 1024 * 1024 // 20 Mo
+const MAX_SIZE = 10 * 1024 * 1024 // 10 Mo
 
 export async function POST(req: Request) {
   try {
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     }
 
     if (file.size > MAX_SIZE) {
-      return NextResponse.json({ error: 'Fichier trop volumineux (max 20 Mo)' }, { status: 400 })
+      return NextResponse.json({ error: 'Fichier trop volumineux (max 10 Mo)' }, { status: 400 })
     }
 
     const mimeType = file.type
@@ -97,7 +97,7 @@ export async function POST(req: Request) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[ai-import] Erreur analyse:', msg)
       return NextResponse.json(
-        { error: `Échec de l'analyse IA : ${msg}` },
+        { error: "L'analyse IA a échoué. Vérifiez que le fichier est lisible et réessayez." },
         { status: 500 }
       )
     }

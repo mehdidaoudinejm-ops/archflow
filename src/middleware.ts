@@ -78,6 +78,18 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
+  // Routes admin — bloquées si non connecté (defense-in-depth, requireAdmin() vérifie le rôle)
+  if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
+    if (!session) {
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+      }
+      const loginUrl = new URL('/login', request.url)
+      loginUrl.searchParams.set('redirect', pathname)
+      return NextResponse.redirect(loginUrl)
+    }
+  }
+
   // Routes shell — redirige vers /login si non connecté
   if (
     pathname.startsWith('/dashboard') ||
