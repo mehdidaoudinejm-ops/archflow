@@ -14,13 +14,14 @@ export class AuthError extends Error {
 
 export async function getSession() {
   const supabase = await createServerClient()
+  // getUser() vérifie le JWT côté serveur (contrairement à getSession qui lit le cookie sans vérification)
   const {
-    data: { session },
+    data: { user },
     error,
-  } = await supabase.auth.getSession()
+  } = await supabase.auth.getUser()
 
-  if (error || !session) return null
-  return session
+  if (error || !user || !user.email) return null
+  return { user: { email: user.email, id: user.id } }
 }
 
 export async function requireRole(allowedRoles: Role[]) {
@@ -37,6 +38,10 @@ export async function requireRole(allowedRoles: Role[]) {
 
   if (!user) {
     throw new AuthError('Utilisateur introuvable', 404)
+  }
+
+  if (user.suspended) {
+    throw new AuthError('Compte suspendu', 403)
   }
 
   if (!allowedRoles.includes(user.role)) {

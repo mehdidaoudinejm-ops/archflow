@@ -26,7 +26,14 @@ export async function GET(
       include: {
         dpgf: { include: { project: { select: { agencyId: true } } } },
         aoCompanies: {
-          include: {
+          select: {
+            id: true,
+            aoId: true,
+            companyUserId: true,
+            status: true,
+            paymentStatus: true,
+            tokenUsedAt: true,
+            // inviteToken exclu intentionnellement (sécurité)
             offer: { select: { id: true, submittedAt: true, isComplete: true } },
           },
           orderBy: { id: 'asc' },

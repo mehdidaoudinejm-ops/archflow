@@ -52,8 +52,8 @@ export async function middleware(request: NextRequest) {
   )
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user: session },
+  } = await supabase.auth.getUser()
 
   // Routes portail entreprise — vérification token JWT d'invitation
   if (pathname.startsWith('/portal/')) {

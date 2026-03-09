@@ -20,6 +20,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'dpgfId manquant' }, { status: 400 })
     }
 
+    // Rate limit : max 20 imports par heure par utilisateur
+    const recentImports = await prisma.aIImport.count({
+      where: {
+        createdById: user.id,
+        createdAt: { gte: new Date(Date.now() - 60 * 60 * 1000) },
+      },
+    })
+    if (recentImports >= 20) {
+      return NextResponse.json(
+        { error: 'Limite atteinte. Maximum 20 imports par heure.' },
+        { status: 429 }
+      )
+    }
+
     // Vérifier que le DPGF appartient à l'agence de l'utilisateur
     const dpgf = await prisma.dPGF.findFirst({
       where: { id: dpgfId, project: { agencyId: user.agencyId! } },

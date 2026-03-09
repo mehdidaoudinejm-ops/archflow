@@ -45,6 +45,14 @@ export async function requirePortalAuth(req: Request, aoId: string): Promise<Por
 
       if (!companyUser) throw new AuthError('Utilisateur introuvable', 404)
 
+      // Enregistrer la première utilisation du token (auditabilité)
+      if (!aoCompany.tokenUsedAt) {
+        await prisma.aOCompany.update({
+          where: { id: aoCompany.id },
+          data: { tokenUsedAt: new Date() },
+        })
+      }
+
       return { aoCompany, companyUser }
     } catch (err) {
       if (err instanceof AuthError) throw err

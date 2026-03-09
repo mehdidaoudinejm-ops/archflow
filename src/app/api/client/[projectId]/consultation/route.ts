@@ -113,7 +113,7 @@ export async function PATCH(
     if (!aoId) return NextResponse.json({ error: 'aoId requis' }, { status: 422 })
 
     const ao = await prisma.aO.update({
-      where: { id: aoId },
+      where: { id: aoId, dpgf: { projectId: params.projectId } },
       data: {
         ...(clientPublished !== undefined && { clientPublished }),
         ...(publishedElements !== undefined && { publishedElements }),

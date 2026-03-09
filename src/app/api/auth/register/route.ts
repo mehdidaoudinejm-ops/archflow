@@ -28,27 +28,32 @@ export async function POST(req: Request) {
 
     const { firstName, lastName, agencyName, city, phone, password, inviteToken } = parsed.data
 
-    // Valider le token d'invitation
-    const entry = await prisma.waitlistEntry.findUnique({
-      where: { inviteToken },
+    // Valider + invalider le token atomiquement (évite double-création par requêtes concurrentes)
+    const entry = await prisma.$transaction(async (tx) => {
+      const found = await tx.waitlistEntry.findUnique({ where: { inviteToken } })
+
+      if (!found || found.status !== 'APPROVED') return null
+
+      // Vérifier l'expiration (7 jours)
+      if (found.approvedAt) {
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        if (found.approvedAt < sevenDaysAgo) return null
+      }
+
+      // Consommer le token immédiatement — requête concurrente trouvera inviteToken=null
+      await tx.waitlistEntry.update({
+        where: { id: found.id },
+        data: { inviteToken: null },
+      })
+
+      return found
     })
 
-    if (!entry || entry.status !== 'APPROVED') {
+    if (!entry) {
       return NextResponse.json(
         { error: "Invitation invalide ou expirée" },
         { status: 403 }
       )
-    }
-
-    // Vérifier l'expiration (7 jours)
-    if (entry.approvedAt) {
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-      if (entry.approvedAt < sevenDaysAgo) {
-        return NextResponse.json(
-          { error: "Invitation expirée" },
-          { status: 403 }
-        )
-      }
     }
 
     const email = entry.email
@@ -99,12 +104,6 @@ export async function POST(req: Request) {
         firstName,
         lastName,
       },
-    })
-
-    // Invalider le token (usage unique)
-    await prisma.waitlistEntry.update({
-      where: { id: entry.id },
-      data: { inviteToken: null },
     })
 
     return NextResponse.json({ success: true }, { status: 201 })
