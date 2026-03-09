@@ -20,16 +20,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'dpgfId manquant' }, { status: 400 })
     }
 
-    // Rate limit : max 20 imports par heure par utilisateur
-    const recentImports = await prisma.aIImport.count({
-      where: {
-        createdById: user.id,
-        createdAt: { gte: new Date(Date.now() - 60 * 60 * 1000) },
-      },
+    // Rate limit : max 5 imports au total par utilisateur
+    const totalImports = await prisma.aIImport.count({
+      where: { createdById: user.id },
     })
-    if (recentImports >= 3) {
+    if (totalImports >= 5) {
       return NextResponse.json(
-        { error: 'Limite atteinte. Maximum 3 imports par heure.' },
+        { error: 'Limite atteinte. Maximum 5 imports IA par compte.' },
         { status: 429 }
       )
     }
