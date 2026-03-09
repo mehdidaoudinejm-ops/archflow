@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { AlertTriangle, Download, Share2, Settings, ChevronDown, ChevronUp, RotateCcw, Save, Check } from 'lucide-react'
+import { AlertTriangle, Download, Share2, Settings, ChevronDown, ChevronUp, RotateCcw, Save, Check, Trophy, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -72,6 +72,7 @@ interface AnalysisData {
   totals: { estimatif: number | null; min: number | null; max: number | null; ecart: number | null }
   divergenceCount: number
   scoringConfig: ScoringWeights
+  vatRate: number
 }
 
 interface Props {
@@ -292,11 +293,15 @@ function CompanyCard({
   result,
   company,
   estimatif,
+  fmt,
+  isAwarded,
 }: {
   rank: number
   result: ScoringResult
   company: CompanyData
   estimatif: number | null
+  fmt: (v: number | null) => string
+  isAwarded?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
   const rec = recommendationLabel(result.recommendation)
@@ -325,6 +330,11 @@ function CompanyCard({
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
               <span style={{ fontSize: 15, fontWeight: 600, color: '#1A1A18' }}>{result.companyName}</span>
+              {isAwarded && (
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: '#FEF3E2', color: '#B45309', fontWeight: 700 }}>
+                  🏆 Marché attribué
+                </span>
+              )}
               {company.siretVerified ? (
                 <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 20, background: '#EAF3ED', color: '#1A5C3A', fontWeight: 500 }}>
                   ✓ SIRET vérifié
@@ -339,7 +349,7 @@ function CompanyCard({
               </span>
             </div>
             <div style={{ fontSize: 13, color: '#6B6B65' }}>
-              {formatPrice(company.total)}
+              {fmt(company.total)}
               {estimatif && company.total && (
                 <span style={{ marginLeft: 8, color: company.total > estimatif ? '#9B1C1C' : '#1A5C3A', fontWeight: 500 }}>
                   {pct(company.total, estimatif)}
@@ -474,6 +484,7 @@ function CompanyCard({
 
 export function AnalysisPageClient({ projectId, projectName, agencyName, initialData }: Props) {
   const { ao, companies, lots, totals, divergenceCount } = initialData
+  const vatRate = initialData.vatRate ?? 20
 
   const [weights, setWeights] = useState<ScoringWeights>(initialData.scoringConfig)
   const [selectedLotId, setSelectedLotId] = useState<string>('all')
@@ -491,6 +502,49 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
   const [publishing, setPublishing] = useState(false)
   const [publishSuccess, setPublishSuccess] = useState(false)
   const [downloadingPdf, setDownloadingPdf] = useState(false)
+
+  // TVA toggle
+  const [showTTC, setShowTTC] = useState(false)
+  const vatMultiplier = showTTC ? (1 + vatRate / 100) : 1
+  function fmt(v: number | null): string {
+    if (v == null) return '—'
+    return formatPrice(v * vatMultiplier)
+  }
+
+  // AO lifecycle
+  const [aoStatus, setAoStatus] = useState(ao.status)
+  const [awardedCompanyId, setAwardedCompanyId] = useState<string | null>(
+    (ao.publishedElements?.awardedCompanyId as string | null) ?? null
+  )
+  const [awardModalOpen, setAwardModalOpen] = useState(false)
+  const [awardingCompanyId, setAwardingCompanyId] = useState<string | null>(null)
+  const [awarding, setAwarding] = useState(false)
+  const [transitioning, setTransitioning] = useState(false)
+
+  async function handleAdvanceStatus(status: 'ANALYSED' | 'AWARDED', awardedId?: string) {
+    setTransitioning(true)
+    try {
+      const res = await fetch(`/api/ao/${ao.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(status === 'AWARDED' ? { status, awardedCompanyId: awardedId } : { status }),
+      })
+      if (res.ok) {
+        setAoStatus(status)
+        if (status === 'AWARDED' && awardedId) setAwardedCompanyId(awardedId)
+      }
+    } finally {
+      setTransitioning(false)
+    }
+  }
+
+  async function handleAward() {
+    if (!awardingCompanyId) return
+    setAwarding(true)
+    await handleAdvanceStatus('AWARDED', awardingCompanyId)
+    setAwarding(false)
+    setAwardModalOpen(false)
+  }
 
   // Compute scores with current weights (recalculates on slider change)
   const scoringResults = useMemo(() => {
@@ -658,6 +712,72 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
         ))}
       </div>
 
+      {/* AO Lifecycle panel */}
+      {['CLOSED', 'ANALYSED', 'AWARDED'].includes(aoStatus) && (
+        <div className="flex items-center justify-between px-5 py-3.5 rounded-[var(--radius-lg)]"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+          <div className="flex items-center gap-3">
+            {[
+              { key: 'CLOSED', label: 'Clôturé' },
+              { key: 'ANALYSED', label: 'Analysé' },
+              { key: 'AWARDED', label: 'Attribué' },
+            ].map((step, i, arr) => {
+              const order = ['CLOSED', 'ANALYSED', 'AWARDED']
+              const currentIdx = order.indexOf(aoStatus)
+              const stepIdx = order.indexOf(step.key)
+              const isDone = stepIdx <= currentIdx
+              const isActive = step.key === aoStatus
+              return (
+                <div key={step.key} className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <div style={{
+                      width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                      background: isDone ? 'var(--green)' : 'var(--surface2)',
+                      border: `2px solid ${isDone ? 'var(--green)' : 'var(--border2)'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {isDone && step.key === 'AWARDED'
+                        ? <Trophy size={10} color="#fff" />
+                        : isDone ? <Check size={10} color="#fff" /> : null}
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: isActive ? 600 : 400, color: isDone ? 'var(--green)' : 'var(--text3)' }}>
+                      {step.label}
+                    </span>
+                    {step.key === 'AWARDED' && awardedCompanyId && (
+                      <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 500 }}>
+                        — {companies.find((c) => c.id === awardedCompanyId)?.name ?? ''}
+                      </span>
+                    )}
+                  </div>
+                  {i < arr.length - 1 && (
+                    <div style={{ width: 20, height: 2, background: stepIdx < currentIdx ? 'var(--green)' : 'var(--border2)', flexShrink: 0 }} />
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <div>
+            {aoStatus === 'CLOSED' && (
+              <button
+                onClick={() => void handleAdvanceStatus('ANALYSED')}
+                disabled={transitioning}
+                style={{ padding: '6px 14px', borderRadius: 8, background: 'var(--green-btn)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: transitioning ? 'not-allowed' : 'pointer', opacity: transitioning ? 0.6 : 1 }}
+              >
+                {transitioning ? '...' : 'Marquer comme analysé'}
+              </button>
+            )}
+            {aoStatus === 'ANALYSED' && (
+              <button
+                onClick={() => setAwardModalOpen(true)}
+                style={{ padding: '6px 14px', borderRadius: 8, background: '#B45309', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Attribuer le marché
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* SECTION 1 — Weights config */}
       <WeightsPanel aoId={ao.id} weights={weights} onWeightsChange={setWeights} />
 
@@ -672,13 +792,39 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
         </div>
       )}
 
-      {/* Stats */}
+      {/* TVA toggle + Stats */}
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-xs font-medium" style={{ color: 'var(--text3)' }}>Synthèse des totaux</h2>
+        <div className="flex items-center gap-1.5">
+          <Info size={12} style={{ color: 'var(--text3)' }} />
+          <span className="text-xs" style={{ color: 'var(--text3)' }}>Afficher :</span>
+          {(['HT', 'TTC'] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setShowTTC(mode === 'TTC')}
+              className="px-2.5 py-1 rounded-[var(--radius)] text-xs font-medium"
+              style={{
+                background: (mode === 'TTC') === showTTC ? 'var(--green-light)' : 'var(--surface2)',
+                color: (mode === 'TTC') === showTTC ? 'var(--green)' : 'var(--text3)',
+                border: `1px solid ${(mode === 'TTC') === showTTC ? 'var(--green)' : 'var(--border)'}`,
+              }}
+            >
+              {mode}
+            </button>
+          ))}
+          {showTTC && (
+            <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--amber-light)', color: 'var(--amber)' }}>
+              TVA {vatRate}% incluse
+            </span>
+          )}
+        </div>
+      </div>
       <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Estimatif archi', value: formatPrice(totals.estimatif), color: 'var(--text)' },
-          { label: 'Offre la + basse', value: formatPrice(totals.min), sub: pct(totals.min, totals.estimatif), color: 'var(--green)' },
-          { label: 'Offre la + haute', value: formatPrice(totals.max), sub: pct(totals.max, totals.estimatif), color: 'var(--amber)' },
-          { label: 'Écart min / max', value: formatPrice(totals.ecart), color: 'var(--text)' },
+          { label: `Estimatif archi ${showTTC ? 'TTC' : 'HT'}`, value: fmt(totals.estimatif), color: 'var(--text)' },
+          { label: `Offre la + basse ${showTTC ? 'TTC' : 'HT'}`, value: fmt(totals.min), sub: pct(totals.min, totals.estimatif), color: 'var(--green)' },
+          { label: `Offre la + haute ${showTTC ? 'TTC' : 'HT'}`, value: fmt(totals.max), sub: pct(totals.max, totals.estimatif), color: 'var(--amber)' },
+          { label: 'Écart min / max', value: fmt(totals.ecart), color: 'var(--text)' },
         ].map((stat) => (
           <div key={stat.label} className="p-4 rounded-[var(--radius-lg)]"
             style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
@@ -736,6 +882,8 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
                 result={result}
                 company={company}
                 estimatif={totals.estimatif}
+                fmt={fmt}
+                isAwarded={awardedCompanyId === result.companyId}
               />
             )
           })}
@@ -794,7 +942,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
                       style={{
                         background: c.total === best && best !== null ? 'rgba(26,92,58,0.06)' : c.total === worst && worst !== best ? 'rgba(155,28,28,0.06)' : undefined,
                       }}>
-                      <div style={{ fontWeight: 600 }}>{formatPrice(c.total)}</div>
+                      <div style={{ fontWeight: 600 }}>{fmt(c.total)}</div>
                       {totals.estimatif && c.total && (
                         <div style={{ color: c.total > totals.estimatif ? '#9B1C1C' : '#1A5C3A', fontSize: 11 }}>
                           {pct(c.total, totals.estimatif)}
@@ -974,7 +1122,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
                     <p className="text-sm font-semibold tabular-nums mt-0.5" style={{ color: scoreColor(result.globalScore) }}>
                       Score : {result.globalScore}/100
                     </p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text3)' }}>{formatPrice(c.total)}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text3)' }}>{fmt(c.total)}</p>
                   </div>
                   <button
                     onClick={() => toggleSelect(c.id)}
@@ -1001,6 +1149,53 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
           })}
         </div>
       </div>
+
+      {/* Award dialog */}
+      <Dialog open={awardModalOpen} onOpenChange={setAwardModalOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Attribuer le marché</DialogTitle></DialogHeader>
+          <p className="text-sm mb-4" style={{ color: 'var(--text2)' }}>
+            Sélectionnez l&apos;entreprise retenue pour ce marché :
+          </p>
+          <div className="space-y-2">
+            {rankedResults.map((r, idx) => {
+              const isSelected = awardingCompanyId === r.companyId
+              return (
+                <button
+                  key={r.companyId}
+                  onClick={() => setAwardingCompanyId(r.companyId)}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-[var(--radius)] text-left transition-all"
+                  style={{
+                    background: isSelected ? 'var(--green-light)' : 'var(--surface2)',
+                    border: `1px solid ${isSelected ? 'var(--green)' : 'var(--border)'}`,
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span style={{ fontSize: 12, color: 'var(--text3)', minWidth: 20 }}>#{idx + 1}</span>
+                    <span className="text-sm font-medium" style={{ color: isSelected ? 'var(--green)' : 'var(--text)' }}>
+                      {r.companyName}
+                    </span>
+                  </div>
+                  <span className="text-sm tabular-nums font-medium" style={{ color: isSelected ? 'var(--green)' : 'var(--text2)' }}>
+                    {fmt(companies.find((c) => c.id === r.companyId)?.total ?? null)}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setAwardModalOpen(false)} disabled={awarding}>Annuler</Button>
+            <Button
+              onClick={() => void handleAward()}
+              disabled={!awardingCompanyId || awarding}
+              style={{ background: '#B45309', color: '#fff', border: 'none' }}
+            >
+              <Trophy size={14} className="mr-1.5" />
+              {awarding ? 'Attribution...' : 'Confirmer l\'attribution'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Publish dialog */}
       <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>

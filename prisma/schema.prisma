@@ -64,6 +64,7 @@ model Project {
   description     String?
   clientContactId String?
   clientUserId    String?
+  vatRate         Float               @default(20)
   status          ProjectStatus       @default(ACTIVE)
   createdAt       DateTime            @default(now())
   agency          Agency              @relation(fields: [agencyId], references: [id])
@@ -257,6 +258,7 @@ model Offer {
   aoCompanyId String      @unique
   submittedAt DateTime?
   isComplete  Boolean     @default(false)
+  vatRate     Float       @default(20)
   aoCompany   AOCompany   @relation(fields: [aoCompanyId], references: [id])
   offerPosts  OfferPost[]
 }
@@ -422,6 +424,8 @@ enum AOStatus {
   SENT
   IN_PROGRESS
   CLOSED
+  ANALYSED
+  AWARDED
   ARCHIVED
 }
 

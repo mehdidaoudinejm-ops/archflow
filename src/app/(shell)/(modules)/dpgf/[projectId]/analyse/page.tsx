@@ -13,7 +13,7 @@ export default async function AnalysePage({ params }: Props) {
 
   const project = await prisma.project.findUnique({
     where: { id: params.projectId },
-    select: { id: true, name: true, agencyId: true },
+    select: { id: true, name: true, agencyId: true, vatRate: true },
   })
 
   if (!project || project.agencyId !== user.agencyId) redirect('/dashboard')
@@ -259,6 +259,7 @@ export default async function AnalysePage({ params }: Props) {
         },
         divergenceCount,
         scoringConfig,
+        vatRate: project.vatRate,
       }}
     />
   )
