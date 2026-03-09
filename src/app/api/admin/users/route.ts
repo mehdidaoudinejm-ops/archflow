@@ -10,8 +10,21 @@ export async function GET() {
 
     const [users, importCounts] = await Promise.all([
       prisma.user.findMany({
-        include: { agency: { select: { name: true } } },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          suspended: true,
+          freeAccess: true,
+          aiImportLimit: true,
+          lastSeenAt: true,
+          createdAt: true,
+          agency: { select: { name: true } },
+        },
         orderBy: { createdAt: 'desc' },
+        take: 500,
       }),
       prisma.aIImport.groupBy({
         by: ['createdById'],

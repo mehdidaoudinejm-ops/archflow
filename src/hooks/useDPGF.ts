@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import type { DPGFWithLots, CreatePostInput } from '@/types'
+import type { DPGFWithLots, LotWithChildren, CreatePostInput } from '@/types'
+import type { Post } from '@prisma/client'
 
 export function useDPGF(dpgfId: string) {
   const [dpgf, setDpgf] = useState<DPGFWithLots | null>(null)
@@ -27,6 +28,60 @@ export function useDPGF(dpgfId: string) {
     fetchDPGF()
   }, [fetchDPGF])
 
+  // ── Helpers d'update local ───────────────────────────
+
+  const applyPostUpdate = useCallback((postId: string, updated: Post) => {
+    setDpgf((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        lots: prev.lots.map((lot) => ({
+          ...lot,
+          sublots: lot.sublots.map((sl) => ({
+            ...sl,
+            posts: sl.posts.map((p) => (p.id === postId ? { ...p, ...updated } : p)),
+          })),
+          posts: lot.posts.map((p) => (p.id === postId ? { ...p, ...updated } : p)),
+        })),
+      }
+    })
+  }, [])
+
+  const applyPostAdd = useCallback((lotId: string, newPost: Post) => {
+    setDpgf((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        lots: prev.lots.map((lot) => {
+          if (lot.id !== lotId) return lot
+          if (newPost.sublotId) {
+            return {
+              ...lot,
+              sublots: lot.sublots.map((sl) =>
+                sl.id !== newPost.sublotId ? sl : { ...sl, posts: [...sl.posts, newPost] }
+              ),
+            }
+          }
+          return { ...lot, posts: [...lot.posts, newPost] }
+        }),
+      }
+    })
+  }, [])
+
+  const applyPostRemove = useCallback((postId: string) => {
+    setDpgf((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        lots: prev.lots.map((lot) => ({
+          ...lot,
+          sublots: lot.sublots.map((sl) => ({ ...sl, posts: sl.posts.filter((p) => p.id !== postId) })),
+          posts: lot.posts.filter((p) => p.id !== postId),
+        })),
+      }
+    })
+  }, [])
+
   // ── Mutations lots ───────────────────────────────────
 
   const addLot = useCallback(
@@ -37,9 +92,12 @@ export function useDPGF(dpgfId: string) {
         body: JSON.stringify({ name }),
       })
       if (!res.ok) throw new Error('Erreur lors de la création du lot')
-      await fetchDPGF()
+      const newLot = await res.json() as LotWithChildren
+      setDpgf((prev) =>
+        prev ? { ...prev, lots: [...prev.lots, { ...newLot, sublots: [], posts: [] }] } : prev
+      )
     },
-    [dpgfId, fetchDPGF]
+    [dpgfId]
   )
 
   const updateLot = useCallback(
@@ -50,9 +108,14 @@ export function useDPGF(dpgfId: string) {
         body: JSON.stringify(data),
       })
       if (!res.ok) throw new Error('Erreur lors de la mise à jour du lot')
-      await fetchDPGF()
+      const updated = await res.json() as LotWithChildren
+      setDpgf((prev) =>
+        prev
+          ? { ...prev, lots: prev.lots.map((l) => (l.id === lotId ? { ...l, ...updated } : l)) }
+          : prev
+      )
     },
-    [dpgfId, fetchDPGF]
+    [dpgfId]
   )
 
   const deleteLot = useCallback(
@@ -64,9 +127,11 @@ export function useDPGF(dpgfId: string) {
         const data = await res.json() as { error?: string }
         throw new Error(data.error ?? 'Erreur lors de la suppression du lot')
       }
-      await fetchDPGF()
+      setDpgf((prev) =>
+        prev ? { ...prev, lots: prev.lots.filter((l) => l.id !== lotId) } : prev
+      )
     },
-    [dpgfId, fetchDPGF]
+    [dpgfId]
   )
 
   const reorderLots = useCallback(
@@ -77,9 +142,16 @@ export function useDPGF(dpgfId: string) {
         body: JSON.stringify(items),
       })
       if (!res.ok) throw new Error('Erreur lors du réordonnancement des lots')
-      await fetchDPGF()
+      setDpgf((prev) => {
+        if (!prev) return prev
+        const posMap = new Map(items.map(({ lotId, position }) => [lotId, position]))
+        const reordered = prev.lots
+          .map((l) => ({ ...l, position: posMap.get(l.id) ?? l.position }))
+          .sort((a, b) => a.position - b.position)
+        return { ...prev, lots: reordered }
+      })
     },
-    [dpgfId, fetchDPGF]
+    [dpgfId]
   )
 
   // ── Mutations sous-lots ──────────────────────────────
@@ -92,6 +164,7 @@ export function useDPGF(dpgfId: string) {
         body: JSON.stringify(data),
       })
       if (!res.ok) throw new Error('Erreur lors de la création du sous-lot')
+      // Structure change — refetch pour cohérence
       await fetchDPGF()
     },
     [dpgfId, fetchDPGF]
@@ -134,9 +207,10 @@ export function useDPGF(dpgfId: string) {
         body: JSON.stringify(data),
       })
       if (!res.ok) throw new Error('Erreur lors de la création du poste')
-      await fetchDPGF()
+      const newPost = await res.json() as Post
+      applyPostAdd(lotId, newPost)
     },
-    [dpgfId, fetchDPGF]
+    [dpgfId, applyPostAdd]
   )
 
   const updatePost = useCallback(
@@ -159,9 +233,10 @@ export function useDPGF(dpgfId: string) {
         body: JSON.stringify(data),
       })
       if (!res.ok) throw new Error('Erreur lors de la mise à jour du poste')
-      await fetchDPGF()
+      const updated = await res.json() as Post
+      applyPostUpdate(postId, updated)
     },
-    [dpgfId, fetchDPGF]
+    [dpgfId, applyPostUpdate]
   )
 
   const deletePost = useCallback(
@@ -173,9 +248,9 @@ export function useDPGF(dpgfId: string) {
         const data = await res.json() as { error?: string }
         throw new Error(data.error ?? 'Erreur lors de la suppression du poste')
       }
-      await fetchDPGF()
+      applyPostRemove(postId)
     },
-    [dpgfId, fetchDPGF]
+    [dpgfId, applyPostRemove]
   )
 
   return {

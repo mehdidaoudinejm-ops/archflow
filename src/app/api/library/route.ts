@@ -19,6 +19,7 @@ export async function GET(req: Request) {
         ...(trade  ? { trade } : {}),
       },
       orderBy: [{ usageCount: 'desc' }, { createdAt: 'desc' }],
+      take: 500,
     })
 
     return NextResponse.json(items)

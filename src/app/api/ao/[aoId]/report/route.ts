@@ -35,29 +35,30 @@ export async function GET(
     const aoCompanies = await prisma.aOCompany.findMany({
       where: { aoId: params.aoId, offer: { isComplete: true } },
       include: {
-        offer: {
-          include: { offerPosts: { include: { post: true } } },
-        },
+        offer: { include: { offerPosts: { include: { post: true } } } },
       },
     })
 
     const companyUserIds = aoCompanies.map((c) => c.companyUserId)
-    const companyUsers = await prisma.user.findMany({
-      where: { id: { in: companyUserIds } },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        agency: { select: { name: true } },
-      },
-    })
-    const userMap = new Map(companyUsers.map((u) => [u.id, u]))
 
-    const lots = await prisma.lot.findMany({
-      where: { dpgfId: ao.dpgfId, id: { in: ao.lotIds } },
-      include: { posts: { orderBy: { position: 'asc' } } },
-      orderBy: { position: 'asc' },
-    })
+    const [companyUsers, lots] = await Promise.all([
+      prisma.user.findMany({
+        where: { id: { in: companyUserIds } },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          agency: { select: { name: true } },
+        },
+      }),
+      prisma.lot.findMany({
+        where: { dpgfId: ao.dpgfId, id: { in: ao.lotIds } },
+        include: { posts: { orderBy: { position: 'asc' } } },
+        orderBy: { position: 'asc' },
+      }),
+    ])
+
+    const userMap = new Map(companyUsers.map((u) => [u.id, u]))
 
     type OfferPostData = { unitPrice: number | null; qtyCompany: number | null; qtyMotive: string | null }
     const offerIndex = new Map<string, Map<string, OfferPostData>>()

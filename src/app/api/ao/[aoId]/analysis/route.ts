@@ -32,43 +32,35 @@ export async function GET(
     const aoCompanies = await prisma.aOCompany.findMany({
       where: { aoId: params.aoId, offer: { isComplete: true } },
       include: {
-        offer: {
-          include: { offerPosts: { include: { post: true } } },
+        offer: { include: { offerPosts: { include: { post: true } } } },
+        adminDocs: {
+          where: { status: { in: ['PENDING', 'VALID'] } },
+          select: { id: true },
         },
       },
     })
 
-    // Fetch user info for each company
     const companyUserIds = aoCompanies.map((c) => c.companyUserId)
-    const companyUsers = await prisma.user.findMany({
-      where: { id: { in: companyUserIds } },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        agency: { select: { name: true, siretVerified: true } },
-      },
-    })
+
+    const [companyUsers, lots] = await Promise.all([
+      prisma.user.findMany({
+        where: { id: { in: companyUserIds } },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          agency: { select: { name: true, siretVerified: true } },
+        },
+      }),
+      prisma.lot.findMany({
+        where: { dpgfId: ao.dpgfId, id: { in: ao.lotIds } },
+        include: { posts: { orderBy: { position: 'asc' } } },
+        orderBy: { position: 'asc' },
+      }),
+    ])
+
     const userMap = new Map(companyUsers.map((u) => [u.id, u]))
-
-    // Fetch admin docs counts per company
-    const adminDocsRaw = await prisma.adminDoc.findMany({
-      where: {
-        aoCompanyId: { in: aoCompanies.map((c) => c.id) },
-        status: { in: ['PENDING', 'VALID'] },
-      },
-      select: { aoCompanyId: true },
-    })
-    const adminDocsCount = new Map<string, number>()
-    for (const doc of adminDocsRaw) {
-      adminDocsCount.set(doc.aoCompanyId, (adminDocsCount.get(doc.aoCompanyId) ?? 0) + 1)
-    }
-
-    const lots = await prisma.lot.findMany({
-      where: { dpgfId: ao.dpgfId, id: { in: ao.lotIds } },
-      include: { posts: { orderBy: { position: 'asc' } } },
-      orderBy: { position: 'asc' },
-    })
+    const adminDocsCount = new Map(aoCompanies.map((c) => [c.id, c.adminDocs.length]))
 
     type OfferPostData = { unitPrice: number | null; qtyCompany: number | null; qtyMotive: string | null }
     const offerIndex = new Map<string, Map<string, OfferPostData>>()
