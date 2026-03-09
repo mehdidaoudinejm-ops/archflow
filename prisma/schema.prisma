@@ -136,6 +136,7 @@ model DPGF {
   versions         DPGFVersion[]
   aos              AO[]
   aiImports        AIImport[]
+  documents        Document[]
 }
 
 model DPGFVersion {
@@ -279,7 +280,8 @@ model OfferPost {
 
 model Document {
   id           String         @id @default(cuid())
-  aoId         String
+  dpgfId       String
+  aoId         String?
   name         String
   category     String
   fileUrl      String
@@ -287,7 +289,8 @@ model Document {
   revision     Int            @default(1)
   uploadedById String
   createdAt    DateTime       @default(now())
-  ao           AO             @relation(fields: [aoId], references: [id])
+  dpgf         DPGF           @relation(fields: [dpgfId], references: [id])
+  ao           AO?            @relation(fields: [aoId], references: [id])
   reads        DocumentRead[]
 }
 

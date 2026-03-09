@@ -14,8 +14,8 @@ export function DPGFModifiedEmail({ projectName, aoName, portalUrl }: {
         <span style="color:#fff;font-size:22px;font-weight:700;letter-spacing:-0.3px">ArchFlow</span>
       </td></tr>
       <tr><td style="padding:32px">
-        <p style="margin:0 0 16px;font-size:20px;font-weight:600;color:#1A1A18">Le DPGF a été mis à jour</p>
-        <p style="margin:0 0 12px;font-size:15px;line-height:1.7;color:#6B6B65">L'architecte a apporté des modifications au DPGF du projet <strong style="color:#1A1A18">${projectName}</strong> (appel d'offre : <strong style="color:#1A1A18">${aoName}</strong>).</p>
+        <p style="margin:0 0 16px;font-size:20px;font-weight:600;color:#1A1A18">Le DQE a été mis à jour</p>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.7;color:#6B6B65">L'architecte a apporté des modifications au DQE du projet <strong style="color:#1A1A18">${projectName}</strong> (appel d'offre : <strong style="color:#1A1A18">${aoName}</strong>).</p>
         <p style="margin:0 0 28px;font-size:15px;line-height:1.7;color:#6B6B65">Votre offre en cours a été réinitialisée. Veuillez vous connecter au portail pour prendre connaissance des nouvelles quantités et resaisir vos prix.</p>
         <table cellpadding="0" cellspacing="0" style="margin:0 auto">
           <tr><td style="background:#1F6B44;border-radius:8px">

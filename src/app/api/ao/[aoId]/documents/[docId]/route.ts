@@ -16,7 +16,7 @@ export async function PATCH(
       include: { ao: { include: { dpgf: { include: { project: { select: { agencyId: true } } } } } } },
     })
 
-    if (!doc || doc.aoId !== params.aoId || doc.ao.dpgf.project.agencyId !== user.agencyId) {
+    if (!doc || doc.aoId !== params.aoId || !doc.ao || doc.ao.dpgf.project.agencyId !== user.agencyId) {
       return NextResponse.json({ error: 'Document introuvable' }, { status: 404 })
     }
 
@@ -58,7 +58,7 @@ export async function DELETE(
       include: { ao: { include: { dpgf: { include: { project: { select: { agencyId: true } } } } } } },
     })
 
-    if (!doc || doc.aoId !== params.aoId || doc.ao.dpgf.project.agencyId !== user.agencyId) {
+    if (!doc || doc.aoId !== params.aoId || !doc.ao || doc.ao.dpgf.project.agencyId !== user.agencyId) {
       return NextResponse.json({ error: 'Document introuvable' }, { status: 404 })
     }
 

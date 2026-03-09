@@ -216,7 +216,7 @@ export function LibrarySheet({ open, onClose, dpgfId, lots, onInserted }: Librar
                   disabled={inserting === item.id || !selectedLotId}
                   className="p-1.5 rounded-md transition-colors shrink-0 disabled:opacity-50"
                   style={{ background: 'var(--green-light)', color: 'var(--green)' }}
-                  title="Insérer dans la DPGF"
+                  title="Insérer dans le DQE"
                 >
                   <Plus className="w-4 h-4" />
                 </button>

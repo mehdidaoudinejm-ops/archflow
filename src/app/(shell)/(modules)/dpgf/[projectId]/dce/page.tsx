@@ -17,43 +17,43 @@ export default async function DCEPage({ params }: Props) {
 
   if (!project || project.agencyId !== user.agencyId) redirect('/dashboard')
 
-  // Trouver l'AO le plus récent (non archivé)
+  // Trouver le DPGF (le premier non archivé)
+  const dpgf = await prisma.dPGF.findFirst({
+    where: { projectId: params.projectId },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, status: true },
+  })
+
+  if (!dpgf) redirect(`/dpgf/${params.projectId}`)
+
+  // AO le plus récent (optionnel — pour le suivi lecture)
   const ao = await prisma.aO.findFirst({
     where: {
       dpgf: { projectId: params.projectId },
       status: { not: 'ARCHIVED' },
     },
     orderBy: { createdAt: 'desc' },
-    select: { id: true, name: true, status: true, deadline: true },
+    select: { id: true, name: true, status: true },
   })
 
-  if (!ao) {
-    return (
-      <div className="max-w-3xl mx-auto py-12 px-4 text-center">
-        <p className="text-base font-medium" style={{ color: 'var(--text)' }}>
-          Aucun appel d&apos;offre pour ce projet
-        </p>
-        <p className="text-sm mt-1" style={{ color: 'var(--text2)' }}>
-          Créez un AO depuis la page DPGF pour pouvoir déposer des documents.
-        </p>
-      </div>
-    )
-  }
-
   const documents = await prisma.document.findMany({
-    where: { aoId: ao.id },
+    where: { dpgfId: dpgf.id },
     orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
     include: { reads: { select: { aoCompanyId: true } } },
   })
 
   // Nombre d'entreprises invitées (pour les compteurs de lecture)
-  const companiesCount = await prisma.aOCompany.count({ where: { aoId: ao.id } })
+  const companiesCount = ao
+    ? await prisma.aOCompany.count({ where: { aoId: ao.id } })
+    : 0
 
   return (
     <DCEPageClient
       projectId={params.projectId}
       projectName={project.name}
-      ao={{ id: ao.id, name: ao.name, status: ao.status }}
+      dpgfId={dpgf.id}
+      dpgfStatus={dpgf.status}
+      ao={ao ? { id: ao.id, name: ao.name, status: ao.status } : null}
       initialDocs={documents.map((d) => ({
         id: d.id,
         name: d.name,
