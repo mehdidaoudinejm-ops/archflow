@@ -1,4 +1,6 @@
+import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
+import { getUserWithProfile } from '@/lib/auth'
 import { Navbar } from '@/components/marketing/Navbar'
 import { FAQAccordion } from '@/components/marketing/FAQAccordion'
 
@@ -754,7 +756,10 @@ function Footer() {
 
 // ── PAGE ─────────────────────────────────────────────────
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const user = await getUserWithProfile()
+  if (user) redirect('/dashboard')
+
   return (
     <div style={{ background: C.bg }}>
       <Navbar />
