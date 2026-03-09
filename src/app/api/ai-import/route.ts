@@ -27,9 +27,9 @@ export async function POST(req: Request) {
         createdAt: { gte: new Date(Date.now() - 60 * 60 * 1000) },
       },
     })
-    if (recentImports >= 20) {
+    if (recentImports >= 3) {
       return NextResponse.json(
-        { error: 'Limite atteinte. Maximum 20 imports par heure.' },
+        { error: 'Limite atteinte. Maximum 3 imports par heure.' },
         { status: 429 }
       )
     }

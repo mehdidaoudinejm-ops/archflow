@@ -35,9 +35,9 @@ export async function POST(
 
     // Cap : max 100 invitations par AO (évite spam emails)
     const inviteCount = await prisma.aOCompany.count({ where: { aoId: params.aoId } })
-    if (inviteCount >= 100) {
+    if (inviteCount >= 20) {
       return NextResponse.json(
-        { error: 'Nombre maximum d\'invitations atteint pour cet AO (100).' },
+        { error: 'Nombre maximum d\'invitations atteint pour cet AO (20).' },
         { status: 429 }
       )
     }
