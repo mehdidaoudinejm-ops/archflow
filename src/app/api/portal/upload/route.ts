@@ -38,6 +38,12 @@ export async function POST(req: Request) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
+    // Créer le bucket s'il n'existe pas encore (idempotent)
+    const { error: bucketErr } = await supabaseAdmin.storage.createBucket(bucket, { public: true })
+    if (bucketErr && !bucketErr.message.toLowerCase().includes('already exist') && !bucketErr.message.toLowerCase().includes('duplicate')) {
+      console.warn('[portal/upload] createBucket warning:', bucketErr.message)
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer())
 
     const { data, error } = await supabaseAdmin.storage

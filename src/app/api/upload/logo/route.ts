@@ -31,6 +31,12 @@ export async function POST(req: Request) {
     const path = `${user.agencyId ?? user.id}/logo.${ext}`
     const buffer = Buffer.from(await file.arrayBuffer())
 
+    // Créer le bucket s'il n'existe pas encore (idempotent)
+    const { error: bucketErr } = await supabaseAdmin.storage.createBucket('logos', { public: true })
+    if (bucketErr && !bucketErr.message.toLowerCase().includes('already exist') && !bucketErr.message.toLowerCase().includes('duplicate')) {
+      console.warn('[upload/logo] createBucket warning:', bucketErr.message)
+    }
+
     const { data, error } = await supabaseAdmin.storage
       .from('logos')
       .upload(path, buffer, { contentType: file.type, upsert: true })
