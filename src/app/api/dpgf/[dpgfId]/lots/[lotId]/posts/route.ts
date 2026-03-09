@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createPostSchema } from '@/lib/validations/dpgf'
+import { canSeeEstimate } from '@/lib/dpgf-permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +10,7 @@ async function checkLotAccess(dpgfId: string, lotId: string, agencyId: string) {
   const lot = await prisma.lot.findUnique({
     where: { id: lotId },
     include: {
-      dpgf: { include: { project: { select: { agencyId: true } } } },
+      dpgf: { include: { project: { select: { id: true, agencyId: true } } } },
     },
   })
   if (!lot || lot.dpgfId !== dpgfId || lot.dpgf.project.agencyId !== agencyId) return null
@@ -42,7 +43,10 @@ export async function GET(
       orderBy: { position: 'asc' },
     })
 
-    return NextResponse.json(posts, { status: 200 })
+    const seeEstimate = await canSeeEstimate(lot.dpgf.project.id, user.id, user.role)
+    const result = seeEstimate ? posts : posts.map((p) => ({ ...p, unitPriceArchi: null }))
+
+    return NextResponse.json(result, { status: 200 })
   } catch (error) {
     console.error('[GET /api/dpgf/[dpgfId]/lots/[lotId]/posts]', error)
     if (error instanceof Error && error.name === 'AuthError') {

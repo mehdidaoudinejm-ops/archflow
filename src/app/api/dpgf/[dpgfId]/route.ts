@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { updateDPGFStatusSchema } from '@/lib/validations/dpgf'
+import { canSeeEstimate } from '@/lib/dpgf-permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +25,7 @@ export async function GET(
     const dpgf = await prisma.dPGF.findUnique({
       where: { id: params.dpgfId },
       include: {
-        project: { select: { agencyId: true } },
+        project: { select: { id: true, agencyId: true } },
         lots: {
           orderBy: { position: 'asc' },
           include: {
@@ -45,6 +46,23 @@ export async function GET(
 
     if (!dpgf || dpgf.project.agencyId !== user.agencyId!) {
       return NextResponse.json({ error: 'DPGF introuvable' }, { status: 404 })
+    }
+
+    const seeEstimate = await canSeeEstimate(dpgf.project.id, user.id, user.role)
+
+    if (!seeEstimate) {
+      const sanitized = {
+        ...dpgf,
+        lots: dpgf.lots.map((lot) => ({
+          ...lot,
+          sublots: lot.sublots.map((sl) => ({
+            ...sl,
+            posts: sl.posts.map((p) => ({ ...p, unitPriceArchi: null })),
+          })),
+          posts: lot.posts.map((p) => ({ ...p, unitPriceArchi: null })),
+        })),
+      }
+      return NextResponse.json(sanitized, { status: 200 })
     }
 
     return NextResponse.json(dpgf, { status: 200 })
