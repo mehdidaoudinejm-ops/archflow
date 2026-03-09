@@ -11,31 +11,33 @@ interface Props {
 export default async function AnalysePage({ params }: Props) {
   const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
 
-  const project = await prisma.project.findUnique({
-    where: { id: params.projectId },
-    select: { id: true, name: true, agencyId: true, vatRate: true },
-  })
+  // Round-trip 2 : project + ao en parallèle (les deux utilisent params.projectId)
+  const [project, ao] = await Promise.all([
+    prisma.project.findUnique({
+      where: { id: params.projectId },
+      select: { id: true, name: true, agencyId: true, vatRate: true },
+    }),
+    prisma.aO.findFirst({
+      where: {
+        dpgf: { projectId: params.projectId },
+        status: { not: 'ARCHIVED' },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        deadline: true,
+        status: true,
+        dpgfId: true,
+        lotIds: true,
+        clientPublished: true,
+        publishedElements: true,
+        createdAt: true,
+      },
+    }),
+  ])
 
   if (!project || project.agencyId !== user.agencyId) redirect('/dashboard')
-
-  const ao = await prisma.aO.findFirst({
-    where: {
-      dpgf: { projectId: params.projectId },
-      status: { not: 'ARCHIVED' },
-    },
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      name: true,
-      deadline: true,
-      status: true,
-      dpgfId: true,
-      lotIds: true,
-      clientPublished: true,
-      publishedElements: true,
-      createdAt: true,
-    },
-  })
 
   if (!ao) {
     return (
@@ -50,6 +52,7 @@ export default async function AnalysePage({ params }: Props) {
     )
   }
 
+  // Round-trip 3 : aoCompanies (dépend de ao.id)
   const aoCompanies = await prisma.aOCompany.findMany({
     where: { aoId: ao.id, offer: { isComplete: true } },
     include: {
@@ -72,22 +75,38 @@ export default async function AnalysePage({ params }: Props) {
     )
   }
 
+  // Round-trip 4 : 5 requêtes en parallèle
   const companyUserIds = aoCompanies.map((c) => c.companyUserId)
-  const companyUsers = await prisma.user.findMany({
-    where: { id: { in: companyUserIds } },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      agency: { select: { name: true, siretVerified: true, createdAt: true } },
-    },
-  })
+  const aoCompanyIds = aoCompanies.map((c) => c.id)
+
+  const [companyUsers, adminDocsRaw, qaRaw, lots, scoringConfigRaw] = await Promise.all([
+    prisma.user.findMany({
+      where: { id: { in: companyUserIds } },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        agency: { select: { name: true, siretVerified: true, createdAt: true } },
+      },
+    }),
+    prisma.adminDoc.findMany({
+      where: { aoCompanyId: { in: aoCompanyIds } },
+      select: { aoCompanyId: true, type: true, status: true },
+    }),
+    prisma.qA.findMany({
+      where: { aoId: ao.id },
+      select: { aoCompanyId: true },
+    }),
+    prisma.lot.findMany({
+      where: { dpgfId: ao.dpgfId, id: { in: ao.lotIds } },
+      include: { posts: { orderBy: { position: 'asc' } } },
+      orderBy: { position: 'asc' },
+    }),
+    prisma.aOScoringConfig.findUnique({ where: { aoId: ao.id } }),
+  ])
+
   const userMap = new Map(companyUsers.map((u) => [u.id, u]))
 
-  const adminDocsRaw = await prisma.adminDoc.findMany({
-    where: { aoCompanyId: { in: aoCompanies.map((c) => c.id) } },
-    select: { aoCompanyId: true, type: true, status: true },
-  })
   const adminDocsMap = new Map<string, { type: string; status: string }[]>()
   for (const doc of adminDocsRaw) {
     const arr = adminDocsMap.get(doc.aoCompanyId) ?? []
@@ -95,21 +114,10 @@ export default async function AnalysePage({ params }: Props) {
     adminDocsMap.set(doc.aoCompanyId, arr)
   }
 
-  // QA per company
-  const qaRaw = await prisma.qA.findMany({
-    where: { aoId: ao.id },
-    select: { aoCompanyId: true },
-  })
   const qaCountMap = new Map<string, number>()
   for (const qa of qaRaw) {
     qaCountMap.set(qa.aoCompanyId, (qaCountMap.get(qa.aoCompanyId) ?? 0) + 1)
   }
-
-  const lots = await prisma.lot.findMany({
-    where: { dpgfId: ao.dpgfId, id: { in: ao.lotIds } },
-    include: { posts: { orderBy: { position: 'asc' } } },
-    orderBy: { position: 'asc' },
-  })
 
   const totalPosts = lots.reduce((acc, l) => acc + l.posts.length, 0)
 
@@ -221,7 +229,6 @@ export default async function AnalysePage({ params }: Props) {
     }
   })
 
-  const scoringConfigRaw = await prisma.aOScoringConfig.findUnique({ where: { aoId: ao.id } })
   const scoringConfig = scoringConfigRaw
     ? {
         weightPrice: scoringConfigRaw.weightPrice,
