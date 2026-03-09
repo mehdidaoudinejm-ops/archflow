@@ -147,14 +147,14 @@ export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo }: DP
         >
           <span className="flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--amber)' }}>
             <AlertCircle size={15} />
-            DPGF verrouillé — Appel d&apos;offre en cours
+            DQE verrouillé — Appel d&apos;offre en cours
           </span>
           <button
             onClick={() => setShowUnlockModal(true)}
             className="text-sm font-medium px-3 py-1.5 rounded-[var(--radius)]"
             style={{ background: 'var(--amber)', color: '#fff' }}
           >
-            Modifier le DPGF
+            Modifier le DQE
           </button>
         </div>
       )}
@@ -224,10 +224,10 @@ export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo }: DP
       <Dialog open={showUnlockModal} onOpenChange={setShowUnlockModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Modifier le DPGF ?</DialogTitle>
+            <DialogTitle>Modifier le DQE ?</DialogTitle>
           </DialogHeader>
           <p className="text-sm" style={{ color: 'var(--text2)' }}>
-            Modifier le DPGF <strong style={{ color: 'var(--text)' }}>notifiera toutes les entreprises
+            Modifier le DQE <strong style={{ color: 'var(--text)' }}>notifiera toutes les entreprises
             invitées</strong> et réinitialisera leurs offres en cours. Cette action est irréversible.
           </p>
           <DialogFooter>

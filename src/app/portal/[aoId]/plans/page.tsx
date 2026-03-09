@@ -61,8 +61,13 @@ export default async function PortalPlansPage({ params, searchParams }: Props) {
     select: { firstName: true, lastName: true, agency: { select: { name: true } } },
   })
 
+  const aoWithDpgf = await prisma.aO.findUnique({
+    where: { id: params.aoId },
+    select: { dpgfId: true },
+  })
+
   const documents = await prisma.document.findMany({
-    where: { aoId: params.aoId },
+    where: { dpgfId: aoWithDpgf?.dpgfId ?? '' },
     orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
     include: {
       reads: {

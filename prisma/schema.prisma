@@ -64,6 +64,7 @@ model Project {
   description     String?
   clientContactId String?
   clientUserId    String?
+  vatRate         Float               @default(20)
   status          ProjectStatus       @default(ACTIVE)
   createdAt       DateTime            @default(now())
   agency          Agency              @relation(fields: [agencyId], references: [id])
@@ -135,6 +136,7 @@ model DPGF {
   versions         DPGFVersion[]
   aos              AO[]
   aiImports        AIImport[]
+  documents        Document[]
 }
 
 model DPGFVersion {
@@ -257,6 +259,7 @@ model Offer {
   aoCompanyId String      @unique
   submittedAt DateTime?
   isComplete  Boolean     @default(false)
+  vatRate     Float       @default(20)
   aoCompany   AOCompany   @relation(fields: [aoCompanyId], references: [id])
   offerPosts  OfferPost[]
 }
@@ -277,7 +280,8 @@ model OfferPost {
 
 model Document {
   id           String         @id @default(cuid())
-  aoId         String
+  dpgfId       String
+  aoId         String?
   name         String
   category     String
   fileUrl      String
@@ -285,7 +289,8 @@ model Document {
   revision     Int            @default(1)
   uploadedById String
   createdAt    DateTime       @default(now())
-  ao           AO             @relation(fields: [aoId], references: [id])
+  dpgf         DPGF           @relation(fields: [dpgfId], references: [id])
+  ao           AO?            @relation(fields: [aoId], references: [id])
   reads        DocumentRead[]
 }
 
@@ -422,6 +427,8 @@ enum AOStatus {
   SENT
   IN_PROGRESS
   CLOSED
+  ANALYSED
+  AWARDED
   ARCHIVED
 }
 

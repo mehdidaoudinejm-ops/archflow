@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { createBrowserClient } from '@/lib/supabase'
-import { Upload, Trash2, FileText, AlertCircle, Eye } from 'lucide-react'
+import { Upload, Trash2, FileText, AlertCircle, Eye, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const CATEGORIES = [
@@ -29,18 +29,24 @@ interface DCEDoc {
 interface Props {
   projectId: string
   projectName: string
-  ao: { id: string; name: string; status: string }
+  dpgfId: string
+  dpgfStatus: string
+  ao: { id: string; name: string; status: string } | null
   initialDocs: DCEDoc[]
 }
 
-export function DCEPageClient({ projectId, projectName, ao, initialDocs }: Props) {
+export function DCEPageClient({ projectId, projectName, dpgfId, dpgfStatus, ao, initialDocs }: Props) {
   const [docs, setDocs] = useState<DCEDoc[]>(initialDocs)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [selectedCategory, setSelectedCategory] = useState('plans')
   const [isMandatory, setIsMandatory] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const isDraft = ao.status === 'DRAFT'
+
+  // Verrouillé si AO envoyé (même logique que DQE)
+  const isLocked = dpgfStatus === 'AO_SENT'
+  // AO en brouillon = pas encore envoyé aux entreprises
+  const aoDraft = ao?.status === 'DRAFT'
 
   const docsByCategory = CATEGORIES.map((cat) => ({
     ...cat,
@@ -57,7 +63,7 @@ export function DCEPageClient({ projectId, projectName, ao, initialDocs }: Props
     try {
       const supabase = createBrowserClient()
       const ext = file.name.split('.').pop()
-      const path = `${ao.id}/${selectedCategory}/${Date.now()}.${ext}`
+      const path = `${dpgfId}/${selectedCategory}/${Date.now()}.${ext}`
 
       const { data: uploadData, error: uploadErr } = await supabase.storage
         .from('dce-documents')
@@ -67,7 +73,7 @@ export function DCEPageClient({ projectId, projectName, ao, initialDocs }: Props
 
       const { data: urlData } = supabase.storage.from('dce-documents').getPublicUrl(uploadData.path)
 
-      const res = await fetch(`/api/ao/${ao.id}/documents`, {
+      const res = await fetch(`/api/dpgf/${dpgfId}/dce`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -91,14 +97,14 @@ export function DCEPageClient({ projectId, projectName, ao, initialDocs }: Props
   }
 
   async function handleDelete(docId: string) {
-    const res = await fetch(`/api/ao/${ao.id}/documents/${docId}`, { method: 'DELETE' })
+    const res = await fetch(`/api/dpgf/${dpgfId}/dce/${docId}`, { method: 'DELETE' })
     if (res.ok) {
       setDocs((prev) => prev.filter((d) => d.id !== docId))
     }
   }
 
   async function toggleMandatory(doc: DCEDoc) {
-    const res = await fetch(`/api/ao/${ao.id}/documents/${doc.id}`, {
+    const res = await fetch(`/api/dpgf/${dpgfId}/dce/${doc.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ isMandatory: !doc.isMandatory }),
@@ -124,7 +130,7 @@ export function DCEPageClient({ projectId, projectName, ao, initialDocs }: Props
       {/* Onglets de navigation */}
       <div className="flex gap-0" style={{ borderBottom: '2px solid var(--border)' }}>
         {[
-          { label: "DQE", href: `/dpgf/${projectId}`, active: false },
+          { label: 'DQE', href: `/dpgf/${projectId}`, active: false },
           { label: 'DCE', href: `/dpgf/${projectId}/dce`, active: true },
           { label: 'Q&A', href: `/dpgf/${projectId}/qa`, active: false },
           { label: 'Analyse', href: `/dpgf/${projectId}/analyse`, active: false },
@@ -144,9 +150,36 @@ export function DCEPageClient({ projectId, projectName, ao, initialDocs }: Props
         ))}
       </div>
 
-      <p className="text-sm" style={{ color: 'var(--text2)' }}>{ao.name}</p>
+      {ao && <p className="text-sm" style={{ color: 'var(--text2)' }}>{ao.name}</p>}
 
-      {isDraft && (
+      {/* Bandeau verrouillé */}
+      {isLocked && (
+        <div
+          className="flex items-center justify-between px-4 py-3 rounded-[var(--radius)]"
+          style={{ background: 'var(--amber-light)', border: '1px solid var(--amber)' }}
+        >
+          <span className="flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--amber)' }}>
+            <Lock size={15} />
+            DCE verrouillé — utilisez &quot;Modifier le DQE&quot; depuis la page DQE pour débloquer
+          </span>
+        </div>
+      )}
+
+      {/* Info avant AO */}
+      {!ao && (
+        <div
+          className="px-4 py-3 rounded-[var(--radius)]"
+          style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}
+        >
+          <p className="text-sm" style={{ color: 'var(--text2)' }}>
+            <AlertCircle size={15} className="inline mr-1.5" style={{ color: 'var(--text3)' }} />
+            Les documents seront accessibles aux entreprises dès l&apos;envoi de l&apos;appel d&apos;offre.
+          </p>
+        </div>
+      )}
+
+      {/* Info AO brouillon */}
+      {ao && aoDraft && (
         <div
           className="px-4 py-3 rounded-[var(--radius)]"
           style={{ background: 'var(--amber-light)', border: '1px solid var(--amber)' }}
@@ -159,74 +192,76 @@ export function DCEPageClient({ projectId, projectName, ao, initialDocs }: Props
       )}
 
       {/* Zone d'upload */}
-      <div
-        className="p-5 rounded-[var(--radius-lg)]"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
-      >
-        <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--text)' }}>
-          Ajouter un document
-        </h2>
+      {!isLocked && (
+        <div
+          className="p-5 rounded-[var(--radius-lg)]"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
+        >
+          <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--text)' }}>
+            Ajouter un document
+          </h2>
 
-        <div className="flex flex-wrap gap-3 mb-4">
-          <div className="flex flex-wrap gap-2">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat.key}
-                type="button"
-                onClick={() => setSelectedCategory(cat.key)}
-                className="px-3 py-1.5 rounded-[var(--radius)] text-sm transition-colors"
-                style={{
-                  background: selectedCategory === cat.key ? 'var(--green-light)' : 'var(--surface2)',
-                  color: selectedCategory === cat.key ? 'var(--green)' : 'var(--text2)',
-                  border: `1px solid ${selectedCategory === cat.key ? 'var(--green)' : 'var(--border)'}`,
-                  fontWeight: selectedCategory === cat.key ? 500 : 400,
-                }}
-              >
-                {cat.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-3 mb-4">
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat.key}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat.key)}
+                  className="px-3 py-1.5 rounded-[var(--radius)] text-sm transition-colors"
+                  style={{
+                    background: selectedCategory === cat.key ? 'var(--green-light)' : 'var(--surface2)',
+                    color: selectedCategory === cat.key ? 'var(--green)' : 'var(--text2)',
+                    border: `1px solid ${selectedCategory === cat.key ? 'var(--green)' : 'var(--border)'}`,
+                    fontWeight: selectedCategory === cat.key ? 500 : 400,
+                  }}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--text2)' }}>
+              <input
+                type="checkbox"
+                checked={isMandatory}
+                onChange={(e) => setIsMandatory(e.target.checked)}
+                className="w-4 h-4"
+              />
+              Obligatoire
+            </label>
           </div>
 
-          <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--text2)' }}>
-            <input
-              type="checkbox"
-              checked={isMandatory}
-              onChange={(e) => setIsMandatory(e.target.checked)}
-              className="w-4 h-4"
-            />
-            Obligatoire
-          </label>
-        </div>
+          {uploadError && (
+            <p className="text-sm mb-3 px-3 py-2 rounded-[var(--radius)]"
+              style={{ background: 'var(--red-light)', color: 'var(--red)' }}>
+              <AlertCircle size={14} className="inline mr-1" />{uploadError}
+            </p>
+          )}
 
-        {uploadError && (
-          <p className="text-sm mb-3 px-3 py-2 rounded-[var(--radius)]"
-            style={{ background: 'var(--red-light)', color: 'var(--red)' }}>
-            <AlertCircle size={14} className="inline mr-1" />{uploadError}
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            style={{ background: 'var(--green-btn)', color: '#fff', border: 'none' }}
+          >
+            <Upload size={15} className="mr-2" />
+            {uploading ? 'Upload...' : 'Choisir un fichier'}
+          </Button>
+          <p className="text-xs mt-2" style={{ color: 'var(--text3)' }}>
+            PDF, DWG, DXF, JPG, PNG, XLSX — max 50 Mo
           </p>
-        )}
-
-        <Button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          style={{ background: 'var(--green-btn)', color: '#fff', border: 'none' }}
-        >
-          <Upload size={15} className="mr-2" />
-          {uploading ? 'Upload...' : 'Choisir un fichier'}
-        </Button>
-        <p className="text-xs mt-2" style={{ color: 'var(--text3)' }}>
-          PDF, DWG, DXF, JPG, PNG, XLSX — max 50 Mo
-        </p>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,.dwg,.dxf,.jpg,.jpeg,.png,.xlsx,.xls"
-          className="hidden"
-          onChange={handleUpload}
-        />
-      </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.dwg,.dxf,.jpg,.jpeg,.png,.xlsx,.xls"
+            className="hidden"
+            onChange={handleUpload}
+          />
+        </div>
+      )}
 
       {/* Liste des documents par catégorie */}
-      {docsByCategory.filter((cat) => cat.docs.length > 0 || true).map((cat) => (
+      {docsByCategory.map((cat) =>
         cat.docs.length === 0 ? null : (
           <div
             key={cat.key}
@@ -249,7 +284,9 @@ export function DCEPageClient({ projectId, projectName, ao, initialDocs }: Props
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   <th className="text-left px-4 py-2.5 font-medium" style={{ color: 'var(--text2)' }}>Nom</th>
                   <th className="text-center px-3 py-2.5 font-medium" style={{ color: 'var(--text2)' }}>Rév.</th>
-                  <th className="text-center px-3 py-2.5 font-medium" style={{ color: 'var(--text2)' }}>Lectures</th>
+                  {ao && (
+                    <th className="text-center px-3 py-2.5 font-medium" style={{ color: 'var(--text2)' }}>Lectures</th>
+                  )}
                   <th className="text-left px-3 py-2.5 font-medium" style={{ color: 'var(--text2)' }}>Date</th>
                   <th className="w-20" />
                 </tr>
@@ -285,33 +322,37 @@ export function DCEPageClient({ projectId, projectName, ao, initialDocs }: Props
                     <td className="px-3 py-3 text-center tabular-nums" style={{ color: 'var(--text2)' }}>
                       v{doc.revision}
                     </td>
-                    <td className="px-3 py-3 text-center" style={{ color: 'var(--text2)' }}>
-                      <span className="flex items-center justify-center gap-1">
-                        <Eye size={13} />
-                        {doc.readCount}/{doc.companiesCount}
-                      </span>
-                    </td>
+                    {ao && (
+                      <td className="px-3 py-3 text-center" style={{ color: 'var(--text2)' }}>
+                        <span className="flex items-center justify-center gap-1">
+                          <Eye size={13} />
+                          {doc.readCount}/{doc.companiesCount}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-3 py-3 text-xs" style={{ color: 'var(--text3)' }}>
                       {new Date(doc.createdAt).toLocaleDateString('fr-FR')}
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex items-center gap-1 justify-end">
-                        <button
-                          onClick={() => toggleMandatory(doc)}
-                          className="p-1.5 rounded hover:opacity-70 text-xs"
-                          style={{ color: doc.isMandatory ? 'var(--amber)' : 'var(--text3)' }}
-                          title={doc.isMandatory ? 'Retirer obligatoire' : 'Marquer obligatoire'}
-                        >
-                          ★
-                        </button>
-                        <button
-                          onClick={() => handleDelete(doc.id)}
-                          className="p-1.5 rounded hover:opacity-70"
-                          style={{ color: 'var(--red)' }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                      {!isLocked && (
+                        <div className="flex items-center gap-1 justify-end">
+                          <button
+                            onClick={() => toggleMandatory(doc)}
+                            className="p-1.5 rounded hover:opacity-70 text-xs"
+                            style={{ color: doc.isMandatory ? 'var(--amber)' : 'var(--text3)' }}
+                            title={doc.isMandatory ? 'Retirer obligatoire' : 'Marquer obligatoire'}
+                          >
+                            ★
+                          </button>
+                          <button
+                            onClick={() => handleDelete(doc.id)}
+                            className="p-1.5 rounded hover:opacity-70"
+                            style={{ color: 'var(--red)' }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -319,7 +360,7 @@ export function DCEPageClient({ projectId, projectName, ao, initialDocs }: Props
             </table>
           </div>
         )
-      ))}
+      )}
 
       {docs.length === 0 && (
         <div

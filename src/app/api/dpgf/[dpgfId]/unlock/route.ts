@@ -93,7 +93,7 @@ export async function POST(
           : `${appUrl}/portal/${ao.id}`
         await sendEmail({
           to: email,
-          subject: `Le DPGF du projet ${projectName} a été mis à jour`,
+          subject: `Le DQE du projet ${projectName} a été mis à jour`,
           html: DPGFModifiedEmail({ projectName, aoName: ao.name, portalUrl }),
         })
       }

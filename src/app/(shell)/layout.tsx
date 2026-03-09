@@ -4,6 +4,7 @@ import { Sidebar } from '@/components/shell/Sidebar'
 import { Topbar } from '@/components/shell/Topbar'
 import { AnnouncementBanner } from '@/components/shell/AnnouncementBanner'
 import { AdminModeBanner } from '@/components/shell/AdminModeBanner'
+import { ErrorBoundary } from '@/components/shell/ErrorBoundary'
 
 export default async function ShellLayout({
   children,
@@ -30,7 +31,9 @@ export default async function ShellLayout({
           }}
         />
         <AnnouncementBanner />
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 p-6">
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </main>
       </div>
     </div>
   )
