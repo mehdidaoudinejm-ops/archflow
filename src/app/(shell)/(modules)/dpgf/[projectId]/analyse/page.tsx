@@ -91,7 +91,7 @@ export default async function AnalysePage({ params }: Props) {
     }),
     prisma.adminDoc.findMany({
       where: { aoCompanyId: { in: aoCompanyIds } },
-      select: { aoCompanyId: true, type: true, status: true },
+      select: { id: true, aoCompanyId: true, type: true, status: true, fileUrl: true, rejectionReason: true, expiresAt: true },
     }),
     prisma.qA.findMany({
       where: { aoId: ao.id },
@@ -107,10 +107,11 @@ export default async function AnalysePage({ params }: Props) {
 
   const userMap = new Map(companyUsers.map((u) => [u.id, u]))
 
-  const adminDocsMap = new Map<string, { type: string; status: string }[]>()
+  type AdminDocItem = { id: string; type: string; status: string; fileUrl: string; rejectionReason: string | null; expiresAt: string | null }
+  const adminDocsMap = new Map<string, AdminDocItem[]>()
   for (const doc of adminDocsRaw) {
     const arr = adminDocsMap.get(doc.aoCompanyId) ?? []
-    arr.push({ type: doc.type, status: doc.status })
+    arr.push({ id: doc.id, type: doc.type, status: doc.status, fileUrl: doc.fileUrl, rejectionReason: doc.rejectionReason, expiresAt: doc.expiresAt?.toISOString() ?? null })
     adminDocsMap.set(doc.aoCompanyId, arr)
   }
 

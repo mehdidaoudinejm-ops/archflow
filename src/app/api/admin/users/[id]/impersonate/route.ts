@@ -27,6 +27,9 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
       email: user.email,
+      options: {
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/dashboard`,
+      },
     })
 
     if (error || !data.properties?.action_link) {

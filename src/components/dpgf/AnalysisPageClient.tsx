@@ -48,7 +48,7 @@ interface CompanyData {
   offerPosts: Record<string, OfferPostData>
   submittedAt: string | null
   invitedAt: string
-  adminDocs: { type: string; status: string }[]
+  adminDocs: { id: string; type: string; status: string; fileUrl: string; rejectionReason: string | null; expiresAt: string | null }[]
   siretVerified: boolean
   agencyCreatedAt: string | null
   divergences: number
@@ -288,13 +288,127 @@ function WeightsPanel({
 
 // ── Company ranking card ──────────────────────────────────────────────────────
 
+const DOC_TYPE_LABELS: Record<string, string> = {
+  kbis: 'Kbis',
+  decennale: 'Décennale',
+  rcpro: 'RC Pro',
+  rib: 'RIB',
+  urssaf: 'Attestation URSSAF',
+}
+
+const DOC_STATUS_STYLES: Record<string, { label: string; bg: string; color: string }> = {
+  PENDING:  { label: 'En attente', bg: '#FEF3E2', color: '#B45309' },
+  VALID:    { label: 'Valide',     bg: '#EAF3ED', color: '#1A5C3A' },
+  REJECTED: { label: 'Rejeté',    bg: '#FEE8E8', color: '#9B1C1C' },
+  EXPIRED:  { label: 'Expiré',    bg: '#FEE8E8', color: '#9B1C1C' },
+}
+
+function AdminDocRow({
+  doc,
+  aoId,
+  companyId,
+  onUpdate,
+}: {
+  doc: CompanyData['adminDocs'][number]
+  aoId: string
+  companyId: string
+  onUpdate: (docId: string, status: string, rejectionReason: string | null) => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const [rejecting, setRejecting] = useState(false)
+  const [reason, setReason] = useState(doc.rejectionReason ?? '')
+
+  const style = DOC_STATUS_STYLES[doc.status] ?? DOC_STATUS_STYLES.PENDING
+
+  async function patch(status: string, rejectionReason?: string) {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/ao/${aoId}/companies/${companyId}/admin-docs/${doc.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, rejectionReason }),
+      })
+      if (res.ok) {
+        onUpdate(doc.id, status, rejectionReason ?? null)
+        setRejecting(false)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #F0F0EB' }}>
+      <div style={{ flex: 1, fontSize: 12, fontWeight: 500, color: '#4B4B45' }}>
+        {DOC_TYPE_LABELS[doc.type] ?? doc.type}
+      </div>
+      <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 20, fontWeight: 500, background: style.bg, color: style.color }}>
+        {style.label}
+      </span>
+      {doc.fileUrl && (
+        <a
+          href={doc.fileUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: 11, color: '#1A5C3A', textDecoration: 'none', padding: '3px 8px', borderRadius: 6, border: '1px solid #C8E0D4', background: '#F4FAF6' }}
+        >
+          Voir ↗
+        </a>
+      )}
+      {doc.status !== 'VALID' && (
+        <button
+          onClick={() => void patch('VALID')}
+          disabled={saving}
+          style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, border: '1px solid #C8E0D4', background: '#EAF3ED', color: '#1A5C3A', cursor: 'pointer', opacity: saving ? 0.5 : 1 }}
+        >
+          ✓ Valider
+        </button>
+      )}
+      {doc.status !== 'REJECTED' && !rejecting && (
+        <button
+          onClick={() => setRejecting(true)}
+          disabled={saving}
+          style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, border: '1px solid #F0C8C8', background: '#FEE8E8', color: '#9B1C1C', cursor: 'pointer', opacity: saving ? 0.5 : 1 }}
+        >
+          ✗ Rejeter
+        </button>
+      )}
+      {rejecting && (
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <input
+            autoFocus
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Motif (optionnel)"
+            style={{ fontSize: 11, padding: '3px 6px', borderRadius: 4, border: '1px solid #E8E8E3', width: 140 }}
+          />
+          <button
+            onClick={() => void patch('REJECTED', reason || undefined)}
+            disabled={saving}
+            style={{ fontSize: 11, padding: '3px 7px', borderRadius: 4, background: '#9B1C1C', color: '#fff', border: 'none', cursor: 'pointer', opacity: saving ? 0.5 : 1 }}
+          >
+            {saving ? '…' : 'OK'}
+          </button>
+          <button
+            onClick={() => setRejecting(false)}
+            style={{ fontSize: 11, padding: '3px 7px', borderRadius: 4, background: '#F0F0EB', color: '#6B6B65', border: 'none', cursor: 'pointer' }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function CompanyCard({
   rank,
   result,
-  company,
+  company: initialCompany,
   estimatif,
   fmt,
   isAwarded,
+  aoId,
 }: {
   rank: number
   result: ScoringResult
@@ -302,8 +416,17 @@ function CompanyCard({
   estimatif: number | null
   fmt: (v: number | null) => string
   isAwarded?: boolean
+  aoId: string
 }) {
   const [expanded, setExpanded] = useState(false)
+  const [company, setCompany] = useState(initialCompany)
+
+  function handleDocUpdate(docId: string, status: string, rejectionReason: string | null) {
+    setCompany((prev) => ({
+      ...prev,
+      adminDocs: prev.adminDocs.map((d) => d.id === docId ? { ...d, status, rejectionReason } : d),
+    }))
+  }
   const rec = recommendationLabel(result.recommendation)
 
   const rankStyle: Record<number, { bg: string; color: string; label: string }> = {
@@ -474,6 +597,31 @@ function CompanyCard({
               <div>Ancienneté : <strong>{result.details.agencyAgeYears.toFixed(1)} ans</strong></div>
             )}
           </div>
+
+          {/* Documents admin */}
+          {company.adminDocs.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#4B4B45', marginBottom: 6 }}>
+                Documents administratifs
+              </div>
+              <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #E8E8E3', padding: '4px 12px' }}>
+                {company.adminDocs.map((doc) => (
+                  <AdminDocRow
+                    key={doc.id}
+                    doc={doc}
+                    aoId={aoId}
+                    companyId={company.id}
+                    onUpdate={handleDocUpdate}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {company.adminDocs.length === 0 && (
+            <div style={{ marginTop: 12, fontSize: 12, color: '#9B9B94' }}>
+              Aucun document administratif déposé.
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -883,6 +1031,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
                 company={company}
                 estimatif={totals.estimatif}
                 fmt={fmt}
+                aoId={ao.id}
                 isAwarded={awardedCompanyId === result.companyId}
               />
             )
