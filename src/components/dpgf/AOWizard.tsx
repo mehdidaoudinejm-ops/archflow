@@ -112,7 +112,10 @@ export function AOWizard({ dpgfId, projectId, projectName, lots }: Props) {
           allowCustomQty,
           isPaid,
           paymentAmount: isPaid && paymentAmount ? parseFloat(paymentAmount) : null,
-          requiredDocs: [...requiredDocs, ...customDocs],
+          requiredDocs: [
+            ...requiredDocs,
+            ...customDocs.map(({ id, label, required }) => ({ type: id, label, required })),
+          ],
         }),
       })
 
