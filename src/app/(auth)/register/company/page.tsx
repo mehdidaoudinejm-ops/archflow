@@ -56,7 +56,7 @@ function RegisterCompanyForm() {
         body: JSON.stringify({ token, firstName, lastName, companyName, siret, legalForm: legalForm || undefined, companyAddress: companyAddress || undefined, postalCode: postalCode || undefined, city: city || undefined, country: country || undefined, phone: phone || undefined, trade: trade || undefined, signatoryQuality: signatoryQuality || undefined, password }),
       })
 
-      const data = await res.json() as { error?: string; email?: string }
+      const data = await res.json() as { error?: string; email?: string; aoId?: string }
 
       if (!res.ok) {
         setError(data.error ?? 'Erreur lors de la création du compte')
@@ -75,8 +75,8 @@ function RegisterCompanyForm() {
         return
       }
 
-      // 3. Rediriger vers le portail (reconstruit depuis le token, sera géré par le portail)
-      router.push('/mes-appels-doffres')
+      // 3. Rediriger vers le portail de l'AO
+      router.push(data.aoId ? `/portal/${data.aoId}` : '/mes-appels-doffres')
       router.refresh()
     } catch {
       setError('Une erreur est survenue. Réessayez.')

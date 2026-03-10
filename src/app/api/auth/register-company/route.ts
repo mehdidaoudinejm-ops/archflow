@@ -138,7 +138,7 @@ export async function POST(req: Request) {
       data: { tokenUsedAt: new Date() },
     })
 
-    return NextResponse.json({ success: true, email }, { status: 201 })
+    return NextResponse.json({ success: true, email, aoId: tokenPayload.aoId }, { status: 201 })
   } catch (error) {
     console.error('[POST /api/auth/register-company]', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
