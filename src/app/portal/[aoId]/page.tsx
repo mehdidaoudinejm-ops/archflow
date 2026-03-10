@@ -16,6 +16,7 @@ export default async function PortalPage({ params, searchParams }: Props) {
   let companyUserId: string | null = null
 
   // 1. Vérifier l'auth via JWT token
+  let needsRegistration = false
   if (token) {
     try {
       const payload = await verifyInviteToken(token)
@@ -25,22 +26,26 @@ export default async function PortalPage({ params, searchParams }: Props) {
           select: { id: true, aoId: true, companyUserId: true, status: true },
         })
         if (aoCompany && aoCompany.aoId === params.aoId) {
-          // Vérifier que l'entreprise a bien terminé son inscription (agencyId renseigné)
           const companyUserRecord = await prisma.user.findUnique({
             where: { id: aoCompany.companyUserId },
             select: { agencyId: true },
           })
           if (!companyUserRecord?.agencyId) {
-            // Placeholder sans inscription → rediriger vers le formulaire d'inscription
-            redirect(`/register/company?token=${token}`)
+            needsRegistration = true
+          } else {
+            aoCompanyId = aoCompany.id
+            companyUserId = aoCompany.companyUserId
           }
-          aoCompanyId = aoCompany.id
-          companyUserId = aoCompany.companyUserId
         }
       }
     } catch {
       // Token invalide, on tente la session
     }
+  }
+
+  // Rediriger hors du try/catch pour ne pas avaler l'exception Next.js
+  if (needsRegistration) {
+    redirect(`/register/company?token=${token}`)
   }
 
   // 2. Fallback : session Supabase
