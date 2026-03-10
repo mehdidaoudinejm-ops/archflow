@@ -69,8 +69,8 @@ export async function inviteCompany({
       throw new Error('ARCHITECT_CONFLICT')
     }
 
-    if (existingUser.role === 'COMPANY') {
-      // Vérifier si déjà invité à cet AO
+    if (existingUser.role === 'COMPANY' && existingUser.agencyId) {
+      // Compte COMPANY complet (inscription terminée) → lien portail direct
       const existing = await prisma.aOCompany.findFirst({
         where: { aoId, companyUserId: existingUser.id },
       })
@@ -111,12 +111,19 @@ export async function inviteCompany({
         ...(process.env.NODE_ENV === 'development' && { devLink: portalUrl }),
       }
     }
+    // COMPANY placeholder (agencyId null) = inscription jamais terminée → traité comme nouvel email
   }
 
-  // 2. Nouvel email — créer un utilisateur COMPANY placeholder
-  const placeholderUser = existingUser ?? await prisma.user.create({
+  // 2. Nouvel email ou placeholder sans compte réel → lien d'inscription
+  const placeholderUser = (existingUser?.agencyId ? null : existingUser) ?? await prisma.user.create({
     data: { email, role: 'COMPANY' },
   })
+
+  // Vérifier si déjà invité à cet AO (cas du placeholder réinvité)
+  const existingAoCompany = await prisma.aOCompany.findFirst({
+    where: { aoId, companyUserId: placeholderUser.id },
+  })
+  if (existingAoCompany) throw new Error('ALREADY_INVITED')
 
   // Créer l'AOCompany
   const aoCompany = await prisma.aOCompany.create({
