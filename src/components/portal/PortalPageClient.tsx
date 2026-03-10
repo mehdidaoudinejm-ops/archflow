@@ -5,7 +5,8 @@ import { PortalShell } from '@/components/portal/PortalShell'
 import { OfferTable, getAllPostIds } from '@/components/portal/OfferTable'
 import { useOffer } from '@/hooks/useOffer'
 import { Button } from '@/components/ui/button'
-import { AlertCircle, X } from 'lucide-react'
+import { AlertCircle, X, RefreshCw } from 'lucide-react'
+import type { DpgfDiff } from '@/lib/dpgf-diff'
 
 interface Post {
   id: string
@@ -74,6 +75,8 @@ interface PortalPageClientProps {
   aoCompanyId: string
   requiredDocs: RequiredDoc[] | null
   uploadedDocTypes: string[]
+  diff: DpgfDiff | null
+  newDocumentIds: string[]
 }
 
 function ConfirmModal({
@@ -242,6 +245,8 @@ function PortalPageClientInner({
   companyUser,
   requiredDocs,
   uploadedDocTypes,
+  diff,
+  newDocumentIds,
 }: PortalPageClientProps) {
   const { posts, updatePost, saveStatus, save, submit, isSubmitted } = useOffer({
     aoId: ao.id,
@@ -316,6 +321,25 @@ function PortalPageClientInner({
         isSubmitted={isSubmitted}
         onSave={save}
       >
+        {/* Banner modifications DPGF */}
+        {diff && diff.total > 0 && (
+          <div
+            className="mx-6 mt-6 px-4 py-3 rounded-[var(--radius)]"
+            style={{ background: 'var(--amber-light)', border: '1px solid var(--amber)' }}
+          >
+            <p className="text-sm font-medium flex items-center gap-1.5 mb-2" style={{ color: 'var(--amber)' }}>
+              <RefreshCw size={14} />
+              {diff.total} modification{diff.total > 1 ? 's' : ''} apportée{diff.total > 1 ? 's' : ''} au dossier depuis votre invitation
+            </p>
+            <ul className="text-xs space-y-0.5" style={{ color: 'var(--text2)' }}>
+              {diff.addedCount > 0 && <li>• <strong>{diff.addedCount} poste{diff.addedCount > 1 ? 's' : ''} ajouté{diff.addedCount > 1 ? 's' : ''}</strong> — à chiffrer</li>}
+              {diff.modifiedCount > 0 && <li>• <strong>{diff.modifiedCount} poste{diff.modifiedCount > 1 ? 's' : ''} modifié{diff.modifiedCount > 1 ? 's' : ''}</strong> — vérifiez vos prix</li>}
+              {diff.removedCount > 0 && <li>• <strong>{diff.removedCount} poste{diff.removedCount > 1 ? 's' : ''} supprimé{diff.removedCount > 1 ? 's' : ''}</strong> — plus à chiffrer</li>}
+              {newDocumentIds.length > 0 && <li>• <strong>{newDocumentIds.length} nouveau{newDocumentIds.length > 1 ? 'x' : ''} document{newDocumentIds.length > 1 ? 's' : ''}</strong> disponible{newDocumentIds.length > 1 ? 's' : ''} dans l&apos;onglet DCE</li>}
+            </ul>
+          </div>
+        )}
+
         {/* Instructions */}
         {ao.instructions && (
           <div
@@ -372,6 +396,9 @@ function PortalPageClientInner({
           isSubmitted={isSubmitted}
           onSubmitRequest={handleSubmitRequest}
           submitDisabled={missingMandatoryDocs.length > 0}
+          diffMap={diff?.postDiffs ?? null}
+          removedPosts={diff?.removedPosts ?? []}
+          newDocumentIds={newDocumentIds}
         />
       </PortalShell>
 

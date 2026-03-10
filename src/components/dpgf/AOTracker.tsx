@@ -21,6 +21,8 @@ import {
   ShieldCheck,
   ShieldAlert,
   ShieldOff,
+  Settings,
+  Bell,
 } from 'lucide-react'
 
 interface Company {
@@ -38,6 +40,12 @@ interface Company {
   } | null
 }
 
+interface RequiredDoc {
+  type: string
+  label: string
+  required: boolean
+}
+
 interface AOData {
   id: string
   name: string
@@ -48,6 +56,7 @@ interface AOData {
   isPaid: boolean
   paymentAmount: number | null
   lotIds: string[]
+  requiredDocs: RequiredDoc[] | null
 }
 
 interface Lot {
@@ -405,6 +414,160 @@ function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
+// ── Sheet Modifier AO ─────────────────────────────────────
+
+function EditAOSheet({
+  ao,
+  open,
+  onClose,
+  onSaved,
+}: {
+  ao: AOData
+  open: boolean
+  onClose: () => void
+  onSaved: (updates: Partial<AOData>) => void
+}) {
+  const DEFAULT_DOCS: RequiredDoc[] = [
+    { type: 'kbis', label: 'Kbis', required: true },
+    { type: 'decennale', label: 'Décennale', required: true },
+    { type: 'rcpro', label: 'RC Pro', required: true },
+    { type: 'rib', label: 'RIB', required: true },
+    { type: 'urssaf', label: 'Attestation URSSAF', required: true },
+  ]
+
+  const [name, setName] = useState(ao.name)
+  const [deadline, setDeadline] = useState(ao.deadline.split('T')[0])
+  const [instructions, setInstructions] = useState(ao.instructions ?? '')
+  const [allowCustomQty, setAllowCustomQty] = useState(ao.allowCustomQty)
+  const [requiredDocs, setRequiredDocs] = useState<RequiredDoc[]>(ao.requiredDocs ?? DEFAULT_DOCS)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSave() {
+    if (!name.trim() || !deadline) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/ao/${ao.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          deadline,
+          instructions: instructions.trim() || null,
+          allowCustomQty,
+          requiredDocs,
+        }),
+      })
+      if (!res.ok) {
+        const d = await res.json() as { error?: string }
+        setError(d.error ?? 'Erreur')
+        return
+      }
+      onSaved({ name: name.trim(), deadline, instructions: instructions.trim() || null, allowCustomQty, requiredDocs })
+      onClose()
+    } catch {
+      setError('Erreur réseau')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-md overflow-y-auto"
+        style={{ background: 'var(--surface)', borderLeft: '1px solid var(--border)' }}
+      >
+        <SheetHeader className="mb-6">
+          <SheetTitle style={{ color: 'var(--text)', fontFamily: '"DM Serif Display", serif' }}>
+            Modifier les paramètres
+          </SheetTitle>
+        </SheetHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Nom</label>
+            <Input value={name} onChange={(e) => setName(e.target.value)}
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }} />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>Date limite</label>
+            <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }} />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+              Instructions <span style={{ color: 'var(--text3)', fontWeight: 400 }}>(optionnel)</span>
+            </label>
+            <textarea
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              rows={3}
+              className="w-full rounded-[var(--radius)] px-3 py-2 text-sm resize-none focus:outline-none"
+              style={{ border: '1px solid var(--border)', color: 'var(--text)', background: 'var(--surface)' }}
+            />
+          </div>
+
+          <div className="flex items-center gap-3 py-3 px-4 rounded-[var(--radius)]"
+            style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+            <input type="checkbox" id="acq-edit" checked={allowCustomQty}
+              onChange={(e) => setAllowCustomQty(e.target.checked)} className="w-4 h-4" />
+            <label htmlFor="acq-edit" className="text-sm" style={{ color: 'var(--text)' }}>
+              Autoriser les entreprises à modifier les quantités
+            </label>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium mb-2" style={{ color: 'var(--text)' }}>Documents administratifs</p>
+            <div className="space-y-2">
+              {requiredDocs.map((doc, i) => (
+                <div key={doc.type}
+                  className="flex items-center justify-between px-3 py-2 rounded-[var(--radius)]"
+                  style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+                  <span className="text-sm" style={{ color: 'var(--text)' }}>{doc.label}</span>
+                  <button
+                    type="button"
+                    onClick={() => setRequiredDocs((prev) => prev.map((d, j) => j === i ? { ...d, required: !d.required } : d))}
+                    className="text-xs px-2.5 py-1 rounded font-medium"
+                    style={{
+                      background: doc.required ? 'var(--green-light)' : 'var(--surface)',
+                      color: doc.required ? 'var(--green)' : 'var(--text3)',
+                      border: `1px solid ${doc.required ? 'var(--green)' : 'var(--border)'}`,
+                    }}
+                  >
+                    {doc.required ? 'Obligatoire' : 'Facultatif'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-sm px-3 py-2 rounded-[var(--radius)]"
+              style={{ background: 'var(--red-light)', color: 'var(--red)' }}>{error}</p>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" onClick={onClose} disabled={saving} className="flex-1"
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}>
+              Annuler
+            </Button>
+            <Button onClick={handleSave} disabled={saving || !name.trim() || !deadline} className="flex-1"
+              style={{ background: 'var(--green-btn)', color: '#fff', border: 'none' }}>
+              {saving ? 'Enregistrement...' : 'Enregistrer'}
+            </Button>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
 // ── Composant principal ───────────────────────────────────
 
 export function AOTracker({ ao, projectId, projectName, selectedLots, companies: initialCompanies }: Props) {
@@ -419,9 +582,25 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
   const [error, setError] = useState<string | null>(null)
   const [aoStatus, setAoStatus] = useState(ao.status)
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+  const [aoData, setAoData] = useState(ao)
+  const [notifying, setNotifying] = useState(false)
+  const [notifySuccess, setNotifySuccess] = useState(false)
 
-  const deadline = new Date(ao.deadline)
+  const deadline = new Date(aoData.deadline)
   const isClosed = aoStatus === 'CLOSED' || aoStatus === 'ARCHIVED'
+
+  async function handleNotify() {
+    setNotifying(true)
+    setNotifySuccess(false)
+    try {
+      await fetch(`/api/ao/${ao.id}/notify-amendment`, { method: 'POST' })
+      setNotifySuccess(true)
+      setTimeout(() => setNotifySuccess(false), 4000)
+    } finally {
+      setNotifying(false)
+    }
+  }
 
   async function handleInvite() {
     if (!emailInput.trim()) return
@@ -517,7 +696,7 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
               className="text-2xl"
               style={{ fontFamily: '"DM Serif Display", serif', color: 'var(--text)' }}
             >
-              {ao.name}
+              {aoData.name}
             </h1>
             <div className="flex items-center gap-3 mt-1">
               {aoStatusBadge(aoStatus)}
@@ -534,18 +713,43 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
               )}
             </div>
           </div>
-          {!isClosed && (
-            <Button
-              onClick={handleClose}
-              disabled={closing}
-              variant="outline"
-              className="text-sm"
-              style={{ borderColor: 'var(--red)', color: 'var(--red)' }}
-            >
-              <XCircle size={15} className="mr-1.5" />
-              {closing ? 'Clôture...' : "Clôturer l'AO"}
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {!isClosed && (
+              <Button
+                onClick={() => setEditOpen(true)}
+                variant="outline"
+                className="text-sm"
+                style={{ borderColor: 'var(--border)', color: 'var(--text2)' }}
+              >
+                <Settings size={14} className="mr-1.5" />
+                Modifier
+              </Button>
+            )}
+            {aoStatus !== 'DRAFT' && (
+              <Button
+                onClick={handleNotify}
+                disabled={notifying}
+                variant="outline"
+                className="text-sm"
+                style={{ borderColor: notifySuccess ? 'var(--green)' : 'var(--border)', color: notifySuccess ? 'var(--green)' : 'var(--text2)' }}
+              >
+                <Bell size={14} className="mr-1.5" />
+                {notifySuccess ? 'Envoyé !' : notifying ? 'Envoi...' : 'Notifier'}
+              </Button>
+            )}
+            {!isClosed && (
+              <Button
+                onClick={handleClose}
+                disabled={closing}
+                variant="outline"
+                className="text-sm"
+                style={{ borderColor: 'var(--red)', color: 'var(--red)' }}
+              >
+                <XCircle size={15} className="mr-1.5" />
+                {closing ? 'Clôture...' : "Clôturer l'AO"}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -747,6 +951,14 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
           onClose={() => setSelectedCompanyId(null)}
         />
       )}
+
+      {/* Modifier AO */}
+      <EditAOSheet
+        ao={aoData}
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        onSaved={(updates) => setAoData((prev) => ({ ...prev, ...updates }))}
+      />
     </div>
   )
 }

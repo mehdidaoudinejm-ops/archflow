@@ -245,6 +245,8 @@ model AO {
   clientPublished   Boolean          @default(false)
   publishedElements Json?
   requiredDocs      Json?
+  snapshotJson      Json?            // snapshot DPGF (lots/postes) au moment de l'envoi
+  sentAt            DateTime?        // timestamp d'envoi
   createdById       String
   createdAt         DateTime         @default(now())
   dpgf              DPGF             @relation(fields: [dpgfId], references: [id])

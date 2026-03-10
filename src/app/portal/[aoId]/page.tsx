@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
 import { verifyInviteToken } from '@/lib/invite'
 import { PortalPageClient } from '@/components/portal/PortalPageClient'
+import { computeDpgfDiff, type SnapshotJson, type LotSnapshot, type DpgfDiff } from '@/lib/dpgf-diff'
 
 interface Props {
   params: { aoId: string }
@@ -68,6 +69,8 @@ export default async function PortalPage({ params, searchParams }: Props) {
       lotIds: true,
       dpgfId: true,
       requiredDocs: true,
+      snapshotJson: true,
+      sentAt: true,
     },
   })
 
@@ -150,6 +153,36 @@ export default async function PortalPage({ params, searchParams }: Props) {
     },
   })
 
+  // 7b. Calculer le diff DPGF (snapshot vs état actuel)
+  let diff: DpgfDiff | null = null
+  if (ao.snapshotJson) {
+    const snapshot = ao.snapshotJson as unknown as SnapshotJson
+    const currentLots: LotSnapshot[] = lots.map((l) => ({
+      id: l.id,
+      number: l.number,
+      name: l.name,
+      posts: l.posts.map((p) => ({
+        id: p.id,
+        ref: p.ref,
+        title: p.title,
+        unit: p.unit,
+        qtyArchi: p.qtyArchi,
+      })),
+    }))
+    const computed = computeDpgfDiff(snapshot, currentLots)
+    if (computed.total > 0) diff = computed
+  }
+
+  // 7c. Documents DCE nouveaux depuis l'envoi
+  const newDocumentIds = ao.sentAt
+    ? (
+        await prisma.document.findMany({
+          where: { aoId: params.aoId, createdAt: { gt: ao.sentAt } },
+          select: { id: true },
+        })
+      ).map((d) => d.id)
+    : []
+
   // 7. Récupérer les docs admin déjà déposés
   const uploadedAdminDocs = await prisma.adminDoc.findMany({
     where: { aoCompanyId: aoCompanyId!, status: { in: ['PENDING', 'VALID'] } },
@@ -209,6 +242,8 @@ export default async function PortalPage({ params, searchParams }: Props) {
         companyName: companyUser?.agency?.name ?? null,
       }}
       aoCompanyId={aoCompanyId!}
+      diff={diff}
+      newDocumentIds={newDocumentIds}
     />
   )
 }

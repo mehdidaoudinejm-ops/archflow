@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "AO" ADD COLUMN "snapshotJson" JSONB;
+ALTER TABLE "AO" ADD COLUMN "sentAt" TIMESTAMP(3);

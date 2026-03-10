@@ -119,9 +119,10 @@ export function AOWizard({ dpgfId, projectId, projectName, lots }: Props) {
         }),
       })
 
-      const data = await res.json() as { id?: string; error?: string }
+      const data = await res.json() as { id?: string; error?: string; details?: unknown }
       if (!res.ok) {
-        setGlobalError(data.error ?? 'Erreur lors de la création')
+        const msg = data.details ? `${data.error} — ${JSON.stringify(data.details)}` : (data.error ?? 'Erreur lors de la création')
+        setGlobalError(msg)
         return
       }
 

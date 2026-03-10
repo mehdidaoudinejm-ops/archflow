@@ -79,11 +79,33 @@ export async function PATCH(
 
     const { deadline, ...rest } = parsed.data
 
+    // Si l'AO passe en SENT : créer le snapshot DPGF + sentAt
+    let snapshotJson: object | undefined
+    let sentAt: Date | undefined
+    if (parsed.data.status === 'SENT') {
+      const lots = await prisma.lot.findMany({
+        where: { dpgfId: access.dpgfId, id: { in: access.lotIds } },
+        orderBy: { position: 'asc' },
+        select: {
+          id: true,
+          number: true,
+          name: true,
+          posts: {
+            orderBy: { position: 'asc' },
+            select: { id: true, ref: true, title: true, unit: true, qtyArchi: true },
+          },
+        },
+      })
+      snapshotJson = { lots }
+      sentAt = new Date()
+    }
+
     const ao = await prisma.aO.update({
       where: { id: params.aoId },
       data: {
         ...rest,
         ...(deadline ? { deadline: new Date(deadline) } : {}),
+        ...(snapshotJson ? { snapshotJson, sentAt } : {}),
       },
     })
 

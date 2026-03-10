@@ -30,7 +30,9 @@
       "Bash(pkill:*)",
       "Bash(gh pr:*)",
       "Bash(sed:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(wc:*)",
+      "Bash(mkdir:*)"
     ]
   }
 }

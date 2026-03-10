@@ -25,6 +25,7 @@ export const updateAOSchema = z.object({
   allowCustomQty: z.boolean().optional(),
   isPaid: z.boolean().optional(),
   paymentAmount: z.number().nonnegative().nullable().optional(),
+  requiredDocs: z.array(requiredDocSchema).optional(),
   status: z.enum(['DRAFT', 'SENT', 'IN_PROGRESS', 'CLOSED', 'ARCHIVED']).optional(),
 })
 

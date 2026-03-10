@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requirePortalAuth } from '@/lib/portal-auth'
 import { AuthError } from '@/lib/auth'
+import { computeDpgfDiff, type SnapshotJson, type LotSnapshot } from '@/lib/dpgf-diff'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +27,8 @@ export async function GET(
         lotIds: true,
         dpgfId: true,
         requiredDocs: true,
+        snapshotJson: true,
+        sentAt: true,
       },
     })
 
@@ -91,6 +94,34 @@ export async function GET(
       })
     }
 
+    // Calcul du diff DPGF (snapshot vs état actuel)
+    let diff = null
+    if (ao.snapshotJson) {
+      const snapshot = ao.snapshotJson as unknown as SnapshotJson
+      const currentLots: LotSnapshot[] = lots.map((l) => ({
+        id: l.id,
+        number: l.number,
+        name: l.name,
+        posts: l.posts.map((p) => ({
+          id: p.id,
+          ref: p.ref,
+          title: p.title,
+          unit: p.unit,
+          qtyArchi: p.qtyArchi,
+        })),
+      }))
+      const computed = computeDpgfDiff(snapshot, currentLots)
+      if (computed.total > 0) diff = computed
+    }
+
+    // Documents DCE nouveaux depuis l'envoi
+    const newDocuments = ao.sentAt
+      ? await prisma.document.findMany({
+          where: { aoId: params.aoId, createdAt: { gt: ao.sentAt } },
+          select: { id: true, name: true, category: true },
+        })
+      : []
+
     return NextResponse.json(
       {
         ao: {
@@ -115,6 +146,8 @@ export async function GET(
           companyName: companyUser.agency?.name ?? null,
         },
         aoCompanyId: aoCompany.id,
+        diff,
+        newDocuments,
       },
       { status: 200 }
     )

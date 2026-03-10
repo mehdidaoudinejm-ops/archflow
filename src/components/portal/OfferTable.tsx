@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { OfferPostData } from '@/hooks/useOffer'
+import type { DiffStatus, RemovedPost } from '@/lib/dpgf-diff'
 
 interface Post {
   id: string
@@ -31,6 +32,16 @@ interface OfferTableProps {
   isSubmitted: boolean
   onSubmitRequest: () => void
   submitDisabled?: boolean
+  diffMap: Record<string, DiffStatus> | null
+  removedPosts: RemovedPost[]
+  newDocumentIds: string[]
+}
+
+const DIFF_BADGES: Record<DiffStatus, { label: string; bg: string; color: string } | null> = {
+  added:     { label: 'Nouveau',  bg: '#EAF3ED', color: '#1A5C3A' },
+  modified:  { label: 'Modifié',  bg: '#FEF3E2', color: '#B45309' },
+  removed:   { label: 'Supprimé', bg: '#FEE8E8', color: '#9B1C1C' },
+  unchanged: null,
 }
 
 function formatPrice(v: number | null | undefined): string {
@@ -123,6 +134,9 @@ export function OfferTable({
   isSubmitted,
   onSubmitRequest,
   submitDisabled = false,
+  diffMap,
+  removedPosts,
+  newDocumentIds: _newDocumentIds,
 }: OfferTableProps) {
   const isReadonly = isSubmitted || aoStatus === 'CLOSED' || aoStatus === 'ARCHIVED'
   const allPosts = lots.flatMap((l) => l.posts)
@@ -249,6 +263,8 @@ export function OfferTable({
                     offerPost?.qtyCompany !== null &&
                     offerPost?.qtyCompany !== undefined &&
                     offerPost.qtyCompany !== post.qtyArchi
+                  const diffStatus = diffMap ? (diffMap[post.id] ?? null) : null
+                  const diffBadge = diffStatus ? DIFF_BADGES[diffStatus] : null
 
                   return (
                     <tr
@@ -257,7 +273,7 @@ export function OfferTable({
                         borderBottom:
                           pi < lot.posts.length - 1 ? '1px solid var(--border)' : undefined,
                         opacity: isSkipped ? 0.5 : 1,
-                        background: 'var(--surface)',
+                        background: diffStatus === 'added' ? '#F4FAF6' : diffStatus === 'modified' ? '#FFFBF4' : 'var(--surface)',
                       }}
                     >
                       {/* Réf */}
@@ -280,6 +296,14 @@ export function OfferTable({
                               style={{ background: '#EDE9FE', color: '#5B21B6', fontWeight: 500 }}
                             >
                               OPTIONNEL
+                            </span>
+                          )}
+                          {diffBadge && (
+                            <span
+                              className="text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0"
+                              style={{ background: diffBadge.bg, color: diffBadge.color }}
+                            >
+                              {diffBadge.label}
                             </span>
                           )}
                         </div>
@@ -395,6 +419,27 @@ export function OfferTable({
                     </tr>
                   )
                 })}
+                {/* Postes supprimés de ce lot */}
+                {removedPosts.filter((rp) => rp.lotName === lot.name).map((rp) => (
+                  <tr
+                    key={`removed-${rp.id}`}
+                    style={{ background: '#FEF2F2', opacity: 0.7, borderBottom: '1px solid var(--border)' }}
+                  >
+                    <td className="px-3 py-2.5">
+                      <span className="font-mono text-xs" style={{ color: 'var(--text3)' }}>{rp.ref}</span>
+                    </td>
+                    <td className="px-3 py-2.5" colSpan={allowCustomQty ? 5 : 4}>
+                      <div className="flex items-center gap-2">
+                        <span style={{ color: 'var(--text3)', textDecoration: 'line-through' }}>{rp.title}</span>
+                        <span className="text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0"
+                          style={{ background: '#FEE8E8', color: '#9B1C1C' }}>
+                          Supprimé
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-xs" style={{ color: 'var(--text3)' }}>—</td>
+                  </tr>
+                ))}
               </>
             ))}
 

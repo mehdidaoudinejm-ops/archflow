@@ -73,6 +73,7 @@ export default async function AOTrackingPage({ params }: Props) {
         isPaid: ao.isPaid,
         paymentAmount: ao.paymentAmount,
         lotIds: ao.lotIds,
+        requiredDocs: Array.isArray(ao.requiredDocs) ? ao.requiredDocs as { type: string; label: string; required: boolean }[] : null,
       }}
       projectId={params.projectId}
       projectName={ao.dpgf.project.name}
