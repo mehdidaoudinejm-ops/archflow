@@ -25,6 +25,15 @@ export default async function PortalPage({ params, searchParams }: Props) {
           select: { id: true, aoId: true, companyUserId: true, status: true },
         })
         if (aoCompany && aoCompany.aoId === params.aoId) {
+          // Vérifier que l'entreprise a bien terminé son inscription (agencyId renseigné)
+          const companyUserRecord = await prisma.user.findUnique({
+            where: { id: aoCompany.companyUserId },
+            select: { agencyId: true },
+          })
+          if (!companyUserRecord?.agencyId) {
+            // Placeholder sans inscription → rediriger vers le formulaire d'inscription
+            redirect(`/register/company?token=${token}`)
+          }
           aoCompanyId = aoCompany.id
           companyUserId = aoCompany.companyUserId
         }
