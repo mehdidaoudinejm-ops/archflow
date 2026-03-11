@@ -95,8 +95,22 @@ export async function POST(req: Request) {
     })
 
     if (authError) {
-      // Si l'utilisateur Supabase existe déjà (invitation re-envoyée), ignorer
-      if (!authError.message.includes('already')) {
+      if (authError.message.toLowerCase().includes('already')) {
+        // Compte Supabase déjà existant — trouver l'ID et mettre à jour le mot de passe
+        const rows = await prisma.$queryRaw<[{ id: string }]>`
+          SELECT id::text FROM auth.users WHERE email = ${email} LIMIT 1
+        `
+        const supabaseUserId = rows[0]?.id
+        if (supabaseUserId) {
+          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+            supabaseUserId,
+            { password, email_confirm: true }
+          )
+          if (updateError) {
+            return NextResponse.json({ error: updateError.message }, { status: 400 })
+          }
+        }
+      } else {
         return NextResponse.json({ error: authError.message }, { status: 400 })
       }
     }
