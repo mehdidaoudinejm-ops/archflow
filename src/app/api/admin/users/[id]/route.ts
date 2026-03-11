@@ -55,14 +55,19 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
       prisma.user.delete({ where: { id: userId } }),
     ])
 
-    // 2. Supprimer de Supabase Auth (id Prisma = id Supabase Auth)
+    // 2. Supprimer de Supabase Auth — chercher par email car l'id Prisma ≠ id Supabase pour les COMPANY
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    const { error: supabaseError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+    const rows = await prisma.$queryRaw<[{ id: string }]>`
+      SELECT id::text FROM auth.users WHERE email = ${user.email} LIMIT 1
+    `
+    const supabaseAuthId = rows[0]?.id ?? userId // fallback sur l'id Prisma pour les ARCHITECT
+
+    const { error: supabaseError } = await supabaseAdmin.auth.admin.deleteUser(supabaseAuthId)
     if (supabaseError) {
       // Prisma supprimé, Supabase échoué — on log mais on ne bloque pas
       console.error('[DELETE user] Supabase Auth error:', supabaseError.message)
