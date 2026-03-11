@@ -75,7 +75,7 @@ export async function POST(req: Request) {
     if (!placeholderUser) {
       console.error('[register-company] User introuvable, companyUserId:', aoCompany.companyUserId)
       return NextResponse.json(
-        { error: 'Invitation introuvable', ...(isDev && { debug: `User id=${aoCompany.companyUserId} absent en base` }) },
+        { error: 'Ce lien n\'est plus valide. Contactez l\'agence pour recevoir une nouvelle invitation.' },
         { status: 404 }
       )
     }
