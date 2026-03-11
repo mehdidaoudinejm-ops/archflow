@@ -23,6 +23,7 @@ import {
   ShieldOff,
   Settings,
   Bell,
+  ExternalLink,
 } from 'lucide-react'
 
 interface Company {
@@ -294,25 +295,37 @@ function CompanySheet({
                 SIRET
               </h3>
               {agency?.siret ? (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-mono" style={{ color: 'var(--text)' }}>
-                    {agency.siret}
-                  </span>
-                  {agency.siretVerified ? (
-                    <span
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
-                      style={{ background: 'var(--green-light)', color: 'var(--green)' }}
-                    >
-                      <ShieldCheck size={13} /> Vérifié
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-mono" style={{ color: 'var(--text)' }}>
+                      {agency.siret}
                     </span>
-                  ) : (
-                    <span
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
-                      style={{ background: 'var(--amber-light)', color: 'var(--amber)' }}
-                    >
-                      <ShieldAlert size={13} /> À vérifier
-                    </span>
-                  )}
+                    {agency.siretVerified ? (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                        style={{ background: 'var(--green-light)', color: 'var(--green)' }}
+                      >
+                        <ShieldCheck size={13} /> Vérifié
+                      </span>
+                    ) : (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                        style={{ background: 'var(--amber-light)', color: 'var(--amber)' }}
+                      >
+                        <ShieldAlert size={13} /> Non vérifié
+                      </span>
+                    )}
+                  </div>
+                  <a
+                    href={`https://annuaire-entreprises.data.gouv.fr/etablissement/${agency.siret}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs"
+                    style={{ color: 'var(--green)', textDecoration: 'none' }}
+                  >
+                    <ExternalLink size={11} />
+                    Voir sur l&apos;annuaire data.gouv.fr
+                  </a>
                 </div>
               ) : (
                 <span

@@ -115,18 +115,18 @@ export async function POST(req: Request) {
       }
     }
 
-    // 5. Vérifier le SIRET via l'API annuaire-entreprises.data.gouv.fr (gratuite, sans auth)
+    // 5. Vérifier le SIRET via recherche-entreprises.api.gouv.fr (gratuite, sans auth)
     let siretVerified = false
     if (siret && siret.length === 14) {
       try {
         const sireneRes = await fetch(
-          `https://api.annuaire-entreprises.data.gouv.fr/api/v3/etablissement/${siret}`,
+          `https://recherche-entreprises.api.gouv.fr/search?q=${siret}&per_page=1`,
           { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) }
         )
         if (sireneRes.ok) {
-          const data = await sireneRes.json() as { etat_administratif?: string }
+          const data = await sireneRes.json() as { results?: Array<{ siege?: { etat_administratif?: string } }> }
           // etat_administratif: 'A' = actif, 'F' = fermé
-          siretVerified = data.etat_administratif === 'A'
+          siretVerified = data.results?.[0]?.siege?.etat_administratif === 'A'
         }
       } catch {
         // API indisponible — continuer sans vérification
@@ -167,6 +167,38 @@ export async function POST(req: Request) {
       where: { id: aoCompanyId },
       data: { tokenUsedAt: new Date() },
     })
+
+    // 9. Ajouter automatiquement l'entreprise à l'annuaire de l'architecte
+    try {
+      const aoWithProject = await prisma.aO.findUnique({
+        where: { id: aoCompany.aoId },
+        select: { dpgf: { select: { project: { select: { agencyId: true } } } } },
+      })
+      const architectAgencyId = aoWithProject?.dpgf?.project?.agencyId
+      if (architectAgencyId) {
+        const existingContact = await prisma.contact.findFirst({
+          where: { agencyId: architectAgencyId, email, type: 'ENTREPRISE' },
+        })
+        if (!existingContact) {
+          await prisma.contact.create({
+            data: {
+              agencyId: architectAgencyId,
+              type: 'ENTREPRISE',
+              firstName,
+              lastName,
+              email,
+              phone: phone ?? null,
+              company: companyName,
+              address: [companyAddress, postalCode, city].filter(Boolean).join(', ') || null,
+              notes: siret ? `SIRET: ${siret}` : null,
+            },
+          })
+        }
+      }
+    } catch (err) {
+      // Non bloquant — l'inscription est validée même si l'ajout à l'annuaire échoue
+      console.error('[register-company] Erreur ajout annuaire:', err)
+    }
 
     return NextResponse.json({ success: true, email, aoId: tokenPayload.aoId }, { status: 201 })
   } catch (error) {
