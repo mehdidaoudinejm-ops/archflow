@@ -130,11 +130,11 @@ export function DCEPageClient({ projectId, projectName, dpgfId, dpgfStatus, ao, 
       {/* Onglets de navigation */}
       <div className="flex gap-0" style={{ borderBottom: '2px solid var(--border)' }}>
         {[
+          { label: 'Infos', href: `/dpgf/${projectId}/settings`, active: false },
           { label: 'DQE', href: `/dpgf/${projectId}`, active: false },
           { label: 'DCE', href: `/dpgf/${projectId}/dce`, active: true },
           { label: 'Q&A', href: `/dpgf/${projectId}/qa`, active: false },
           { label: 'Analyse', href: `/dpgf/${projectId}/analyse`, active: false },
-          { label: 'Projet', href: `/dpgf/${projectId}/settings`, active: false },
         ].map((tab) => (
           <Link
             key={tab.href}

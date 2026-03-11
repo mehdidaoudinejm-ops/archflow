@@ -119,11 +119,11 @@ export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo }: DP
       {/* Onglets de navigation */}
       <div className="flex gap-0" style={{ borderBottom: '2px solid var(--border)' }}>
         {[
+          { label: 'Infos', href: `/dpgf/${projectId}/settings`, active: false },
           { label: "DQE", href: `/dpgf/${projectId}`, active: true },
           { label: 'DCE', href: `/dpgf/${projectId}/dce`, active: false },
           { label: 'Q&A', href: `/dpgf/${projectId}/qa`, active: false },
           { label: 'Analyse', href: `/dpgf/${projectId}/analyse`, active: false },
-          { label: 'Projet', href: `/dpgf/${projectId}/settings`, active: false },
         ].map((tab) => (
           <Link
             key={tab.href}

@@ -116,11 +116,11 @@ export function ProjectSettingsClient({ project, contacts }: { project: ProjectD
   const [showPicker, setShowPicker] = useState(false)
 
   const tabs = [
+    { label: 'Infos', href: `/dpgf/${projectId}/settings` },
     { label: 'DQE', href: `/dpgf/${projectId}` },
     { label: 'DCE', href: `/dpgf/${projectId}/dce` },
     { label: 'Q&A', href: `/dpgf/${projectId}/qa` },
     { label: 'Analyse', href: `/dpgf/${projectId}/analyse` },
-    { label: 'Projet', href: `/dpgf/${projectId}/settings` },
   ]
 
   function pickContact(c: ContactOption) {
@@ -181,7 +181,7 @@ export function ProjectSettingsClient({ project, contacts }: { project: ProjectD
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid var(--border)', padding: '0 24px' }}>
         {tabs.map((tab) => {
-          const active = tab.label === 'Projet'
+          const active = tab.label === 'Infos'
           return (
             <Link
               key={tab.href}
