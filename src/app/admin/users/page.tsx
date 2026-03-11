@@ -201,7 +201,8 @@ export default function AdminUsersPage() {
     const res = await fetch(`/api/admin/users/${user.id}/impersonate`, { method: 'POST' })
     if (res.ok) {
       const { url } = await res.json()
-      sessionStorage.setItem('__adminImpersonating', JSON.stringify({ email: user.email }))
+      const displayName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
+      localStorage.setItem('__adminImpersonating', JSON.stringify({ email: user.email, name: displayName }))
       window.open(url, '_blank', 'noopener')
     }
     setActionLoading(null)

@@ -7,18 +7,18 @@ import { useRouter } from 'next/navigation'
 const STORAGE_KEY = '__adminImpersonating'
 
 export function AdminModeBanner() {
-  const [info, setInfo] = useState<{ email: string } | null>(null)
+  const [info, setInfo] = useState<{ email: string; name?: string } | null>(null)
   const router = useRouter()
 
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem(STORAGE_KEY)
+      const raw = localStorage.getItem(STORAGE_KEY)
       if (raw) setInfo(JSON.parse(raw))
     } catch {}
   }, [])
 
   async function handleExit() {
-    sessionStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(STORAGE_KEY)
     const supabase = createBrowserClient()
     await supabase.auth.signOut()
     router.push('/login')
@@ -29,7 +29,7 @@ export function AdminModeBanner() {
   return (
     <div className="bg-orange-500 px-4 py-2 flex items-center justify-between text-sm text-white">
       <span>
-        <strong>Mode Admin</strong> — connecté en tant que {info.email}
+        <strong>Mode Admin</strong> — connecté en tant que {info.name ?? info.email}
       </span>
       <button
         onClick={handleExit}
