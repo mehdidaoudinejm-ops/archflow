@@ -26,7 +26,8 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
   const [dragging, setDragging] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loadingMode, setLoadingMode] = useState<'ai' | 'direct' | null>(null)
+  const loading = loadingMode !== null
 
   function handleClose() {
     if (loading) return
@@ -76,33 +77,34 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
     if (f) validateAndSetFile(f)
   }
 
-  async function handleAnalyze() {
+  async function handleImport(mode: 'ai' | 'direct') {
     if (!file || loading) return
-    setLoading(true)
+    setLoadingMode(mode)
     setError(null)
 
     try {
       const form = new FormData()
       form.append('file', file)
 
-      const res = await fetch(`/api/ai-import?dpgfId=${dpgfId}`, {
-        method: 'POST',
-        body: form,
-      })
+      const endpoint = mode === 'direct' ? `/api/excel-import?dpgfId=${dpgfId}` : `/api/ai-import?dpgfId=${dpgfId}`
+      const res = await fetch(endpoint, { method: 'POST', body: form })
 
       let data: { importId?: string; error?: string } = {}
       try {
         data = await res.json() as { importId?: string; error?: string }
       } catch {
-        // La réponse n'est pas du JSON (ex: timeout 504, erreur serveur HTML)
-        setError(`Erreur serveur (HTTP ${res.status}). Vérifiez que ANTHROPIC_API_KEY est définie en production.`)
-        setLoading(false)
+        setError(
+          mode === 'ai'
+            ? `Erreur serveur (HTTP ${res.status}). Vérifiez que ANTHROPIC_API_KEY est définie en production.`
+            : `Erreur serveur (HTTP ${res.status}).`
+        )
+        setLoadingMode(null)
         return
       }
 
       if (!res.ok || !data.importId) {
-        setError(data.error ?? "Échec de l'analyse IA")
-        setLoading(false)
+        setError(data.error ?? (mode === 'ai' ? "Échec de l'analyse IA" : "Échec de l'import"))
+        setLoadingMode(null)
         return
       }
 
@@ -111,11 +113,12 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erreur réseau'
       setError(msg)
-      setLoading(false)
+      setLoadingMode(null)
     }
   }
 
   const isPDF = file?.name.toLowerCase().endsWith('.pdf')
+  const isExcel = file ? !isPDF : false
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -133,8 +136,8 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
         </DialogHeader>
 
         <p className="text-sm" style={{ color: 'var(--text2)' }}>
-          Importez un fichier Excel (xlsx, xls, csv) ou PDF. L&apos;IA analysera automatiquement
-          la structure des lots et postes.
+          Importez un fichier Excel (xlsx, xls, csv) ou PDF. Pour Excel, vous pouvez importer
+          directement ou utiliser l&apos;IA pour une analyse plus intelligente.
         </p>
 
         {/* Zone drop */}
@@ -219,8 +222,27 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
           >
             Annuler
           </button>
+
+          {/* Import direct — Excel uniquement */}
+          {isExcel && (
+            <button
+              onClick={() => handleImport('direct')}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 text-sm rounded-[var(--radius)] font-medium"
+              style={{
+                background: loading ? 'var(--surface2)' : 'var(--surface)',
+                color: loading ? 'var(--text3)' : 'var(--green)',
+                border: `1.5px solid ${loading ? 'var(--border)' : 'var(--green)'}`,
+              }}
+            >
+              {loadingMode === 'direct' && <Loader2 size={14} className="animate-spin" />}
+              {loadingMode === 'direct' ? 'Import en cours…' : 'Import direct'}
+            </button>
+          )}
+
+          {/* Analyse IA */}
           <button
-            onClick={handleAnalyze}
+            onClick={() => handleImport('ai')}
             disabled={!file || loading}
             className="flex items-center gap-2 px-4 py-2 text-sm rounded-[var(--radius)] font-medium"
             style={{
@@ -229,8 +251,8 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
               border: 'none',
             }}
           >
-            {loading && <Loader2 size={14} className="animate-spin" />}
-            {loading ? 'Analyse IA en cours…' : 'Analyser'}
+            {loadingMode === 'ai' && <Loader2 size={14} className="animate-spin" />}
+            {loadingMode === 'ai' ? 'Analyse IA en cours…' : isExcel ? "Analyser avec l'IA" : 'Analyser'}
           </button>
         </div>
       </DialogContent>
