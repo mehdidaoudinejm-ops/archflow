@@ -170,17 +170,19 @@ export async function POST(req: Request) {
 
     // 9. Ajouter automatiquement l'entreprise à l'annuaire de l'architecte
     try {
-      const aoWithProject = await prisma.aO.findUnique({
+      const ao = await prisma.aO.findUnique({
         where: { id: aoCompany.aoId },
-        select: { dpgf: { select: { project: { select: { agencyId: true } } } } },
+        include: { dpgf: { include: { project: { select: { agencyId: true } } } } },
       })
-      const architectAgencyId = aoWithProject?.dpgf?.project?.agencyId
+      const architectAgencyId = ao?.dpgf?.project?.agencyId ?? null
+      console.log('[register-company] annuaire — aoId:', aoCompany.aoId, 'architectAgencyId:', architectAgencyId)
+
       if (architectAgencyId) {
         const existingContact = await prisma.contact.findFirst({
           where: { agencyId: architectAgencyId, email, type: 'ENTREPRISE' },
         })
         if (!existingContact) {
-          await prisma.contact.create({
+          const created = await prisma.contact.create({
             data: {
               agencyId: architectAgencyId,
               type: 'ENTREPRISE',
@@ -193,7 +195,12 @@ export async function POST(req: Request) {
               notes: siret ? `SIRET: ${siret}` : null,
             },
           })
+          console.log('[register-company] contact créé dans annuaire:', created.id)
+        } else {
+          console.log('[register-company] contact déjà présent dans annuaire:', existingContact.id)
         }
+      } else {
+        console.warn('[register-company] architectAgencyId introuvable — annuaire non mis à jour')
       }
     } catch (err) {
       // Non bloquant — l'inscription est validée même si l'ajout à l'annuaire échoue

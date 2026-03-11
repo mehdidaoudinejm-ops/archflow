@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 import { WeeklySignupsChart } from '@/components/shell/WeeklySignupsChart'
 import { SetupStorageButton } from '@/components/shell/SetupStorageButton'
+import { BackfillAnnuaireButton } from '@/components/shell/BackfillAnnuaireButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -311,8 +312,11 @@ export default async function AdminDashboardPage() {
 
       </div>
 
-      {/* Stockage */}
-      <SetupStorageButton />
+      {/* Outils maintenance */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <SetupStorageButton />
+        <BackfillAnnuaireButton />
+      </div>
 
     </div>
   )
