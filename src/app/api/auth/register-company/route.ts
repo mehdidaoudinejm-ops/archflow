@@ -45,6 +45,7 @@ export async function POST(req: Request) {
     }
 
     const { aoCompanyId } = tokenPayload
+    const isDev = process.env.NODE_ENV === 'development'
 
     // 2. Vérifier que l'AOCompany existe
     const aoCompany = await prisma.aOCompany.findUnique({
@@ -52,11 +53,16 @@ export async function POST(req: Request) {
     })
 
     if (!aoCompany) {
-      return NextResponse.json({ error: 'Invitation introuvable' }, { status: 404 })
+      console.error('[register-company] AOCompany introuvable, id JWT:', aoCompanyId)
+      return NextResponse.json(
+        { error: 'Invitation introuvable', ...(isDev && { debug: `AOCompany id=${aoCompanyId} absent en base` }) },
+        { status: 404 }
+      )
     }
 
     // Vérifier que le token correspond (si inviteToken est renseigné)
     if (aoCompany.inviteToken && aoCompany.inviteToken !== token) {
+      console.error('[register-company] Token mismatch, aoCompanyId:', aoCompanyId)
       return NextResponse.json({ error: 'Lien invalide ou expiré' }, { status: 400 })
     }
 
@@ -67,7 +73,11 @@ export async function POST(req: Request) {
     // 3. Récupérer l'utilisateur lié à cet AOCompany
     const placeholderUser = await prisma.user.findUnique({ where: { id: aoCompany.companyUserId } })
     if (!placeholderUser) {
-      return NextResponse.json({ error: 'Invitation introuvable' }, { status: 404 })
+      console.error('[register-company] User introuvable, companyUserId:', aoCompany.companyUserId)
+      return NextResponse.json(
+        { error: 'Invitation introuvable', ...(isDev && { debug: `User id=${aoCompany.companyUserId} absent en base` }) },
+        { status: 404 }
+      )
     }
     const email = placeholderUser.email
 
