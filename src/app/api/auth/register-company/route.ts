@@ -44,26 +44,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Lien invalide ou expiré' }, { status: 400 })
     }
 
-    const { email, aoCompanyId } = tokenPayload
+    const { aoCompanyId } = tokenPayload
 
-    // 2. Vérifier que l'AOCompany existe et que le token n'a pas été utilisé
-    const aoCompany = await prisma.aOCompany.findFirst({
-      where: { id: aoCompanyId, inviteToken: token },
+    // 2. Vérifier que l'AOCompany existe
+    const aoCompany = await prisma.aOCompany.findUnique({
+      where: { id: aoCompanyId },
     })
 
     if (!aoCompany) {
       return NextResponse.json({ error: 'Invitation introuvable' }, { status: 404 })
     }
 
+    // Vérifier que le token correspond (si inviteToken est renseigné)
+    if (aoCompany.inviteToken && aoCompany.inviteToken !== token) {
+      return NextResponse.json({ error: 'Lien invalide ou expiré' }, { status: 400 })
+    }
+
     if (aoCompany.tokenUsedAt) {
       return NextResponse.json({ error: 'Ce lien a déjà été utilisé' }, { status: 400 })
     }
 
-    // 3. Vérifier que l'utilisateur placeholder existe bien
-    const placeholderUser = await prisma.user.findUnique({ where: { email } })
+    // 3. Récupérer l'utilisateur lié à cet AOCompany
+    const placeholderUser = await prisma.user.findUnique({ where: { id: aoCompany.companyUserId } })
     if (!placeholderUser) {
       return NextResponse.json({ error: 'Invitation introuvable' }, { status: 404 })
     }
+    const email = placeholderUser.email
 
     // 4. Créer le compte Supabase Auth
     const supabaseAdmin = createClient(
