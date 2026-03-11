@@ -23,20 +23,29 @@ export async function POST() {
     const results: { bucket: string; status: 'created' | 'exists' | 'error'; message?: string }[] = []
 
     for (const bucket of BUCKETS) {
-      const { error } = await supabaseAdmin.storage.createBucket(bucket.id, {
+      const { error: createError } = await supabaseAdmin.storage.createBucket(bucket.id, {
         public: bucket.public,
         fileSizeLimit: bucket.fileSizeLimit,
       })
 
-      if (!error) {
+      if (!createError) {
         results.push({ bucket: bucket.id, status: 'created' })
       } else if (
-        error.message.toLowerCase().includes('already exist') ||
-        error.message.toLowerCase().includes('duplicate')
+        createError.message.toLowerCase().includes('already exist') ||
+        createError.message.toLowerCase().includes('duplicate')
       ) {
-        results.push({ bucket: bucket.id, status: 'exists' })
+        // Bucket existe — s'assurer qu'il est bien public (il aurait pu être créé privé)
+        const { error: updateError } = await supabaseAdmin.storage.updateBucket(bucket.id, {
+          public: bucket.public,
+          fileSizeLimit: bucket.fileSizeLimit,
+        })
+        results.push({
+          bucket: bucket.id,
+          status: 'exists',
+          message: updateError ? `existe (update échoué: ${updateError.message})` : 'existe — mis à jour (public: true)',
+        })
       } else {
-        results.push({ bucket: bucket.id, status: 'error', message: error.message })
+        results.push({ bucket: bucket.id, status: 'error', message: createError.message })
       }
     }
 
