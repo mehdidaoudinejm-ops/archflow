@@ -621,6 +621,10 @@ Ajouter dans `layout.tsx` depuis Google Fonts.
 | S08 | Section DCE — upload + suivi lecture | ✅ Terminé |
 | S09 | Q&A + Dashboard analyse + Espace client | ✅ Terminé |
 | S10 | Import IA (PDF/Excel) + Stripe + Emails | ✅ Terminé |
+| S11 | UX/correctifs : unit select, analyse multicritères, inscription entreprise enrichie | ✅ Terminé |
+| S12 | Liste d'attente : /register waitlist, /register/invite, /admin/waitlist | ✅ Terminé |
+| S13 | Interface admin : dashboard, users, impersonation, announcements, emails broadcast | ✅ Terminé |
+| S14 | Corrections prod : flow invitation entreprise, bannière impersonation, suppression Supabase Auth | ✅ Terminé |
 
 ---
 
@@ -658,5 +662,24 @@ npx tsc --noEmit
 - Ne jamais committer `.env.local`
 - Ne jamais modifier les fichiers dans `src/components/ui/` (générés par shadcn)
 - Ne jamais mettre de logique métier directement dans les composants — extraire dans des hooks ou des fonctions `lib/`
-- Ne jamais écrire de SQL brut — toujours passer par Prisma
+- Ne jamais écrire de SQL brut — toujours passer par Prisma (exception : `$queryRaw` pour requêtes sur le schéma `auth.*` de Supabase, inaccessible via l'ORM)
 - Ne jamais bypasser le middleware d'auth pour "aller plus vite"
+
+---
+
+## 13. Points d'architecture critiques (leçons prod)
+
+### IDs Prisma vs Supabase Auth
+- **ARCHITECT/COLLABORATOR/ADMIN** : Prisma `id` = Supabase Auth UUID (via `upsert` dans `getUserWithProfile`)
+- **COMPANY** : Prisma `id` = CUID (créé par `prisma.user.create`) ≠ Supabase Auth UUID
+- Pour supprimer/modifier un user COMPANY dans Supabase Auth, toujours chercher par email via `$queryRaw` sur `auth.users`
+
+### Flow invitation entreprise
+- Placeholder user = `User { role: COMPANY, agencyId: null }` — pas de compte Supabase
+- User réel = `User { role: COMPANY, agencyId: string }` — a un compte Supabase
+- `inviteCompany()` distingue les deux : placeholder → lien inscription, réel → lien portail
+- `redirect()` dans Next.js App Router NE DOIT PAS être dans un try/catch (lève NEXT_REDIRECT)
+
+### Impersonation admin
+- Le magic link ouvre un nouvel onglet (`_blank`) → utiliser `localStorage` (pas `sessionStorage`, non partagé entre onglets)
+- La bannière `AdminModeBanner` lit `localStorage.__adminImpersonating` et affiche le nom de l'user
