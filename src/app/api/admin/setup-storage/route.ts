@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { AdminAuthError, requireAdmin } from '@/lib/admin-auth'
 
 const BUCKETS = [
-  { id: 'admin-docs',    public: true,  fileSizeLimit: 10 * 1024 * 1024 },
+  { id: 'admin-docs',    public: false, fileSizeLimit: 10 * 1024 * 1024 }, // privé — accès via signed URL
   { id: 'dce-documents', public: true,  fileSizeLimit: 50 * 1024 * 1024 },
   { id: 'logos',         public: true,  fileSizeLimit: 2 * 1024 * 1024  },
 ]

@@ -38,12 +38,12 @@ export async function POST(req: Request) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // Créer le bucket s'il n'existe pas (idempotent). Si déjà existant, forcer public: true.
-    const { error: bucketErr } = await supabaseAdmin.storage.createBucket(bucket, { public: true })
+    // admin-docs est privé (accès via signed URL côté archi) ; dce-documents/logos sont publics
+    const isPrivateBucket = bucket === 'admin-docs'
+    const { error: bucketErr } = await supabaseAdmin.storage.createBucket(bucket, { public: !isPrivateBucket })
     if (bucketErr) {
       if (bucketErr.message.toLowerCase().includes('already exist') || bucketErr.message.toLowerCase().includes('duplicate')) {
-        // Bucket existant — s'assurer qu'il est public
-        await supabaseAdmin.storage.updateBucket(bucket, { public: true })
+        await supabaseAdmin.storage.updateBucket(bucket, { public: !isPrivateBucket })
       } else {
         console.warn('[portal/upload] createBucket warning:', bucketErr.message)
       }

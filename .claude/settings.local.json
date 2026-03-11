@@ -32,7 +32,9 @@
       "Bash(sed:*)",
       "Bash(grep:*)",
       "Bash(wc:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(npx vercel:*)",
+      "Bash(npx tsx:*)"
     ]
   }
 }

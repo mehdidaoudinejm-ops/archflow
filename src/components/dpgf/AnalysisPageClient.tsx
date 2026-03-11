@@ -317,8 +317,20 @@ function AdminDocRow({
   const [saving, setSaving] = useState(false)
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState(doc.rejectionReason ?? '')
+  const [opening, setOpening] = useState(false)
 
   const style = DOC_STATUS_STYLES[doc.status] ?? DOC_STATUS_STYLES.PENDING
+
+  async function openDoc() {
+    setOpening(true)
+    try {
+      const res = await fetch(`/api/ao/${aoId}/companies/${companyId}/admin-docs/${doc.id}/signed-url`)
+      const data = await res.json() as { url?: string; error?: string }
+      if (data.url) window.open(data.url, '_blank', 'noopener')
+    } finally {
+      setOpening(false)
+    }
+  }
 
   async function patch(status: string, rejectionReason?: string) {
     setSaving(true)
@@ -346,14 +358,13 @@ function AdminDocRow({
         {style.label}
       </span>
       {doc.fileUrl && (
-        <a
-          href={doc.fileUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ fontSize: 11, color: '#1A5C3A', textDecoration: 'none', padding: '3px 8px', borderRadius: 6, border: '1px solid #C8E0D4', background: '#F4FAF6' }}
+        <button
+          onClick={() => void openDoc()}
+          disabled={opening}
+          style={{ fontSize: 11, color: '#1A5C3A', padding: '3px 8px', borderRadius: 6, border: '1px solid #C8E0D4', background: '#F4FAF6', cursor: opening ? 'wait' : 'pointer', opacity: opening ? 0.6 : 1 }}
         >
-          Voir ↗
-        </a>
+          {opening ? '...' : 'Voir ↗'}
+        </button>
       )}
       {doc.status !== 'VALID' && (
         <button
