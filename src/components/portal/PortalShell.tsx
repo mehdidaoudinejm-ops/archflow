@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { FileText, FolderOpen, MessageSquare, Shield, Clock, CheckCircle2, Save, Settings } from 'lucide-react'
+import { FileText, FolderOpen, MessageSquare, Shield, Clock, CheckCircle2, Save, Settings, ChevronLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface PortalShellProps {
@@ -92,6 +92,18 @@ export function PortalShell({
           <p className="text-xs mt-0.5 truncate" style={{ color: '#1A3A2A', opacity: 0.6 }}>
             Portail entreprise
           </p>
+        </div>
+
+        {/* Lien retour dashboard */}
+        <div className="px-3 pt-3 pb-1 border-b" style={{ borderColor: 'rgba(0,0,0,0.08)' }}>
+          <Link
+            href="/mes-appels-doffres"
+            className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius)] text-xs transition-colors"
+            style={{ color: '#1A3A2A', opacity: 0.65 }}
+          >
+            <ChevronLeft size={14} />
+            Mes appels d&apos;offres
+          </Link>
         </div>
 
         {/* Navigation */}
@@ -187,19 +199,27 @@ export function PortalShell({
             {/* Statut sauvegarde + bouton save */}
             {!isSubmitted && (
               <div className="flex items-center gap-2">
-                <span className="text-xs" style={{ color: saveColor }}>
-                  {saveLabel}
-                </span>
-                {onSave && saveStatus === 'unsaved' && (
-                  <Button
-                    size="sm"
-                    onClick={onSave}
-                    style={{ background: 'var(--green-btn)', color: '#fff', border: 'none', height: 30, fontSize: 12 }}
-                  >
-                    <Save size={13} className="mr-1" />
-                    Sauvegarder
-                  </Button>
+                {saveStatus === 'saved' && (
+                  <span className="text-xs" style={{ color: 'var(--green)' }}>✓ Enregistré</span>
                 )}
+                {saveStatus === 'saving' && (
+                  <span className="text-xs" style={{ color: 'var(--amber)' }}>Sauvegarde...</span>
+                )}
+                <Button
+                  size="sm"
+                  onClick={onSave}
+                  disabled={!onSave || saveStatus !== 'unsaved'}
+                  style={{
+                    background: saveStatus === 'unsaved' ? 'var(--green-btn)' : 'var(--surface2)',
+                    color: saveStatus === 'unsaved' ? '#fff' : 'var(--text3)',
+                    border: saveStatus === 'unsaved' ? 'none' : '1px solid var(--border)',
+                    height: 30,
+                    fontSize: 12,
+                  }}
+                >
+                  <Save size={13} className="mr-1" />
+                  Enregistrer
+                </Button>
               </div>
             )}
             {isSubmitted && (
