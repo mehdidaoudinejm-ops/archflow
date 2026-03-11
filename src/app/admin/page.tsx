@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 import { WeeklySignupsChart } from '@/components/shell/WeeklySignupsChart'
+import { SetupStorageButton } from '@/components/shell/SetupStorageButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -309,6 +310,10 @@ export default async function AdminDashboardPage() {
         </div>
 
       </div>
+
+      {/* Stockage */}
+      <SetupStorageButton />
+
     </div>
   )
 }
