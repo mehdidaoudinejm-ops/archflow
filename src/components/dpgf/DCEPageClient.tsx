@@ -134,6 +134,7 @@ export function DCEPageClient({ projectId, projectName, dpgfId, dpgfStatus, ao, 
           { label: 'DCE', href: `/dpgf/${projectId}/dce`, active: true },
           { label: 'Q&A', href: `/dpgf/${projectId}/qa`, active: false },
           { label: 'Analyse', href: `/dpgf/${projectId}/analyse`, active: false },
+          { label: 'Projet', href: `/dpgf/${projectId}/settings`, active: false },
         ].map((tab) => (
           <Link
             key={tab.href}
