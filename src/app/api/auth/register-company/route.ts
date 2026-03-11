@@ -116,20 +116,30 @@ export async function POST(req: Request) {
     }
 
     // 5. Vérifier le SIRET via recherche-entreprises.api.gouv.fr (gratuite, sans auth)
+    // On cherche par SIREN (9 premiers chiffres) car la recherche par SIRET complet
+    // ne retourne rien pour les établissements secondaires (non-siège).
     let siretVerified = false
     if (siret && siret.length === 14) {
       try {
+        const siren = siret.slice(0, 9)
         const sireneRes = await fetch(
-          `https://recherche-entreprises.api.gouv.fr/search?q=${siret}&per_page=1`,
-          { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) }
+          `https://recherche-entreprises.api.gouv.fr/search?q=${siren}&per_page=1`,
+          { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(6000) }
         )
         if (sireneRes.ok) {
-          const data = await sireneRes.json() as { results?: Array<{ siege?: { etat_administratif?: string } }> }
-          // etat_administratif: 'A' = actif, 'F' = fermé
-          siretVerified = data.results?.[0]?.siege?.etat_administratif === 'A'
+          const data = await sireneRes.json() as {
+            results?: Array<{ siren?: string; siege?: { etat_administratif?: string } }>
+          }
+          const company = data.results?.[0]
+          // Vérifier que le SIREN retourné correspond exactement + que l'entreprise est active
+          if (company?.siren === siren) {
+            siretVerified = company.siege?.etat_administratif === 'A'
+          }
+          console.log('[register-company] SIRET check — siren:', siren, '| found siren:', company?.siren, '| etat:', company?.siege?.etat_administratif, '| verified:', siretVerified)
         }
-      } catch {
+      } catch (err) {
         // API indisponible — continuer sans vérification
+        console.warn('[register-company] SIRET API indisponible:', err)
       }
     }
 
