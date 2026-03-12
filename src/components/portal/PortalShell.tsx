@@ -74,7 +74,7 @@ export function PortalShell({
       <aside
         className="w-56 flex-shrink-0 flex flex-col"
         style={{
-          background: '#7ADFBB',
+          background: 'var(--green)',
           borderRight: '1px solid rgba(0,0,0,0.08)',
           position: 'sticky',
           top: 0,
@@ -86,7 +86,7 @@ export function PortalShell({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <p
               className="text-xl font-semibold"
-              style={{ fontFamily: '"DM Serif Display", serif', color: '#1A3A2A', margin: 0 }}
+              style={{ fontFamily: '"DM Serif Display", serif', color: '#fff', margin: 0 }}
             >
               ArchFlow
             </p>
@@ -94,7 +94,7 @@ export function PortalShell({
               By The Blueprint Lab
             </span>
           </div>
-          <p className="text-xs mt-0.5 truncate" style={{ color: '#1A3A2A', opacity: 0.6 }}>
+          <p className="text-xs mt-0.5 truncate" style={{ color: '#fff', opacity: 0.6 }}>
             Portail entreprise
           </p>
         </div>
@@ -104,7 +104,7 @@ export function PortalShell({
           <Link
             href="/mes-appels-doffres"
             className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius)] text-xs transition-colors"
-            style={{ color: '#1A3A2A', opacity: 0.65 }}
+            style={{ color: '#fff', opacity: 0.65 }}
           >
             <ChevronLeft size={14} />
             Mes appels d&apos;offres
@@ -122,7 +122,7 @@ export function PortalShell({
                 className="flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius)] text-sm transition-colors"
                 style={{
                   background: isActive ? 'rgba(255,255,255,0.3)' : 'transparent',
-                  color: '#1A3A2A',
+                  color: '#fff',
                   fontWeight: isActive ? 600 : 400,
                 }}
               >
@@ -137,7 +137,7 @@ export function PortalShell({
             className="flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius)] text-sm transition-colors"
             style={{
               background: activeSection === 'settings' ? 'rgba(255,255,255,0.3)' : 'transparent',
-              color: '#1A3A2A',
+              color: '#fff',
               fontWeight: 400,
             }}
           >

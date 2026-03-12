@@ -33,7 +33,7 @@ export function Sidebar({ role }: { role?: Role }) {
     <aside
       className="flex flex-col w-56 shrink-0 min-h-screen py-6"
       style={{
-        background: role === 'COMPANY' ? '#7ADFBB' : 'var(--green)',
+        background: 'var(--green)',
         borderRight: role === 'COMPANY' ? '1px solid rgba(0,0,0,0.08)' : 'none',
       }}
     >
