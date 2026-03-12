@@ -1,44 +1,59 @@
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
+import {
+  Users, Building2, TrendingUp, FolderOpen, FileText,
+  Briefcase, UserCheck, Activity, Clock,
+} from 'lucide-react'
 import { WeeklySignupsChart } from '@/components/shell/WeeklySignupsChart'
 import { SetupStorageButton } from '@/components/shell/SetupStorageButton'
 import { BackfillAnnuaireButton } from '@/components/shell/BackfillAnnuaireButton'
+import { AdminSuspendButton } from '@/components/shell/AdminSuspendButton'
 
 export const dynamic = 'force-dynamic'
 
 const MRR_BY_PLAN: Record<string, number> = {
-  SOLO: 0,
-  STUDIO: 49,
-  AGENCY: 99,
+  SOLO: 29,
+  STUDIO: 79,
+  AGENCY: 199,
 }
 
-const roleColors: Record<string, string> = {
-  ARCHITECT: 'bg-blue-500/10 text-blue-400',
-  COLLABORATOR: 'bg-purple-500/10 text-purple-400',
-  COMPANY: 'bg-amber-500/10 text-amber-400',
-  CLIENT: 'bg-green-500/10 text-green-400',
-  ADMIN: 'bg-red-500/10 text-red-400',
+const ROLE_BADGE: Record<string, { bg: string; color: string }> = {
+  ARCHITECT:    { bg: '#EAF3ED', color: '#1A5C3A' },
+  COLLABORATOR: { bg: '#EEF2FF', color: '#4338CA' },
+  COMPANY:      { bg: '#FEF3E2', color: '#B45309' },
+  CLIENT:       { bg: '#F3F4F6', color: '#6B7280' },
+  ADMIN:        { bg: '#FEE8E8', color: '#9B1C1C' },
 }
 
-const planColors: Record<string, string> = {
-  SOLO: 'bg-zinc-700/50 text-zinc-300',
-  STUDIO: 'bg-blue-500/10 text-blue-400',
-  AGENCY: 'bg-purple-500/10 text-purple-400',
+const PLAN_BADGE: Record<string, { bg: string; color: string; label: string }> = {
+  SOLO:   { bg: '#F3F4F6', color: '#6B7280',  label: 'Solo' },
+  STUDIO: { bg: '#EEF2FF', color: '#4338CA',  label: 'Studio' },
+  AGENCY: { bg: '#EAF3ED', color: '#1A5C3A',  label: 'Agency' },
+}
+
+const AO_STATUS_LABEL: Record<string, string> = {
+  DRAFT:       'Brouillon',
+  SENT:        'Envoyé',
+  IN_PROGRESS: 'En cours',
+  CLOSED:      'Clôturé',
+  ARCHIVED:    'Archivé',
 }
 
 export default async function AdminDashboardPage() {
   let dbError = false
 
+  // ── Stats ─────────────────────────────────────────────────────────────────
   let totalUsers = 0
-  let suspendedUsers = 0
-  let freeAccessUsers = 0
-  let newUsersLast7Days = 0
+  let activeArchitects = 0
   let totalAgencies = 0
-  let totalProjects = 0
-  let roleBreakdown: { role: string; _count: { _all: number } }[] = []
-  let agenciesByPlan: { plan: string; _count: { _all: number } }[] = []
-  let waitlistByStatus: { status: string; _count: { _all: number } }[] = []
+  let mrr = 0
+  let activeProjects = 0
+  let activeAOs = 0
+  let newUsersLast30Days = 0
+
+  // ── Tables ────────────────────────────────────────────────────────────────
   let recentUsers: {
+    id: string
     email: string
     firstName: string | null
     lastName: string | null
@@ -47,40 +62,64 @@ export default async function AdminDashboardPage() {
     createdAt: Date
     agency: { name: string } | null
   }[] = []
+
+  type AgencyRow = {
+    id: string
+    name: string
+    plan: string
+    createdAt: Date
+    _count: { users: number; projects: number }
+  }
+  let recentAgencies: AgencyRow[] = []
+
+  // ── Activité ──────────────────────────────────────────────────────────────
+  type ProjectRow = {
+    id: string
+    name: string
+    status: string
+    createdAt: Date
+    agency: { name: string }
+  }
+  type AORow = {
+    id: string
+    name: string
+    status: string
+    createdAt: Date
+    dpgf: { project: { name: string; id: string } }
+  }
+  let recentProjects: ProjectRow[] = []
+  let recentAOs: AORow[] = []
+
+  // ── Graphique ──────────────────────────────────────────────────────────────
   let weeklySignups: { label: string; users: number }[] = []
-  let funnelWaitlist = 0
-  let funnelInscrits = 0
-  let funnelProjet = 0
-  let funnelAO = 0
 
   try {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     const eightWeeksAgo = new Date(Date.now() - 8 * 7 * 24 * 60 * 60 * 1000)
-    ;[
-      totalUsers,
-      suspendedUsers,
-      freeAccessUsers,
-      newUsersLast7Days,
-      totalAgencies,
-      totalProjects,
-      roleBreakdown,
-      agenciesByPlan,
-      waitlistByStatus,
-      recentUsers,
+
+    const [
+      usersTotal,
+      architectsActive,
+      agenciesAll,
+      projectsActive,
+      aosActive,
+      usersNew,
+      usersRecent,
+      agenciesRecent,
+      projectsRecent,
+      aosRecent,
     ] = await Promise.all([
       prisma.user.count(),
-      prisma.user.count({ where: { suspended: true } }),
-      prisma.user.count({ where: { freeAccess: true } }),
-      prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
-      prisma.agency.count(),
-      prisma.project.count(),
-      prisma.user.groupBy({ by: ['role'], _count: { _all: true } }),
-      prisma.agency.groupBy({ by: ['plan'], _count: { _all: true } }),
-      prisma.waitlistEntry.groupBy({ by: ['status'], _count: { _all: true } }),
+      prisma.user.count({ where: { role: 'ARCHITECT', suspended: false } }),
+      prisma.agency.findMany({ select: { plan: true } }),
+      prisma.project.count({ where: { status: 'ACTIVE' } }),
+      prisma.aO.count({ where: { status: { in: ['SENT', 'IN_PROGRESS'] } } }),
+      prisma.user.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
       prisma.user.findMany({
         orderBy: { createdAt: 'desc' },
         take: 10,
         select: {
+          id: true,
           email: true,
           firstName: true,
           lastName: true,
@@ -90,263 +129,395 @@ export default async function AdminDashboardPage() {
           agency: { select: { name: true } },
         },
       }),
+      prisma.agency.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          name: true,
+          plan: true,
+          createdAt: true,
+          _count: { select: { users: true, projects: true } },
+        },
+      }),
+      prisma.project.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          createdAt: true,
+          agency: { select: { name: true } },
+        },
+      }),
+      prisma.aO.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          createdAt: true,
+          dpgf: { select: { project: { select: { id: true, name: true } } } },
+        },
+      }),
     ])
 
-    // Inscriptions par semaine (8 dernières semaines)
-    const recentSignups = await prisma.user.findMany({
+    totalUsers = usersTotal
+    activeArchitects = architectsActive
+    totalAgencies = agenciesAll.length
+    mrr = agenciesAll.reduce((sum, a) => sum + (MRR_BY_PLAN[a.plan] ?? 0), 0)
+    activeProjects = projectsActive
+    activeAOs = aosActive
+    newUsersLast30Days = usersNew
+    recentUsers = usersRecent
+    recentAgencies = agenciesRecent as AgencyRow[]
+    recentProjects = projectsRecent as ProjectRow[]
+    recentAOs = aosRecent as AORow[]
+
+    // Inscriptions par semaine
+    const signups = await prisma.user.findMany({
       where: { createdAt: { gte: eightWeeksAgo } },
       select: { createdAt: true },
     })
-    const weekBuckets = Array.from({ length: 8 }, (_, i) => {
-      const weekStart = new Date(eightWeeksAgo.getTime() + i * 7 * 24 * 60 * 60 * 1000)
-      const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000)
-      const label = weekStart.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-      const users = recentSignups.filter(
-        (u) => u.createdAt >= weekStart && u.createdAt < weekEnd
-      ).length
-      return { label, users }
+    weeklySignups = Array.from({ length: 8 }, (_, i) => {
+      const start = new Date(eightWeeksAgo.getTime() + i * 7 * 24 * 60 * 60 * 1000)
+      const end   = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000)
+      return {
+        label: start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
+        users: signups.filter((u) => u.createdAt >= start && u.createdAt < end).length,
+      }
     })
-    weeklySignups = weekBuckets
-
-    // Funnel
-    const [waitlistTotal, agenciesWithProject, agenciesWithAO] = await Promise.all([
-      prisma.waitlistEntry.count(),
-      prisma.agency.count({ where: { projects: { some: {} } } }),
-      prisma.agency.count({
-        where: { projects: { some: { dpgfs: { some: { aos: { some: {} } } } } } },
-      }),
-    ])
-    funnelWaitlist = waitlistTotal
-    funnelInscrits = totalUsers
-    funnelProjet = agenciesWithProject
-    funnelAO = agenciesWithAO
-
   } catch (err) {
-    console.error('[AdminDashboard] Prisma error:', err)
+    console.error('[AdminDashboard]', err)
     dbError = true
   }
 
-  const waitlistMap = Object.fromEntries(
-    waitlistByStatus.map((w) => [w.status, w._count._all])
-  )
-
-  const mrr = agenciesByPlan.reduce((sum, { plan, _count }) => {
-    return sum + (_count._all * (MRR_BY_PLAN[plan] ?? 0))
-  }, 0)
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-zinc-100">Dashboard</h1>
-        <span className="text-xs text-zinc-600">
-          {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </span>
-      </div>
+    <div style={{ background: '#F4F4F1', minHeight: '100vh' }}>
+      <div className="p-8 space-y-8 max-w-7xl mx-auto">
 
-      {dbError && (
-        <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-          Impossible de charger les données — vérifiez la connexion à la base de données.
-        </div>
-      )}
-
-      {/* Ligne 1 — Utilisateurs */}
-      <section>
-        <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">Utilisateurs</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <KpiCard label="Total" value={totalUsers} />
-          <KpiCard label="Nouveaux (7j)" value={newUsersLast7Days} accent="blue" />
-          <KpiCard label="Suspendus" value={suspendedUsers} accent={suspendedUsers > 0 ? 'red' : undefined} />
-          <KpiCard label="Accès gratuit" value={freeAccessUsers} accent="green" />
-        </div>
-      </section>
-
-      {/* Ligne 2 — Plateforme */}
-      <section>
-        <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">Plateforme</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <KpiCard label="Agences" value={totalAgencies} />
-          <KpiCard label="Projets" value={totalProjects} />
-          <KpiCard label="Waitlist — en attente" value={waitlistMap['PENDING'] ?? 0} accent={waitlistMap['PENDING'] > 0 ? 'amber' : undefined} />
-          <KpiCard label="MRR estimé" value={mrr} suffix="€" accent="green" />
-        </div>
-      </section>
-
-      {/* Ligne 3 — Détail */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-        {/* Répartition rôles */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-          <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-4">Rôles</p>
-          <div className="space-y-2.5">
-            {roleBreakdown.map(({ role, _count }) => (
-              <div key={role} className="flex items-center justify-between">
-                <span className={`text-xs px-2 py-0.5 rounded font-medium ${roleColors[role] ?? 'bg-zinc-700 text-zinc-300'}`}>
-                  {role}
-                </span>
-                <div className="flex items-center gap-3">
-                  <div className="w-20 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-zinc-500 rounded-full"
-                      style={{ width: `${Math.round((_count._all / Math.max(totalUsers, 1)) * 100)}%` }}
-                    />
-                  </div>
-                  <span className="text-zinc-300 font-mono text-sm w-6 text-right">{_count._all}</span>
-                </div>
-              </div>
-            ))}
-            {roleBreakdown.length === 0 && <p className="text-zinc-600 text-sm">Aucun utilisateur</p>}
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: '#1A1A18' }}>
+              Dashboard Admin
+            </h1>
+            <p className="text-sm mt-0.5" style={{ color: '#6B6B65' }}>
+              Vue d&apos;ensemble ArchFlow ·{' '}
+              {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </p>
           </div>
         </div>
 
-        {/* Agences par plan */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-          <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-4">Plans</p>
-          <div className="space-y-2.5">
-            {agenciesByPlan.map(({ plan, _count }) => (
-              <div key={plan} className="flex items-center justify-between">
-                <span className={`text-xs px-2 py-0.5 rounded font-medium ${planColors[plan] ?? 'bg-zinc-700 text-zinc-300'}`}>
-                  {plan}
-                </span>
-                <div className="flex items-center gap-3">
-                  <div className="w-20 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-zinc-500 rounded-full"
-                      style={{ width: `${Math.round((_count._all / Math.max(totalAgencies, 1)) * 100)}%` }}
-                    />
-                  </div>
-                  <span className="text-zinc-300 font-mono text-sm w-6 text-right">{_count._all}</span>
-                </div>
-              </div>
-            ))}
-            {agenciesByPlan.length === 0 && <p className="text-zinc-600 text-sm">Aucune agence</p>}
+        {dbError && (
+          <div className="px-4 py-3 rounded-xl text-sm" style={{ background: '#FEE8E8', color: '#9B1C1C', border: '1px solid #FCA5A5' }}>
+            Impossible de charger les données — vérifiez la connexion à la base de données.
           </div>
+        )}
 
-          <div className="mt-4 pt-4 border-t border-zinc-800 grid grid-cols-3 gap-2 text-center">
-            {(['PENDING', 'APPROVED', 'REJECTED'] as const).map((s) => (
-              <div key={s}>
-                <div className="text-lg font-bold text-zinc-200">{waitlistMap[s] ?? 0}</div>
-                <div className="text-xs text-zinc-600">
-                  {s === 'PENDING' ? 'attente' : s === 'APPROVED' ? 'approuvés' : 'refusés'}
-                </div>
-              </div>
-            ))}
-          </div>
+        {/* ── Stats cards ──────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          <StatCard
+            icon={<Users size={20} />}
+            iconBg="#EAF3ED" iconColor="#1A5C3A"
+            label="Total utilisateurs"
+            value={totalUsers}
+            sub={`+${newUsersLast30Days} ce mois`}
+            subColor="#1A5C3A"
+          />
+          <StatCard
+            icon={<UserCheck size={20} />}
+            iconBg="#EEF2FF" iconColor="#4338CA"
+            label="Architectes actifs"
+            value={activeArchitects}
+          />
+          <StatCard
+            icon={<Building2 size={20} />}
+            iconBg="#FEF3E2" iconColor="#B45309"
+            label="Agences"
+            value={totalAgencies}
+          />
+          <StatCard
+            icon={<TrendingUp size={20} />}
+            iconBg="#EAF3ED" iconColor="#1A5C3A"
+            label="MRR estimé"
+            value={mrr}
+            suffix="€"
+          />
+          <StatCard
+            icon={<FolderOpen size={20} />}
+            iconBg="#F3F4F6" iconColor="#6B7280"
+            label="Projets actifs"
+            value={activeProjects}
+          />
+          <StatCard
+            icon={<FileText size={20} />}
+            iconBg="#FEF3E2" iconColor="#B45309"
+            label="AO en cours"
+            value={activeAOs}
+          />
         </div>
 
-        {/* Inscriptions récentes */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Récents</p>
-            <Link href="/admin/users" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-              Voir tous →
-            </Link>
-          </div>
-          <div className="space-y-2.5">
-            {recentUsers.map((user) => (
-              <div key={user.email} className="flex items-center gap-2.5">
-                <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-                  style={{ background: '#27272a', color: '#a1a1aa' }}
-                >
-                  {(user.firstName?.[0] ?? user.email[0]).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-zinc-200 text-xs truncate">{user.email}</div>
-                  <div className="text-zinc-600 text-xs">{user.agency?.name ?? user.role}</div>
-                </div>
-                {user.suspended && (
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 shrink-0">sus.</span>
-                )}
-              </div>
-            ))}
-            {recentUsers.length === 0 && <p className="text-zinc-600 text-sm">Aucun utilisateur</p>}
-          </div>
-        </div>
-
-      </div>
-
-      {/* Ligne 4 — Graphique + Funnel */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-
-        {/* Inscriptions par semaine */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-          <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-4">
-            Inscriptions — 8 dernières semaines
-          </p>
+        {/* ── Graphique inscriptions ────────────────────────────────────── */}
+        <Card title="Inscriptions — 8 dernières semaines">
           <WeeklySignupsChart data={weeklySignups} />
-        </div>
+        </Card>
 
-        {/* Funnel de conversion */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-          <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-4">
-            Funnel de conversion
-          </p>
-          <div className="space-y-3">
-            {[
-              { label: 'Demandes waitlist', value: funnelWaitlist, color: 'bg-zinc-600' },
-              { label: 'Comptes créés', value: funnelInscrits, color: 'bg-blue-500' },
-              { label: 'Agences avec projet', value: funnelProjet, color: 'bg-green-600' },
-              { label: 'Agences avec AO lancé', value: funnelAO, color: 'bg-emerald-500' },
-            ].map(({ label, value, color }) => {
-              const pct = funnelWaitlist > 0 ? Math.round((value / funnelWaitlist) * 100) : 0
-              return (
-                <div key={label}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-zinc-400">{label}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-600">{pct}%</span>
-                      <span className="text-sm font-semibold text-zinc-200 w-8 text-right">{value}</span>
-                    </div>
+        {/* ── Derniers utilisateurs ─────────────────────────────────────── */}
+        <Card
+          title="Derniers utilisateurs"
+          action={<Link href="/admin/users" className="text-xs font-medium" style={{ color: '#1A5C3A' }}>Voir tous →</Link>}
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ borderBottom: '1px solid #E8E8E3' }}>
+                  {['Utilisateur', 'Agence', 'Rôle', 'Créé le', ''].map((h) => (
+                    <th key={h} className="text-left px-4 py-3 font-medium" style={{ color: '#6B6B65', fontSize: 12 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {recentUsers.map((u, i) => {
+                  const roleBadge = ROLE_BADGE[u.role] ?? { bg: '#F3F4F6', color: '#6B7280' }
+                  const name = [u.firstName, u.lastName].filter(Boolean).join(' ') || '—'
+                  return (
+                    <tr key={u.id} style={{ borderBottom: i < recentUsers.length - 1 ? '1px solid #E8E8E3' : undefined }}>
+                      <td className="px-4 py-3">
+                        <div className="font-medium" style={{ color: '#1A1A18' }}>{name}</div>
+                        <div className="text-xs" style={{ color: '#9B9B94' }}>{u.email}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm" style={{ color: '#6B6B65' }}>
+                        {u.agency?.name ?? <span style={{ color: '#9B9B94' }}>—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full font-medium"
+                          style={{ background: roleBadge.bg, color: roleBadge.color }}
+                        >
+                          {u.role}
+                        </span>
+                        {u.suspended && (
+                          <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full" style={{ background: '#FEE8E8', color: '#9B1C1C' }}>
+                            Suspendu
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-xs" style={{ color: '#9B9B94' }}>
+                        {u.createdAt.toLocaleDateString('fr-FR')}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <AdminSuspendButton userId={u.id} initialSuspended={u.suspended} />
+                      </td>
+                    </tr>
+                  )
+                })}
+                {recentUsers.length === 0 && (
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: '#9B9B94' }}>Aucun utilisateur</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        {/* ── Dernières agences ─────────────────────────────────────────── */}
+        <Card title="Dernières agences">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ borderBottom: '1px solid #E8E8E3' }}>
+                  {['Agence', 'Plan', 'Utilisateurs', 'Projets', 'Créée le'].map((h) => (
+                    <th key={h} className="text-left px-4 py-3 font-medium" style={{ color: '#6B6B65', fontSize: 12 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {recentAgencies.map((a, i) => {
+                  const planBadge = PLAN_BADGE[a.plan] ?? { bg: '#F3F4F6', color: '#6B7280', label: a.plan }
+                  return (
+                    <tr key={a.id} style={{ borderBottom: i < recentAgencies.length - 1 ? '1px solid #E8E8E3' : undefined }}>
+                      <td className="px-4 py-3 font-medium" style={{ color: '#1A1A18' }}>{a.name}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full font-medium"
+                          style={{ background: planBadge.bg, color: planBadge.color }}
+                        >
+                          {planBadge.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 tabular-nums" style={{ color: '#6B6B65' }}>{a._count.users}</td>
+                      <td className="px-4 py-3 tabular-nums" style={{ color: '#6B6B65' }}>{a._count.projects}</td>
+                      <td className="px-4 py-3 text-xs" style={{ color: '#9B9B94' }}>
+                        {a.createdAt.toLocaleDateString('fr-FR')}
+                      </td>
+                    </tr>
+                  )
+                })}
+                {recentAgencies.length === 0 && (
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: '#9B9B94' }}>Aucune agence</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        {/* ── Activité récente ──────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+          {/* Derniers projets */}
+          <Card title="Derniers projets" icon={<FolderOpen size={15} />}>
+            <div className="divide-y" style={{ borderColor: '#E8E8E3' }}>
+              {recentProjects.map((p) => (
+                <div key={p.id} className="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <Link
+                      href={`/dpgf/${p.id}`}
+                      className="text-sm font-medium hover:underline"
+                      style={{ color: '#1A1A18' }}
+                    >
+                      {p.name}
+                    </Link>
+                    <div className="text-xs" style={{ color: '#9B9B94' }}>{p.agency.name}</div>
                   </div>
-                  <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${color} rounded-full transition-all`}
-                      style={{ width: `${pct}%` }}
-                    />
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full"
+                      style={{
+                        background: p.status === 'ACTIVE' ? '#EAF3ED' : '#F3F4F6',
+                        color: p.status === 'ACTIVE' ? '#1A5C3A' : '#6B7280',
+                      }}
+                    >
+                      {p.status === 'ACTIVE' ? 'Actif' : 'Archivé'}
+                    </span>
+                    <span className="text-xs" style={{ color: '#9B9B94' }}>
+                      {p.createdAt.toLocaleDateString('fr-FR')}
+                    </span>
                   </div>
                 </div>
-              )
-            })}
+              ))}
+              {recentProjects.length === 0 && (
+                <div className="px-4 py-8 text-center text-sm" style={{ color: '#9B9B94' }}>Aucun projet</div>
+              )}
+            </div>
+          </Card>
+
+          {/* Derniers AO */}
+          <Card title="Derniers appels d'offre" icon={<Activity size={15} />}>
+            <div className="divide-y" style={{ borderColor: '#E8E8E3' }}>
+              {recentAOs.map((ao) => (
+                <div key={ao.id} className="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <div className="text-sm font-medium" style={{ color: '#1A1A18' }}>{ao.name}</div>
+                    <div className="text-xs" style={{ color: '#9B9B94' }}>{ao.dpgf.project.name}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full"
+                      style={{
+                        background: ['SENT','IN_PROGRESS'].includes(ao.status) ? '#FEF3E2' : '#F3F4F6',
+                        color: ['SENT','IN_PROGRESS'].includes(ao.status) ? '#B45309' : '#6B7280',
+                      }}
+                    >
+                      {AO_STATUS_LABEL[ao.status] ?? ao.status}
+                    </span>
+                    <span className="text-xs" style={{ color: '#9B9B94' }}>
+                      {ao.createdAt.toLocaleDateString('fr-FR')}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {recentAOs.length === 0 && (
+                <div className="px-4 py-8 text-center text-sm" style={{ color: '#9B9B94' }}>Aucun AO</div>
+              )}
+            </div>
+          </Card>
+
+        </div>
+
+        {/* ── Outils maintenance ────────────────────────────────────────── */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#9B9B94' }}>
+            Outils maintenance
+          </p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <SetupStorageButton />
+            <BackfillAnnuaireButton />
           </div>
         </div>
 
       </div>
-
-      {/* Outils maintenance */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <SetupStorageButton />
-        <BackfillAnnuaireButton />
-      </div>
-
     </div>
   )
 }
 
-function KpiCard({
-  label,
-  value,
-  accent,
-  suffix,
+// ── Composants locaux ──────────────────────────────────────────────────────
+
+function StatCard({
+  icon, iconBg, iconColor, label, value, suffix, sub, subColor,
 }: {
+  icon: React.ReactNode
+  iconBg: string
+  iconColor: string
   label: string
   value: number
-  accent?: 'red' | 'green' | 'blue' | 'amber'
   suffix?: string
+  sub?: string
+  subColor?: string
 }) {
-  const accentMap: Record<string, string> = {
-    red: 'text-red-400',
-    green: 'text-green-400',
-    blue: 'text-blue-400',
-    amber: 'text-amber-400',
-  }
-  const accentClass = (accent ? accentMap[accent] : null) ?? 'text-zinc-100'
-
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-      <div className={`text-3xl font-bold mb-1 ${accentClass}`}>
-        {value}{suffix && <span className="text-xl ml-0.5">{suffix}</span>}
+    <div
+      className="p-5 rounded-[14px]"
+      style={{ background: '#fff', border: '1px solid #E8E8E3', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div
+          className="w-9 h-9 rounded-[10px] flex items-center justify-center"
+          style={{ background: iconBg, color: iconColor }}
+        >
+          {icon}
+        </div>
       </div>
-      <div className="text-zinc-500 text-xs">{label}</div>
+      <div className="text-3xl font-bold mb-0.5 tabular-nums" style={{ color: '#1A1A18' }}>
+        {value.toLocaleString('fr-FR')}{suffix && <span className="text-xl ml-1">{suffix}</span>}
+      </div>
+      <div className="text-sm" style={{ color: '#6B6B65' }}>{label}</div>
+      {sub && (
+        <div className="text-xs mt-1 font-medium" style={{ color: subColor ?? '#9B9B94' }}>
+          {sub}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Card({
+  title, action, icon, children,
+}: {
+  title: string
+  action?: React.ReactNode
+  icon?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      className="rounded-[14px] overflow-hidden"
+      style={{ background: '#fff', border: '1px solid #E8E8E3', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+    >
+      <div
+        className="flex items-center justify-between px-5 py-4"
+        style={{ borderBottom: '1px solid #E8E8E3' }}
+      >
+        <div className="flex items-center gap-2">
+          {icon && <span style={{ color: '#9B9B94' }}>{icon}</span>}
+          <h2 className="text-sm font-semibold" style={{ color: '#1A1A18' }}>{title}</h2>
+        </div>
+        {action}
+      </div>
+      {children}
     </div>
   )
 }

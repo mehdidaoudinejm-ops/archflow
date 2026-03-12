@@ -30,6 +30,10 @@ export default async function DashboardPage() {
     redirect('/mes-appels-doffres')
   }
 
+  if (user.role === 'ADMIN') {
+    redirect('/admin')
+  }
+
   if (!user.agencyId) {
     return (
       <div className="max-w-lg mx-auto mt-16 text-center">

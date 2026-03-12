@@ -15,7 +15,7 @@ export default function AdminNav() {
   const pathname = usePathname()
 
   return (
-    <aside className="w-56 bg-zinc-900 border-r border-zinc-800 flex flex-col shrink-0">
+    <aside className="w-56 border-r border-zinc-800 flex flex-col shrink-0" style={{ background: '#1A1F1C' }}>
       <div className="px-5 py-4 border-b border-zinc-800">
         <div className="text-red-400 font-bold text-base">ArchFlow</div>
         <div className="text-zinc-500 text-xs mt-0.5">Administration</div>
