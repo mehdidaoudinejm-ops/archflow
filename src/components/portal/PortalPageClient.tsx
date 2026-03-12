@@ -256,7 +256,6 @@ function ExcelPanel({
   onImportSuccess: () => void
   isSubmitted: boolean
 }) {
-  const [open, setOpen] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
@@ -311,81 +310,77 @@ function ExcelPanel({
       setImportError('Erreur réseau. Réessayez.')
     }
     setImporting(false)
-    // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   return (
-    <div className="mx-6 mt-5">
-      {/* Toggle */}
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 text-sm font-medium transition-colors"
-        style={{ color: open ? 'var(--green)' : 'var(--text2)' }}
-      >
-        <FileSpreadsheet size={16} />
-        Mode Excel — télécharger / importer le DQE
-        <span style={{ fontSize: 11, color: 'var(--text3)' }}>{open ? '▲' : '▼'}</span>
-      </button>
-
-      {open && (
-        <div
-          className="mt-3 p-4 rounded-[var(--radius-lg)]"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
-        >
-          <p className="text-sm mb-4" style={{ color: 'var(--text2)', lineHeight: 1.6 }}>
-            Téléchargez le DQE au format Excel, remplissez les colonnes <strong>Prix unitaire HT</strong> et <strong>Commentaire</strong>, puis importez le fichier pour intégrer vos prix.
+    <div
+      className="mx-6 mt-5 p-4 rounded-[var(--radius-lg)]"
+      style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-7 h-7 rounded flex items-center justify-center flex-shrink-0"
+          style={{ background: 'var(--green-light)' }}>
+          <FileSpreadsheet size={15} style={{ color: 'var(--green)' }} />
+        </div>
+        <div>
+          <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Saisie via Excel</p>
+          <p className="text-xs" style={{ color: 'var(--text3)' }}>
+            Téléchargez le DQE, remplissez vos prix hors connexion, puis réimportez.
           </p>
+        </div>
+      </div>
 
-          <div className="flex flex-wrap gap-3">
-            {/* Télécharger */}
-            <button
-              onClick={handleDownload}
-              disabled={downloading}
-              className="flex items-center gap-2 px-4 py-2 rounded-[var(--radius)] text-sm font-medium transition-colors disabled:opacity-60"
-              style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #C5DFD0' }}
-            >
-              <Download size={15} />
-              {downloading ? 'Génération...' : 'Télécharger le DQE (Excel)'}
-            </button>
+      <div className="flex flex-wrap gap-2">
+        {/* Télécharger */}
+        <button
+          onClick={handleDownload}
+          disabled={downloading}
+          className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius)] text-sm font-medium transition-colors disabled:opacity-60"
+          style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #C5DFD0' }}
+        >
+          <Download size={14} />
+          {downloading ? 'Génération...' : 'Télécharger le DQE (Excel)'}
+        </button>
 
-            {/* Importer */}
-            {!isSubmitted && (
-              <label className={`flex items-center gap-2 px-4 py-2 rounded-[var(--radius)] text-sm font-medium cursor-pointer transition-colors ${importing ? 'opacity-60 pointer-events-none' : ''}`}
-                style={{ background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)' }}>
-                <Upload size={15} />
-                {importing ? 'Import en cours...' : 'Importer le DQE complété'}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx,.xls"
-                  className="hidden"
-                  onChange={handleFileChange}
-                  disabled={importing}
-                />
-              </label>
-            )}
-          </div>
+        {/* Importer */}
+        {!isSubmitted && (
+          <label
+            className={`flex items-center gap-2 px-3 py-2 rounded-[var(--radius)] text-sm font-medium cursor-pointer transition-colors ${importing ? 'opacity-60 pointer-events-none' : ''}`}
+            style={{ background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)' }}
+          >
+            <Upload size={14} />
+            {importing ? 'Import en cours...' : 'Importer le DQE complété (.xlsx)'}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleFileChange}
+              disabled={importing}
+            />
+          </label>
+        )}
+      </div>
 
-          {/* Résultat d'import */}
-          {importResult && (
-            <div className="mt-3 flex items-start gap-2 px-3 py-2.5 rounded-[var(--radius)]"
-              style={{ background: 'var(--green-light)', border: '1px solid #C5DFD0' }}>
-              <CheckCircle2 size={16} style={{ color: 'var(--green)', flexShrink: 0, marginTop: 1 }} />
-              <p className="text-sm" style={{ color: 'var(--green)' }}>
-                Import réussi — <strong>{importResult.withPrice}</strong> poste{importResult.withPrice > 1 ? 's' : ''} chiffré{importResult.withPrice > 1 ? 's' : ''} sur {importResult.total} au total.
-                {' '}Vos prix sont maintenant visibles dans la table ci-dessous.
-              </p>
-            </div>
-          )}
+      {/* Résultat d'import */}
+      {importResult && (
+        <div className="mt-3 flex items-start gap-2 px-3 py-2.5 rounded-[var(--radius)]"
+          style={{ background: 'var(--green-light)', border: '1px solid #C5DFD0' }}>
+          <CheckCircle2 size={15} style={{ color: 'var(--green)', flexShrink: 0, marginTop: 1 }} />
+          <p className="text-sm" style={{ color: 'var(--green)' }}>
+            Import réussi — <strong>{importResult.withPrice}</strong> poste{importResult.withPrice > 1 ? 's' : ''} chiffré{importResult.withPrice > 1 ? 's' : ''} sur {importResult.total}.
+            {' '}La page va se recharger automatiquement.
+          </p>
+        </div>
+      )}
 
-          {importError && (
-            <div className="mt-3 flex items-start gap-2 px-3 py-2.5 rounded-[var(--radius)]"
-              style={{ background: 'var(--red-light)', border: '1px solid #FCA5A5' }}>
-              <AlertCircle size={16} style={{ color: 'var(--red)', flexShrink: 0, marginTop: 1 }} />
-              <p className="text-sm" style={{ color: 'var(--red)' }}>{importError}</p>
-            </div>
-          )}
+      {importError && (
+        <div className="mt-3 flex items-start gap-2 px-3 py-2.5 rounded-[var(--radius)]"
+          style={{ background: 'var(--red-light)', border: '1px solid #FCA5A5' }}>
+          <AlertCircle size={15} style={{ color: 'var(--red)', flexShrink: 0, marginTop: 1 }} />
+          <p className="text-sm" style={{ color: 'var(--red)' }}>{importError}</p>
         </div>
       )}
     </div>
