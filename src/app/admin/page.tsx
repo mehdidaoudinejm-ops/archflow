@@ -197,8 +197,7 @@ export default async function AdminDashboardPage() {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ background: '#F4F4F1', minHeight: '100vh' }}>
-      <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-8 space-y-8 max-w-7xl mx-auto">
 
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -449,7 +448,6 @@ export default async function AdminDashboardPage() {
           </div>
         </div>
 
-      </div>
     </div>
   )
 }

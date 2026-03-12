@@ -26,7 +26,7 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>
       <AdminNav />
       <main className="flex-1 overflow-auto">{children}</main>
     </div>
