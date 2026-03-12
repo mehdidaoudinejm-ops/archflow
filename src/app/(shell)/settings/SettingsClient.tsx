@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Eye, EyeOff, Check } from 'lucide-react'
+import { Eye, EyeOff, Check, UserPlus, Trash2, Users } from 'lucide-react'
 import { createBrowserClient } from '@/lib/supabase'
 
 interface UserData {
@@ -178,8 +178,11 @@ export function SettingsClient({ user, agency }: { user: UserData; agency: Agenc
     }
   }
 
+  const isArchitect = user.role === 'ARCHITECT'
+  const canManageTeam = isArchitect && (agency?.plan === 'STUDIO' || agency?.plan === 'AGENCY')
+
   if (!isCompany) {
-    // Architect settings — read only for now
+    // Architect/Collaborator settings
     return (
       <div className="max-w-2xl mx-auto">
         <h1 className="text-2xl mb-6" style={{ fontFamily: '"DM Serif Display", serif', color: 'var(--text)' }}>
@@ -204,6 +207,11 @@ export function SettingsClient({ user, agency }: { user: UserData; agency: Agenc
             <Row label="Rôle" value={user.role} />
           </dl>
         </section>
+        {canManageTeam && (
+          <div className="mb-4">
+            <TeamSection currentUserId={user.id} plan={agency!.plan} />
+          </div>
+        )}
         <section className="p-6 rounded-[var(--radius-lg)]"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
           <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--text)' }}>Sécurité</h2>
@@ -380,5 +388,169 @@ function Row({ label, value }: { label: string; value: string }) {
       <dt className="text-sm" style={{ color: 'var(--text3)' }}>{label}</dt>
       <dd className="text-sm font-medium" style={{ color: 'var(--text)' }}>{value}</dd>
     </div>
+  )
+}
+
+const PLAN_LIMITS: Record<string, number> = { SOLO: 1, STUDIO: 3, AGENCY: 10 }
+
+interface TeamMember {
+  id: string
+  email: string
+  firstName: string | null
+  lastName: string | null
+  role: string
+  createdAt: string
+  suspended: boolean
+}
+
+function TeamSection({ currentUserId, plan }: { currentUserId: string; plan: string }) {
+  const [members, setMembers] = useState<TeamMember[]>([])
+  const [loading, setLoading] = useState(true)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviting, setInviting] = useState(false)
+  const [removing, setRemoving] = useState<string | null>(null)
+  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [devLink, setDevLink] = useState<string | null>(null)
+
+  const limit = PLAN_LIMITS[plan] ?? 1
+
+  useEffect(() => {
+    fetch('/api/settings/team')
+      .then((r) => r.json())
+      .then((data: { members: TeamMember[] }) => setMembers(data.members ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  async function handleInvite(e: React.FormEvent) {
+    e.preventDefault()
+    setMsg(null)
+    setDevLink(null)
+    setInviting(true)
+    const res = await fetch('/api/settings/team', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: inviteEmail }),
+    })
+    const data = await res.json() as { error?: string; devLink?: string }
+    setInviting(false)
+    if (res.ok) {
+      setMsg({ type: 'success', text: `Invitation envoyée à ${inviteEmail}` })
+      setInviteEmail('')
+      if (data.devLink) setDevLink(data.devLink)
+    } else {
+      setMsg({ type: 'error', text: data.error ?? 'Erreur' })
+    }
+  }
+
+  async function handleRemove(memberId: string) {
+    if (!window.confirm('Retirer ce membre de votre agence ?')) return
+    setRemoving(memberId)
+    const res = await fetch(`/api/settings/team/${memberId}`, { method: 'DELETE' })
+    if (res.ok) {
+      setMembers((prev) => prev.filter((m) => m.id !== memberId))
+    } else {
+      const data = await res.json() as { error?: string }
+      setMsg({ type: 'error', text: data.error ?? 'Erreur lors du retrait' })
+    }
+    setRemoving(null)
+  }
+
+  const canInvite = members.length < limit
+
+  return (
+    <section className="p-6 rounded-[var(--radius-lg)]"
+      style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Users size={16} style={{ color: 'var(--text2)' }} />
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Équipe</h2>
+        </div>
+        <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+          style={{ background: 'var(--surface2)', color: 'var(--text2)' }}>
+          {members.length} / {limit} membre{limit > 1 ? 's' : ''}
+        </span>
+      </div>
+
+      {/* Members list */}
+      {loading ? (
+        <p className="text-sm" style={{ color: 'var(--text3)' }}>Chargement...</p>
+      ) : (
+        <div className="space-y-2 mb-5">
+          {members.map((member) => (
+            <div key={member.id} className="flex items-center justify-between py-2 px-3 rounded-[var(--radius)]"
+              style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                  {[member.firstName, member.lastName].filter(Boolean).join(' ') || member.email}
+                </p>
+                {(member.firstName || member.lastName) && (
+                  <p className="text-xs" style={{ color: 'var(--text3)' }}>{member.email}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs px-2 py-0.5 rounded font-medium"
+                  style={{
+                    background: member.role === 'ARCHITECT' ? 'var(--green-light)' : 'var(--surface)',
+                    color: member.role === 'ARCHITECT' ? 'var(--green)' : 'var(--text2)',
+                    border: '1px solid var(--border)',
+                  }}>
+                  {member.role === 'ARCHITECT' ? 'Architecte' : 'Collaborateur'}
+                </span>
+                {member.id !== currentUserId && member.role !== 'ARCHITECT' && (
+                  <button
+                    onClick={() => handleRemove(member.id)}
+                    disabled={removing === member.id}
+                    className="p-1.5 rounded transition-colors disabled:opacity-50"
+                    style={{ color: 'var(--text3)' }}
+                    title="Retirer de l'équipe"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Invite form */}
+      {canInvite ? (
+        <form onSubmit={handleInvite} className="flex gap-2">
+          <Input
+            type="email"
+            placeholder="Email du collaborateur"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            required
+            style={{ borderColor: 'var(--border)', color: 'var(--text)', flex: 1 }}
+          />
+          <Button type="submit" disabled={inviting || !inviteEmail}
+            style={{ background: 'var(--green-btn)', color: '#fff', border: 'none', gap: 6, display: 'flex', alignItems: 'center' }}>
+            <UserPlus size={15} />
+            {inviting ? '...' : 'Inviter'}
+          </Button>
+        </form>
+      ) : (
+        <p className="text-sm px-3 py-2 rounded-[var(--radius)]"
+          style={{ background: 'var(--amber-light)', color: 'var(--amber)' }}>
+          Limite atteinte — passez à un plan supérieur pour ajouter des membres.
+        </p>
+      )}
+
+      {msg && (
+        <p className="text-sm px-3 py-2 rounded-[var(--radius)] mt-3"
+          style={{ background: msg.type === 'success' ? 'var(--green-light)' : 'var(--red-light)', color: msg.type === 'success' ? 'var(--green)' : 'var(--red)' }}>
+          {msg.text}
+        </p>
+      )}
+
+      {devLink && (
+        <div className="mt-2 p-2 rounded text-xs break-all" style={{ background: '#F3F4F6', color: '#6B6B65' }}>
+          <span className="font-medium">[DEV] Lien : </span>
+          <a href={devLink} target="_blank" rel="noopener" style={{ color: '#1A5C3A' }}>{devLink}</a>
+        </div>
+      )}
+    </section>
   )
 }
