@@ -39,15 +39,19 @@ export function Navbar() {
         }}
       >
         {/* Logo */}
-        <a
-          href="/"
-          style={{
-            fontFamily: '"DM Serif Display", serif',
-            fontSize: '22px', color: '#1A5C3A',
-            textDecoration: 'none', fontWeight: 400, letterSpacing: '-0.3px',
-          }}
-        >
-          ArchFlow
+        <a href="/" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <span
+            style={{
+              fontFamily: '"DM Serif Display", serif',
+              fontSize: '22px', color: '#1A5C3A',
+              fontWeight: 400, letterSpacing: '-0.3px',
+            }}
+          >
+            ArchFlow
+          </span>
+          <span style={{ fontFamily: '"DM Sans", sans-serif', fontSize: 8, fontWeight: 400, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C4C4BC' }}>
+            By The Blueprint Lab
+          </span>
         </a>
 
         {/* Desktop nav */}
