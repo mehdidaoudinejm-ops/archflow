@@ -131,7 +131,7 @@ function HeroSection() {
                   textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px',
                 }}
               >
-                Commencer gratuitement →
+                Commencer →
               </a>
               <a
                 href="#features"
@@ -695,11 +695,8 @@ function CTASection() {
             textDecoration: 'none',
           }}
         >
-          Commencer gratuitement →
+          Commencer →
         </a>
-        <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.55)', marginTop: '16px' }}>
-          Sans carte bancaire · Annulable à tout moment
-        </p>
       </div>
     </section>
   )
@@ -739,11 +736,8 @@ function Footer() {
         </div>
 
         <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'center' }}>
-          {['CGU', 'Confidentialité', 'Contact'].map((l) => (
-            <a key={l} href="#" style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px', textDecoration: 'none' }}>
-              {l}
-            </a>
-          ))}
+          <a href="/cgu" style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px', textDecoration: 'none' }}>CGU</a>
+          <a href="/contact" style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px', textDecoration: 'none' }}>Contact</a>
         </div>
 
         <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)', margin: 0 }}>

@@ -6,8 +6,8 @@ import { Menu, X } from 'lucide-react'
 
 const NAV_LINKS = [
   { label: 'Fonctionnalités', href: '#features' },
-  { label: 'Tarifs', href: '#pricing' },
   { label: 'FAQ', href: '#faq' },
+  { label: 'Contact', href: '/contact' },
 ]
 
 export function Navbar() {
