@@ -40,15 +40,20 @@ export function Sidebar({ role }: { role?: Role }) {
       {/* Logo */}
       <div className="px-5 mb-8">
         <Link href={role === 'COMPANY' ? '/mes-appels-doffres' : '/dashboard'}>
-          <span
-            className="text-2xl leading-none"
-            style={{
-              fontFamily: '"DM Serif Display", serif',
-              color: role === 'COMPANY' ? '#1A3A2A' : '#fff',
-            }}
-          >
-            ArchFlow
-          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span
+              className="text-2xl leading-none"
+              style={{
+                fontFamily: '"DM Serif Display", serif',
+                color: role === 'COMPANY' ? '#1A3A2A' : '#fff',
+              }}
+            >
+              ArchFlow
+            </span>
+            <span style={{ fontFamily: '"DM Sans", sans-serif', fontSize: 8, fontWeight: 400, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C4C4BC' }}>
+              By The Blueprint Lab
+            </span>
+          </div>
         </Link>
       </div>
 

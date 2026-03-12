@@ -83,12 +83,17 @@ export function PortalShell({
       >
         {/* Logo */}
         <div className="px-5 py-5 border-b" style={{ borderColor: 'rgba(0,0,0,0.1)' }}>
-          <p
-            className="text-xl font-semibold"
-            style={{ fontFamily: '"DM Serif Display", serif', color: '#1A3A2A' }}
-          >
-            ArchFlow
-          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <p
+              className="text-xl font-semibold"
+              style={{ fontFamily: '"DM Serif Display", serif', color: '#1A3A2A', margin: 0 }}
+            >
+              ArchFlow
+            </p>
+            <span style={{ fontFamily: '"DM Sans", sans-serif', fontSize: 8, fontWeight: 400, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C4C4BC' }}>
+              By The Blueprint Lab
+            </span>
+          </div>
           <p className="text-xs mt-0.5 truncate" style={{ color: '#1A3A2A', opacity: 0.6 }}>
             Portail entreprise
           </p>
