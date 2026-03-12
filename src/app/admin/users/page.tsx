@@ -14,7 +14,25 @@ interface User {
   aiImportLimit: number
   lastSeenAt: string | null
   createdAt: string
-  agency: { name: string } | null
+  agencyId: string | null
+  agency: { id: string; name: string; plan: string } | null
+}
+
+const ROLES = ['ARCHITECT', 'COLLABORATOR', 'COMPANY', 'CLIENT', 'ADMIN'] as const
+const PLANS = ['SOLO', 'STUDIO', 'AGENCY'] as const
+
+const ROLE_STYLE: Record<string, { bg: string; color: string }> = {
+  ARCHITECT:    { bg: '#EAF3ED', color: '#1A5C3A' },
+  COLLABORATOR: { bg: '#EEF2FF', color: '#4338CA' },
+  COMPANY:      { bg: '#FEF3E2', color: '#B45309' },
+  CLIENT:       { bg: '#F3F4F6', color: '#6B7280' },
+  ADMIN:        { bg: '#FEE8E8', color: '#9B1C1C' },
+}
+
+const PLAN_STYLE: Record<string, { bg: string; color: string }> = {
+  SOLO:   { bg: '#F3F4F6', color: '#6B7280' },
+  STUDIO: { bg: '#EEF2FF', color: '#4338CA' },
+  AGENCY: { bg: '#EAF3ED', color: '#1A5C3A' },
 }
 
 const roleColors: Record<string, string> = {
@@ -196,6 +214,39 @@ export default function AdminUsersPage() {
     setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, aiImportLimit: limit } : u)))
   }
 
+  async function changeRole(user: User, role: string) {
+    setActionLoading(`role-${user.id}`)
+    const res = await fetch(`/api/admin/users/${user.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    })
+    if (res.ok) {
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, role } : u)))
+    }
+    setActionLoading(null)
+  }
+
+  async function changePlan(user: User, plan: string) {
+    if (!user.agency) return
+    setActionLoading(`plan-${user.id}`)
+    const res = await fetch(`/api/admin/agencies/${user.agency.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan }),
+    })
+    if (res.ok) {
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.agencyId === user.agencyId && u.agency
+            ? { ...u, agency: { ...u.agency, plan } }
+            : u
+        )
+      )
+    }
+    setActionLoading(null)
+  }
+
   async function impersonate(user: User) {
     setActionLoading(`imp-${user.id}`)
     const res = await fetch(`/api/admin/users/${user.id}/impersonate`, { method: 'POST' })
@@ -209,95 +260,139 @@ export default function AdminUsersPage() {
   }
 
   if (loading) {
-    return <div className="p-8 text-zinc-400">Chargement...</div>
+    return <div className="p-8" style={{ color: '#9B9B94' }}>Chargement...</div>
   }
 
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-semibold text-zinc-100 mb-2">Utilisateurs</h1>
-      <p className="text-zinc-500 text-sm mb-8">
+      <h1 className="text-2xl font-bold mb-1" style={{ color: '#1A1A18' }}>Utilisateurs</h1>
+      <p className="text-sm mb-8" style={{ color: '#6B6B65' }}>
         {users.length} utilisateur{users.length > 1 ? 's' : ''}
       </p>
 
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-zinc-800">
-              <th className="text-left px-5 py-3 text-zinc-500 font-medium">Utilisateur</th>
-              <th className="text-left px-5 py-3 text-zinc-500 font-medium">Rôle</th>
-              <th className="text-left px-5 py-3 text-zinc-500 font-medium">Agence</th>
-              <th className="text-left px-5 py-3 text-zinc-500 font-medium">Inscrit le</th>
-              <th className="text-center px-5 py-3 text-zinc-500 font-medium">Suspendu</th>
-              <th className="text-center px-5 py-3 text-zinc-500 font-medium">Accès gratuit</th>
-              <th className="text-left px-5 py-3 text-zinc-500 font-medium">Imports IA</th>
-              <th className="px-5 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
-              <tr key={user.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/20">
-                <td className="px-5 py-3">
-                  <div className="text-zinc-200">{user.email}</div>
-                  {(user.firstName || user.lastName) && (
-                    <div className="text-zinc-500 text-xs">
-                      {[user.firstName, user.lastName].filter(Boolean).join(' ')}
-                    </div>
-                  )}
-                </td>
-                <td className="px-5 py-3">
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded font-medium ${roleColors[user.role] ?? 'bg-zinc-700 text-zinc-300'}`}
-                  >
-                    {user.role}
-                  </span>
-                </td>
-                <td className="px-5 py-3 text-zinc-400">{user.agency?.name ?? '—'}</td>
-                <td className="px-5 py-3 text-zinc-500">
-                  {new Date(user.createdAt).toLocaleDateString('fr-FR')}
-                </td>
-                <td className="px-5 py-3 flex justify-center">
-                  <Toggle
-                    active={user.suspended}
-                    color="red"
-                    disabled={actionLoading === `suspend-${user.id}`}
-                    onClick={() => toggleSuspend(user)}
-                  />
-                </td>
-                <td className="px-5 py-3 text-center">
-                  <div className="flex justify-center">
-                    <Toggle
-                      active={user.freeAccess}
-                      color="green"
-                      disabled={actionLoading === `free-${user.id}`}
-                      onClick={() => toggleFreeAccess(user)}
-                    />
-                  </div>
-                </td>
-                <td className="px-5 py-3">
-                  <ImportLimitCell user={user} onUpdate={updateImportLimit} />
-                </td>
-                <td className="px-5 py-3">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => impersonate(user)}
-                      disabled={actionLoading !== null}
-                      className="text-xs px-3 py-1 rounded bg-zinc-700 text-zinc-300 hover:bg-zinc-600 transition-colors disabled:opacity-50 whitespace-nowrap"
-                    >
-                      {actionLoading === `imp-${user.id}` ? '...' : 'Voir en tant que'}
-                    </button>
-                    <button
-                      onClick={() => deleteUser(user)}
-                      disabled={actionLoading !== null}
-                      className="text-xs px-3 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50 whitespace-nowrap"
-                    >
-                      {actionLoading === `del-${user.id}` ? '...' : 'Supprimer'}
-                    </button>
-                  </div>
-                </td>
+      <div className="rounded-[14px] overflow-hidden" style={{ background: '#fff', border: '1px solid #E8E8E3', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ borderBottom: '1px solid #E8E8E3' }}>
+                {['Utilisateur', 'Rôle', 'Agence / Plan', 'Inscrit le', 'Suspendu', 'Gratuit', 'Imports IA', ''].map((h) => (
+                  <th key={h} className="text-left px-4 py-3 font-medium" style={{ color: '#6B6B65', fontSize: 12 }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {users.map((user, i) => (
+                <tr key={user.id} style={{ borderBottom: i < users.length - 1 ? '1px solid #E8E8E3' : undefined }}>
+
+                  {/* Utilisateur */}
+                  <td className="px-4 py-3">
+                    <div className="font-medium" style={{ color: '#1A1A18' }}>{user.email}</div>
+                    {(user.firstName || user.lastName) && (
+                      <div className="text-xs" style={{ color: '#9B9B94' }}>
+                        {[user.firstName, user.lastName].filter(Boolean).join(' ')}
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Rôle — select inline */}
+                  <td className="px-4 py-3">
+                    <select
+                      value={user.role}
+                      disabled={actionLoading === `role-${user.id}`}
+                      onChange={(e) => changeRole(user, e.target.value)}
+                      style={{
+                        fontSize: 12, fontWeight: 600, borderRadius: 6,
+                        padding: '3px 8px', border: '1px solid #E8E8E3',
+                        background: ROLE_STYLE[user.role]?.bg ?? '#F3F4F6',
+                        color: ROLE_STYLE[user.role]?.color ?? '#6B7280',
+                        cursor: 'pointer', appearance: 'auto',
+                      }}
+                    >
+                      {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </td>
+
+                  {/* Agence + Plan — select plan inline */}
+                  <td className="px-4 py-3">
+                    <div className="text-xs font-medium" style={{ color: '#1A1A18' }}>{user.agency?.name ?? '—'}</div>
+                    {user.agency && (
+                      <select
+                        value={user.agency.plan}
+                        disabled={actionLoading === `plan-${user.id}`}
+                        onChange={(e) => changePlan(user, e.target.value)}
+                        style={{
+                          marginTop: 3, fontSize: 11, fontWeight: 600, borderRadius: 5,
+                          padding: '2px 6px', border: '1px solid #E8E8E3',
+                          background: PLAN_STYLE[user.agency.plan]?.bg ?? '#F3F4F6',
+                          color: PLAN_STYLE[user.agency.plan]?.color ?? '#6B7280',
+                          cursor: 'pointer', appearance: 'auto',
+                        }}
+                      >
+                        {PLANS.map((p) => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    )}
+                  </td>
+
+                  {/* Date */}
+                  <td className="px-4 py-3 text-xs" style={{ color: '#9B9B94' }}>
+                    {new Date(user.createdAt).toLocaleDateString('fr-FR')}
+                  </td>
+
+                  {/* Suspendu */}
+                  <td className="px-4 py-3">
+                    <div className="flex justify-center">
+                      <Toggle
+                        active={user.suspended}
+                        color="red"
+                        disabled={actionLoading === `suspend-${user.id}`}
+                        onClick={() => toggleSuspend(user)}
+                      />
+                    </div>
+                  </td>
+
+                  {/* Accès gratuit */}
+                  <td className="px-4 py-3">
+                    <div className="flex justify-center">
+                      <Toggle
+                        active={user.freeAccess}
+                        color="green"
+                        disabled={actionLoading === `free-${user.id}`}
+                        onClick={() => toggleFreeAccess(user)}
+                      />
+                    </div>
+                  </td>
+
+                  {/* Imports IA */}
+                  <td className="px-4 py-3">
+                    <ImportLimitCell user={user} onUpdate={updateImportLimit} />
+                  </td>
+
+                  {/* Actions */}
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => impersonate(user)}
+                        disabled={actionLoading !== null}
+                        className="text-xs px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
+                        style={{ background: '#F3F4F6', color: '#6B6B65', border: '1px solid #E8E8E3' }}
+                      >
+                        {actionLoading === `imp-${user.id}` ? '...' : 'Voir en tant que'}
+                      </button>
+                      <button
+                        onClick={() => deleteUser(user)}
+                        disabled={actionLoading !== null}
+                        className="text-xs px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
+                        style={{ background: '#FEE8E8', color: '#9B1C1C', border: '1px solid #FCA5A5' }}
+                      >
+                        {actionLoading === `del-${user.id}` ? '...' : 'Supprimer'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )

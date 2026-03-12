@@ -6,10 +6,13 @@ import { prisma } from '@/lib/prisma'
 import { AdminAuthError, requireAdmin } from '@/lib/admin-auth'
 import { z } from 'zod'
 
+const ROLES = ['ARCHITECT', 'COLLABORATOR', 'COMPANY', 'CLIENT', 'ADMIN'] as const
+
 const schema = z.object({
   suspended: z.boolean().optional(),
   freeAccess: z.boolean().optional(),
   aiImportLimit: z.number().int().min(0).max(9999).nullable().optional(),
+  role: z.enum(ROLES).optional(),
 })
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
