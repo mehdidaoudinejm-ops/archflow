@@ -28,20 +28,35 @@ export async function POST(
       return NextResponse.json({ error: 'Aucun email client renseigné dans les informations du projet' }, { status: 400 })
     }
 
-    // Conflit : email déjà utilisé par un autre rôle
-    const existing = await prisma.user.findUnique({ where: { email } })
-    if (existing && existing.role !== 'CLIENT') {
-      return NextResponse.json({ error: 'Cet email appartient déjà à un compte non-client' }, { status: 409 })
-    }
-
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
     const redirectTo = `${appUrl}/client/${params.projectId}`
 
-    // Générer le magic link Supabase (crée le compte Auth si inexistant)
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
+
+    // Conflit : email déjà utilisé par un autre rôle
+    const existing = await prisma.user.findUnique({ where: { email } })
+    if (existing && existing.role !== 'CLIENT') {
+      // Vérifier si l'utilisateur existe vraiment dans Supabase Auth (sinon = orphelin Prisma)
+      const authRows = await prisma.$queryRaw<[{ id: string }]>`
+        SELECT id::text FROM auth.users WHERE email = ${email} LIMIT 1
+      `
+      const hasSupabaseAccount = authRows.length > 0
+
+      if (hasSupabaseAccount) {
+        return NextResponse.json({ error: 'Cet email appartient déjà à un compte non-client' }, { status: 409 })
+      }
+
+      // Orphelin Prisma (pas de compte Supabase) — supprimer pour permettre la ré-invitation
+      await prisma.$transaction([
+        prisma.projectPermission.deleteMany({ where: { userId: existing.id } }),
+        prisma.notification.deleteMany({ where: { userId: existing.id } }),
+        prisma.activityLog.deleteMany({ where: { userId: existing.id } }),
+        prisma.user.delete({ where: { id: existing.id } }),
+      ])
+    }
 
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',

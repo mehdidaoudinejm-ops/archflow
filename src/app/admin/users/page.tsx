@@ -171,6 +171,8 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [roleFilter, setRoleFilter] = useState<string>('ALL')
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/users')
@@ -214,11 +216,38 @@ export default function AdminUsersPage() {
   async function deleteUser(user: User) {
     if (!window.confirm(`Supprimer définitivement ${user.email} ? Cette action est irréversible.`)) return
     setActionLoading(`del-${user.id}`)
+    setErrorMsg(null)
     const res = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' })
     if (res.ok) {
       setUsers((prev) => prev.filter((u) => u.id !== user.id))
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setErrorMsg(data.error ?? `Erreur lors de la suppression de ${user.email}`)
     }
     setActionLoading(null)
+  }
+
+  async function purgeOrphans() {
+    if (!window.confirm('Supprimer tous les utilisateurs Prisma sans compte Supabase Auth (orphelins) ? Cette action est irréversible.')) return
+    setSyncMsg(null)
+    setErrorMsg(null)
+    // Afficher un aperçu d'abord
+    const preview = await fetch('/api/admin/users/sync').then((r) => r.json())
+    if (preview.orphans?.length === 0) {
+      setSyncMsg('Aucun orphelin trouvé — base de données déjà synchronisée.')
+      return
+    }
+    const emails = (preview.orphans as { email: string }[]).map((o) => o.email).join(', ')
+    if (!window.confirm(`${preview.orphans.length} orphelin(s) trouvé(s) :\n${emails}\n\nConfirmer la suppression ?`)) return
+    const res = await fetch('/api/admin/users/sync', { method: 'DELETE' })
+    const data = await res.json()
+    if (res.ok) {
+      setSyncMsg(`${data.deleted} orphelin(s) supprimé(s).`)
+      // Recharger la liste
+      fetch('/api/admin/users').then((r) => r.json()).then(setUsers)
+    } else {
+      setErrorMsg(data.error ?? 'Erreur lors de la synchronisation')
+    }
   }
 
   function updateImportLimit(id: string, limit: number) {
@@ -279,11 +308,34 @@ export default function AdminUsersPage() {
 
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-bold mb-1" style={{ color: '#1A1A18' }}>Utilisateurs</h1>
-      <p className="text-sm mb-6" style={{ color: '#6B6B65' }}>
+      <div className="flex items-start justify-between mb-1">
+        <h1 className="text-2xl font-bold" style={{ color: '#1A1A18' }}>Utilisateurs</h1>
+        <button
+          onClick={() => void purgeOrphans()}
+          className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+          style={{ background: '#FEF3E2', color: '#B45309', border: '1px solid #FCD34D' }}
+          title="Supprimer les utilisateurs Prisma sans compte Supabase Auth"
+        >
+          Purger les orphelins
+        </button>
+      </div>
+      <p className="text-sm mb-4" style={{ color: '#6B6B65' }}>
         {filteredUsers.length} utilisateur{filteredUsers.length > 1 ? 's' : ''}
         {roleFilter !== 'ALL' && <span style={{ color: '#9B9B94' }}> · filtre : {ROLE_FILTER_LABELS[roleFilter]}</span>}
       </p>
+
+      {errorMsg && (
+        <div className="mb-4 px-4 py-3 rounded-lg text-sm" style={{ background: '#FEE8E8', color: '#9B1C1C', border: '1px solid #FCA5A5' }}>
+          {errorMsg}
+          <button onClick={() => setErrorMsg(null)} className="ml-3 opacity-60 hover:opacity-100">✕</button>
+        </div>
+      )}
+      {syncMsg && (
+        <div className="mb-4 px-4 py-3 rounded-lg text-sm" style={{ background: '#EAF3ED', color: '#1A5C3A', border: '1px solid #86EFAC' }}>
+          {syncMsg}
+          <button onClick={() => setSyncMsg(null)} className="ml-3 opacity-60 hover:opacity-100">✕</button>
+        </div>
+      )}
 
       {/* Filtres par rôle */}
       <div className="flex flex-wrap gap-2 mb-5">
