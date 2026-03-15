@@ -155,10 +155,22 @@ function ImportLimitCell({ user, onUpdate }: { user: User; onUpdate: (id: string
   )
 }
 
+const ROLE_FILTER_LABELS: Record<string, string> = {
+  ALL: 'Tous',
+  ARCHITECT: 'Architectes',
+  COLLABORATOR: 'Collaborateurs',
+  COMPANY: 'Entreprises',
+  CLIENT: 'Clients',
+  ADMIN: 'Admins',
+}
+
+const AI_IMPORT_ROLES = ['ARCHITECT', 'COLLABORATOR', 'ADMIN']
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [roleFilter, setRoleFilter] = useState<string>('ALL')
 
   useEffect(() => {
     fetch('/api/admin/users')
@@ -262,26 +274,52 @@ export default function AdminUsersPage() {
     return <div className="p-8" style={{ color: '#9B9B94' }}>Chargement...</div>
   }
 
+  const filteredUsers = roleFilter === 'ALL' ? users : users.filter((u) => u.role === roleFilter)
+  const showAiImport = roleFilter === 'ALL' || AI_IMPORT_ROLES.includes(roleFilter)
+
   return (
     <div className="p-8">
       <h1 className="text-2xl font-bold mb-1" style={{ color: '#1A1A18' }}>Utilisateurs</h1>
-      <p className="text-sm mb-8" style={{ color: '#6B6B65' }}>
-        {users.length} utilisateur{users.length > 1 ? 's' : ''}
+      <p className="text-sm mb-6" style={{ color: '#6B6B65' }}>
+        {filteredUsers.length} utilisateur{filteredUsers.length > 1 ? 's' : ''}
+        {roleFilter !== 'ALL' && <span style={{ color: '#9B9B94' }}> · filtre : {ROLE_FILTER_LABELS[roleFilter]}</span>}
       </p>
+
+      {/* Filtres par rôle */}
+      <div className="flex flex-wrap gap-2 mb-5">
+        {Object.entries(ROLE_FILTER_LABELS).map(([role, label]) => {
+          const count = role === 'ALL' ? users.length : users.filter((u) => u.role === role).length
+          const active = roleFilter === role
+          return (
+            <button
+              key={role}
+              onClick={() => setRoleFilter(role)}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
+              style={{
+                background: active ? '#1A1A18' : '#F3F4F6',
+                color: active ? '#fff' : '#6B6B65',
+                border: `1px solid ${active ? '#1A1A18' : '#E8E8E3'}`,
+              }}
+            >
+              {label} <span style={{ opacity: 0.6 }}>({count})</span>
+            </button>
+          )
+        })}
+      </div>
 
       <div className="rounded-[14px] overflow-hidden" style={{ background: '#fff', border: '1px solid #E8E8E3', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid #E8E8E3' }}>
-                {['Utilisateur', 'Rôle', 'Agence / Plan', 'Inscrit le', 'Suspendu', 'Gratuit', 'Imports IA', ''].map((h) => (
+                {['Utilisateur', 'Rôle', 'Agence / Plan', 'Inscrit le', 'Suspendu', 'Gratuit', ...(showAiImport ? ['Imports IA'] : []), ''].map((h) => (
                   <th key={h} className="text-left px-4 py-3 font-medium" style={{ color: '#6B6B65', fontSize: 12 }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {users.map((user, i) => (
-                <tr key={user.id} style={{ borderBottom: i < users.length - 1 ? '1px solid #E8E8E3' : undefined }}>
+              {filteredUsers.map((user, i) => (
+                <tr key={user.id} style={{ borderBottom: i < filteredUsers.length - 1 ? '1px solid #E8E8E3' : undefined }}>
 
                   {/* Utilisateur */}
                   <td className="px-4 py-3">
@@ -361,10 +399,15 @@ export default function AdminUsersPage() {
                     </div>
                   </td>
 
-                  {/* Imports IA */}
-                  <td className="px-4 py-3">
-                    <ImportLimitCell user={user} onUpdate={updateImportLimit} />
-                  </td>
+                  {/* Imports IA — masqué pour COMPANY et CLIENT */}
+                  {showAiImport && (
+                    <td className="px-4 py-3">
+                      {AI_IMPORT_ROLES.includes(user.role)
+                        ? <ImportLimitCell user={user} onUpdate={updateImportLimit} />
+                        : <span style={{ color: '#9B9B94', fontSize: 12 }}>—</span>
+                      }
+                    </td>
+                  )}
 
                   {/* Actions */}
                   <td className="px-4 py-3">
@@ -389,6 +432,13 @@ export default function AdminUsersPage() {
                   </td>
                 </tr>
               ))}
+              {filteredUsers.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-10 text-center text-sm" style={{ color: '#9B9B94' }}>
+                    Aucun utilisateur{roleFilter !== 'ALL' ? ` avec le rôle ${ROLE_FILTER_LABELS[roleFilter]}` : ''}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
