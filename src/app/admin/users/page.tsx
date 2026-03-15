@@ -166,6 +166,12 @@ const ROLE_FILTER_LABELS: Record<string, string> = {
 
 const AI_IMPORT_ROLES = ['ARCHITECT', 'COLLABORATOR', 'ADMIN']
 
+interface CheckResult {
+  email: string
+  prisma: { exists: boolean; id?: string; role?: string }
+  supabase: { exists: boolean; id?: string }
+}
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -173,6 +179,9 @@ export default function AdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState<string>('ALL')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
+  const [checkEmail, setCheckEmail] = useState('')
+  const [checkResult, setCheckResult] = useState<CheckResult | null>(null)
+  const [checkLoading, setCheckLoading] = useState(false)
 
   useEffect(() => {
     fetch('/api/admin/users')
@@ -226,6 +235,37 @@ export default function AdminUsersPage() {
       setErrorMsg(data.error ?? `Erreur lors de la suppression de ${user.email}`)
     }
     setActionLoading(null)
+  }
+
+  async function checkUser() {
+    if (!checkEmail.trim()) return
+    setCheckLoading(true)
+    setCheckResult(null)
+    const res = await fetch(`/api/admin/users/sync?email=${encodeURIComponent(checkEmail.trim())}`)
+    const data = await res.json()
+    setCheckResult(data)
+    setCheckLoading(false)
+  }
+
+  async function forceDelete(email: string) {
+    if (!window.confirm(`Supprimer définitivement "${email}" de Prisma ET Supabase Auth ?`)) return
+    setCheckLoading(true)
+    const res = await fetch('/api/admin/users/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      setSyncMsg(`Prisma: ${data.results.prisma} · Supabase: ${data.results.supabase}`)
+      setCheckResult(null)
+      setCheckEmail('')
+      // Recharger la liste
+      fetch('/api/admin/users').then((r) => r.json()).then(setUsers)
+    } else {
+      setErrorMsg(data.error ?? 'Erreur lors de la suppression forcée')
+    }
+    setCheckLoading(false)
   }
 
   async function purgeOrphans() {
@@ -337,6 +377,67 @@ export default function AdminUsersPage() {
           <button onClick={() => setSyncMsg(null)} className="ml-3 opacity-60 hover:opacity-100">✕</button>
         </div>
       )}
+
+      {/* Vérificateur Prisma / Supabase */}
+      <div className="mb-5 p-4 rounded-[14px]" style={{ background: '#F8F8F6', border: '1px solid #E8E8E3' }}>
+        <p className="text-xs font-medium mb-2" style={{ color: '#6B6B65' }}>Vérifier l'état d'un compte (Prisma + Supabase Auth)</p>
+        <div className="flex gap-2">
+          <input
+            type="email"
+            value={checkEmail}
+            onChange={(e) => setCheckEmail(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void checkUser() }}
+            placeholder="email@exemple.fr"
+            className="flex-1 text-sm px-3 py-1.5 rounded-lg focus:outline-none"
+            style={{ background: '#fff', border: '1px solid #D4D4CC', color: '#1A1A18' }}
+          />
+          <button
+            onClick={() => void checkUser()}
+            disabled={checkLoading || !checkEmail.trim()}
+            className="text-sm px-4 py-1.5 rounded-lg disabled:opacity-50"
+            style={{ background: '#1A1A18', color: '#fff' }}
+          >
+            {checkLoading ? '...' : 'Vérifier'}
+          </button>
+        </div>
+
+        {checkResult && (
+          <div className="mt-3 flex flex-col gap-1.5">
+            <div className="flex items-center gap-2 text-xs">
+              <span style={{ color: '#6B6B65', width: 80 }}>Prisma</span>
+              {checkResult.prisma.exists
+                ? <span className="px-2 py-0.5 rounded font-medium" style={{ background: '#EAF3ED', color: '#1A5C3A' }}>
+                    ✓ Existe — rôle : {checkResult.prisma.role}
+                  </span>
+                : <span className="px-2 py-0.5 rounded font-medium" style={{ background: '#F3F4F6', color: '#9B9B94' }}>
+                    ✗ Absent
+                  </span>
+              }
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span style={{ color: '#6B6B65', width: 80 }}>Supabase</span>
+              {checkResult.supabase.exists
+                ? <span className="px-2 py-0.5 rounded font-medium" style={{ background: '#EAF3ED', color: '#1A5C3A' }}>
+                    ✓ Existe — id : {checkResult.supabase.id}
+                  </span>
+                : <span className="px-2 py-0.5 rounded font-medium" style={{ background: '#F3F4F6', color: '#9B9B94' }}>
+                    ✗ Absent
+                  </span>
+              }
+            </div>
+            {(checkResult.prisma.exists || checkResult.supabase.exists) && (
+              <button
+                onClick={() => void forceDelete(checkResult.email)}
+                disabled={checkLoading}
+                className="mt-1 self-start text-xs px-3 py-1.5 rounded-lg disabled:opacity-50"
+                style={{ background: '#FEE8E8', color: '#9B1C1C', border: '1px solid #FCA5A5' }}
+              >
+                Supprimer définitivement des deux systèmes
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Filtres par rôle */}
       <div className="flex flex-wrap gap-2 mb-5">

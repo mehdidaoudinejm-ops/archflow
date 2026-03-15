@@ -73,18 +73,10 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     const { error: supabaseError } = await supabaseAdmin.auth.admin.deleteUser(supabaseAuthId)
     if (supabaseError) {
       console.error('[DELETE user] Supabase Auth error:', supabaseError.message)
-      // Fallback : bannir le compte Supabase pour empêcher toute reconnexion
-      const { error: banError } = await supabaseAdmin.auth.admin.updateUserById(supabaseAuthId, {
-        ban_duration: '876000h', // ~100 ans
+      return NextResponse.json({
+        ok: true,
+        warning: `Prisma supprimé ✓, mais Supabase Auth a retourné une erreur : "${supabaseError.message}". Utilisez "Vérifier" pour confirmer l'état du compte.`,
       })
-      if (banError) {
-        console.error('[DELETE user] Supabase ban fallback error:', banError.message)
-        // Prisma supprimé mais Supabase toujours actif — signaler au client
-        return NextResponse.json({
-          ok: true,
-          warning: `Prisma supprimé, mais le compte Supabase Auth (${supabaseAuthId}) n'a pas pu être supprimé ni banni. L'utilisateur peut se reconnecter et recréer son profil.`,
-        })
-      }
     }
 
     return NextResponse.json({ ok: true })
