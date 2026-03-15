@@ -70,6 +70,43 @@ export async function GET(
       select: { id: true, action: true, module: true, createdAt: true, metadata: true },
     })
 
+    // Vérification dirigeant via data.gouv.fr
+    let dirigeant: { nom: string; prenoms: string } | null = null
+    let dirigeantNameMatch: boolean | null = null
+    const siret = (companyUser?.agency as { siret?: string | null } | null)?.siret ?? null
+
+    if (siret && siret.length >= 9) {
+      try {
+        const siren = siret.slice(0, 9)
+        const govRes = await fetch(
+          `https://recherche-entreprises.api.gouv.fr/search?q=${siren}&per_page=1`,
+          { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) }
+        )
+        if (govRes.ok) {
+          const govData = await govRes.json() as {
+            results?: Array<{ dirigeants?: Array<{ nom?: string; prenoms?: string }> }>
+          }
+          const firstDirigeant = govData.results?.[0]?.dirigeants?.[0]
+          if (firstDirigeant?.nom) {
+            dirigeant = { nom: firstDirigeant.nom, prenoms: firstDirigeant.prenoms ?? '' }
+            // Comparer avec prénom/nom enregistré (insensible à la casse, sans accents)
+            const normalize = (s: string) =>
+              s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+            const registeredFirst = normalize(companyUser?.firstName ?? '')
+            const registeredLast = normalize(companyUser?.lastName ?? '')
+            const govFirst = normalize(dirigeant.prenoms)
+            const govLast = normalize(dirigeant.nom)
+            // Match si au moins le nom de famille correspond
+            dirigeantNameMatch = govLast.length > 0 && registeredLast.length > 0
+              ? govLast === registeredLast || govFirst.includes(registeredFirst) || registeredFirst.includes(govFirst)
+              : null
+          }
+        }
+      } catch {
+        // API indisponible — on ignore
+      }
+    }
+
     return NextResponse.json({
       id: aoCompany.id,
       status: aoCompany.status,
@@ -95,6 +132,8 @@ export async function GET(
         lastName: companyUser?.lastName ?? null,
         agency: companyUser?.agency ?? null,
       },
+      dirigeant,
+      dirigeantNameMatch,
       activityLogs: activityLogs.map((l) => ({
         id: l.id,
         action: l.action,

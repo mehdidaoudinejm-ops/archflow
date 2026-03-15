@@ -35,6 +35,7 @@ export interface ScoringCompanyInput {
   submittedAt: string | null       // Date soumission
   invitedAt: string                // Date invitation (AOCompany.createdAt)
   hasAskedQuestion: boolean        // A posé au moins une question Q&A
+  directorNameMatch: boolean | null // null = pas de SIRET pour vérifier
 }
 
 export type AlertFlag =
@@ -44,6 +45,7 @@ export type AlertFlag =
   | 'ENTREPRISE_INACTIVE'
   | 'ENTREPRISE_RECENTE'
   | 'METRES_FORTEMENT_MODIFIES'
+  | 'DIRIGEANT_NOM_DIFFERENT'
 
 export type Recommendation = 'RECOMMANDEE' | 'A_ETUDIER' | 'RISQUEE'
 
@@ -163,6 +165,12 @@ function scoreReliability(input: ScoringCompanyInput): { score: number; flags: A
     reliabilityScore = 100
   } else {
     reliabilityScore = 40
+  }
+
+  // Pénalité si nom dirigeant data.gouv ≠ signataire enregistré
+  if (input.directorNameMatch === false) {
+    reliabilityScore = Math.max(0, reliabilityScore - 20)
+    flags.push('DIRIGEANT_NOM_DIFFERENT')
   }
 
   // Bonus ancienneté

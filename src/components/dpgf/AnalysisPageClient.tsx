@@ -55,6 +55,7 @@ interface CompanyData {
   totalPosts: number
   pricedPosts: number
   hasAskedQuestion: boolean
+  directorNameMatch: boolean | null
 }
 
 interface AnalysisData {
@@ -723,6 +724,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
           submittedAt: c.submittedAt,
           invitedAt: c.invitedAt,
           hasAskedQuestion: c.hasAskedQuestion,
+          directorNameMatch: c.directorNameMatch,
         },
         weights
       )

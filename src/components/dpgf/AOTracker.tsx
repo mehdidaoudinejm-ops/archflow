@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -110,6 +110,8 @@ interface CompanyDetail {
       signatoryQuality: string | null
     } | null
   }
+  dirigeant: { nom: string; prenoms: string } | null
+  dirigeantNameMatch: boolean | null
   activityLogs: Array<{ id: string; action: string; module: string; createdAt: string }>
 }
 
@@ -209,26 +211,18 @@ function CompanySheet({
   const [loading, setLoading] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
-  async function loadDetail() {
-    if (loaded) return
+  useEffect(() => {
+    if (!open || loaded) return
     setLoading(true)
-    try {
-      const res = await fetch(`/api/ao/${aoId}/companies/${companyId}`)
-      if (res.ok) {
-        const data = await res.json() as CompanyDetail
-        setDetail(data)
-      }
-    } catch {
-      // silently ignore
-    } finally {
-      setLoading(false)
-      setLoaded(true)
-    }
-  }
+    fetch(`/api/ao/${aoId}/companies/${companyId}`)
+      .then((res) => res.ok ? res.json() as Promise<CompanyDetail> : Promise.reject())
+      .then((data) => setDetail(data))
+      .catch(() => {})
+      .finally(() => { setLoading(false); setLoaded(true) })
+  }, [open, aoId, companyId, loaded])
 
   function handleOpenChange(v: boolean) {
-    if (v) loadDetail()
-    else onClose()
+    if (!v) onClose()
   }
 
   const agency = detail?.companyUser?.agency
@@ -316,6 +310,31 @@ function CompanySheet({
                       </span>
                     )}
                   </div>
+                  {/* Dirigeant data.gouv */}
+                  {detail.dirigeant && (
+                    <div className="flex items-start justify-between pt-1">
+                      <span className="text-sm" style={{ color: 'var(--text2)' }}>Dirigeant (data.gouv)</span>
+                      <div className="text-right">
+                        <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                          {detail.dirigeant.prenoms} {detail.dirigeant.nom}
+                        </span>
+                        {detail.dirigeantNameMatch === false && (
+                          <div className="flex items-center gap-1 justify-end mt-0.5">
+                            <ShieldAlert size={12} style={{ color: 'var(--amber)' }} />
+                            <span className="text-xs" style={{ color: 'var(--amber)' }}>
+                              Différent du signataire enregistré
+                            </span>
+                          </div>
+                        )}
+                        {detail.dirigeantNameMatch === true && (
+                          <div className="flex items-center gap-1 justify-end mt-0.5">
+                            <ShieldCheck size={12} style={{ color: 'var(--green)' }} />
+                            <span className="text-xs" style={{ color: 'var(--green)' }}>Correspond au signataire</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   <a
                     href={`https://annuaire-entreprises.data.gouv.fr/etablissement/${agency.siret}`}
                     target="_blank"

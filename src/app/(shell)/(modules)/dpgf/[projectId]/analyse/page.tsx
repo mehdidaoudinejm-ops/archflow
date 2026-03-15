@@ -86,7 +86,7 @@ export default async function AnalysePage({ params }: Props) {
         id: true,
         firstName: true,
         lastName: true,
-        agency: { select: { name: true, siretVerified: true, createdAt: true } },
+        agency: { select: { name: true, siret: true, siretVerified: true, createdAt: true } },
       },
     }),
     prisma.adminDoc.findMany({
@@ -106,6 +106,37 @@ export default async function AnalysePage({ params }: Props) {
   ])
 
   const userMap = new Map(companyUsers.map((u) => [u.id, u]))
+
+  // Fetch director names from data.gouv.fr in parallel for reliability scoring
+  const normalize = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+
+  const directorMatchMap = new Map<string, boolean | null>()
+  await Promise.allSettled(
+    companyUsers.map(async (u) => {
+      const siret = (u.agency as { siret?: string | null } | null)?.siret ?? null
+      if (!siret || siret.length < 9) return
+      const siren = siret.slice(0, 9)
+      try {
+        const res = await fetch(
+          `https://recherche-entreprises.api.gouv.fr/search?q=${siren}&per_page=1`,
+          { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) }
+        )
+        if (!res.ok) return
+        const govData = await res.json() as {
+          results?: Array<{ dirigeants?: Array<{ nom?: string; prenoms?: string }> }>
+        }
+        const firstDirigeant = govData.results?.[0]?.dirigeants?.[0]
+        if (!firstDirigeant?.nom) return
+        const govLast = normalize(firstDirigeant.nom)
+        const registeredLast = normalize(u.lastName ?? '')
+        const match = govLast.length > 0 && registeredLast.length > 0
+          ? govLast === registeredLast
+          : null
+        directorMatchMap.set(u.id, match)
+      } catch { /* API unavailable — ignore */ }
+    })
+  )
 
   type AdminDocItem = { id: string; type: string; status: string; fileUrl: string; rejectionReason: string | null; expiresAt: string | null }
   const adminDocsMap = new Map<string, AdminDocItem[]>()
@@ -227,6 +258,7 @@ export default async function AnalysePage({ params }: Props) {
       totalPosts,
       pricedPosts,
       hasAskedQuestion: (qaCountMap.get(company.id) ?? 0) > 0,
+      directorNameMatch: directorMatchMap.get(company.companyUserId) ?? null,
     }
   })
 
