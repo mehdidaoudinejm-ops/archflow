@@ -23,6 +23,36 @@ interface EditableCandidate {
   unite: string
 }
 
+// Lots DPGF conventionnels (référentiel français)
+export const STANDARD_LOTS = [
+  'Démolition / Dépose',
+  'Gros œuvre / Maçonnerie',
+  'Charpente bois',
+  'Charpente métallique',
+  'Couverture / Zinguerie',
+  'Étanchéité',
+  'Façades / Ravalement',
+  'Isolation thermique par l\'extérieur (ITE)',
+  'Menuiseries extérieures / Vitrerie',
+  'Menuiseries intérieures / Agencement',
+  'Cloisons / Plâtrerie / Faux-plafonds',
+  'Isolation thermique / Acoustique',
+  'Carrelage / Faïence',
+  'Revêtements de sols souples',
+  'Parquet',
+  'Peinture / Finitions',
+  'Serrurerie / Métallerie',
+  'Plomberie / Sanitaires',
+  'Chauffage / Ventilation / Climatisation (CVC)',
+  'Électricité courants forts',
+  'Courants faibles / Domotique',
+  'VRD / Terrassement',
+  'Espaces verts / Paysagisme',
+  'Cuisines / Mobilier',
+  'Ascenseur / Élévateur',
+  'Divers / Nettoyage',
+]
+
 // Unités de mesure valides
 const VALID_UNITS = new Set([
   'm', 'm2', 'm²', 'm3', 'm³', 'ml', 'ml.', 'ml ', 'ml²',
@@ -381,15 +411,17 @@ export default function AdminBibliothequePage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
-        <select
+        <input
+          list="filter-lots-datalist"
           value={filterLot}
           onChange={(e) => { setFilterLot(e.target.value); setPage(1) }}
+          placeholder="Filtrer par lot…"
           className="text-sm rounded-lg px-3 py-2 outline-none"
-          style={{ border: '1px solid #E8E8E3', background: '#fff', color: '#1A1A18' }}
-        >
-          <option value="">Tous les lots</option>
-          {lots.map((l) => <option key={l} value={l}>{l}</option>)}
-        </select>
+          style={{ border: '1px solid #E8E8E3', background: '#fff', color: '#1A1A18', width: 220 }}
+        />
+        <datalist id="filter-lots-datalist">
+          {lots.map((l) => <option key={l} value={l} />)}
+        </datalist>
         <select
           value={filterValidated}
           onChange={(e) => { setFilterValidated(e.target.value as '' | 'true' | 'false'); setPage(1) }}
@@ -646,6 +678,14 @@ export default function AdminBibliothequePage() {
                         </button>
                       </div>
 
+                      {/* Datalist lots (standard + détectés dans le fichier) */}
+                      <datalist id="lots-datalist">
+                        {STANDARD_LOTS.map((l) => <option key={l} value={l} />)}
+                        {previewLots.filter((l) => !STANDARD_LOTS.includes(l)).map((l) => (
+                          <option key={l} value={l} />
+                        ))}
+                      </datalist>
+
                       {/* Table éditable */}
                       <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E8E8E3', maxHeight: 380, overflowY: 'auto' }}>
                         <table className="w-full text-xs">
@@ -662,16 +702,15 @@ export default function AdminBibliothequePage() {
                               const unitInvalid = !isUnitValid(c.unite)
                               return (
                                 <tr key={c.key} style={{ borderBottom: '1px solid #F3F3F0', background: unitInvalid ? '#FFFBEB' : undefined }}>
-                                  {/* Lot — select */}
+                                  {/* Lot — datalist (liste standard + lots fichier + saisie libre) */}
                                   <td className="px-2 py-1">
-                                    <select
+                                    <input
+                                      list="lots-datalist"
                                       value={c.lot}
                                       onChange={(e) => updateCandidate(c.key, { lot: e.target.value })}
                                       className="w-full text-xs rounded px-1.5 py-0.5 outline-none"
-                                      style={{ border: '1px solid #E8E8E3', background: '#EAF3ED', color: '#1A5C3A', maxWidth: 150 }}
-                                    >
-                                      {previewLots.map((l) => <option key={l} value={l}>{l}</option>)}
-                                    </select>
+                                      style={{ border: '1px solid #C6DFD0', background: '#EAF3ED', color: '#1A5C3A', maxWidth: 150 }}
+                                    />
                                   </td>
                                   {/* Intitulé */}
                                   <td className="px-3 py-1 font-medium" style={{ color: '#1A1A18' }}>
