@@ -3,13 +3,9 @@ import { z } from 'zod'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-export const dynamic = 'force-dynamic'
+import { PROJECT_LIMITS } from '@/lib/project-limits'
 
-export const PROJECT_LIMITS: Record<string, number> = {
-  SOLO: 3,
-  STUDIO: 10,
-  AGENCY: Infinity,
-}
+export const dynamic = 'force-dynamic'
 
 const createProjectSchema = z.object({
   name: z.string().min(1, 'Le nom est requis').max(100),

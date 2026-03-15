@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getUserWithProfile } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { DashboardClient } from '@/components/shell/DashboardClient'
-import { PROJECT_LIMITS } from '@/app/api/projects/route'
+import { PROJECT_LIMITS } from '@/lib/project-limits'
 
 export const dynamic = 'force-dynamic'
 
