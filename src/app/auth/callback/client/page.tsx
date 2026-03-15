@@ -35,8 +35,14 @@ export default function AuthCallbackClientPage() {
         // Chercher le premier projet client de l'utilisateur
         const res = await fetch('/api/client/my-project')
         if (res.ok) {
-          const { projectId } = await res.json()
-          window.location.href = projectId ? `/client/${projectId}` : '/client/no-project'
+          const { projectId, needsSetup } = await res.json()
+          if (needsSetup) {
+            window.location.href = projectId
+              ? `/client/setup?next=/client/${projectId}`
+              : '/client/setup'
+          } else {
+            window.location.href = projectId ? `/client/${projectId}` : '/client/no-project'
+          }
         } else {
           setStatus('error')
         }

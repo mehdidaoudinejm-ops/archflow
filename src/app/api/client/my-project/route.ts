@@ -18,5 +18,7 @@ export async function GET() {
     select: { id: true },
   })
 
-  return NextResponse.json({ projectId: project?.id ?? null })
+  const needsSetup = !user.firstName
+
+  return NextResponse.json({ projectId: project?.id ?? null, needsSetup })
 }

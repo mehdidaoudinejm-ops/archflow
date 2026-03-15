@@ -13,6 +13,9 @@ export default async function ClientPage({ params }: Props) {
   const user = await prisma.user.findUnique({ where: { email: session.user.email! } })
   if (!user || user.role !== 'CLIENT') redirect('/login')
 
+  // Première connexion : profil incomplet → setup
+  if (!user.firstName) redirect(`/client/setup?next=/client/${params.projectId}`)
+
   const project = await prisma.project.findUnique({
     where: { id: params.projectId },
     select: { id: true, name: true, clientUserId: true },
