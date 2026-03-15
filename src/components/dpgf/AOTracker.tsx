@@ -24,6 +24,9 @@ import {
   Settings,
   Bell,
   ExternalLink,
+  Trophy,
+  Ban,
+  X,
 } from 'lucide-react'
 
 interface Company {
@@ -143,6 +146,9 @@ function aoStatusBadge(status: string) {
     SENT: { label: 'Envoyé', bg: 'var(--amber-light)', color: 'var(--amber)' },
     IN_PROGRESS: { label: 'En cours', bg: 'var(--amber-light)', color: 'var(--amber)' },
     CLOSED: { label: 'Clôturé', bg: 'var(--red-light)', color: 'var(--red)' },
+    ANALYSED: { label: 'En analyse', bg: '#EEF2FF', color: '#4338CA' },
+    AWARDED: { label: 'Attribué', bg: 'var(--green-light)', color: 'var(--green)' },
+    INFRUCTUEUX: { label: 'Infructueux', bg: 'var(--surface2)', color: 'var(--text2)' },
     ARCHIVED: { label: 'Archivé', bg: 'var(--surface2)', color: 'var(--text3)' },
   }
   const s = map[status] ?? map['DRAFT']
@@ -614,13 +620,16 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
   const [error, setError] = useState<string | null>(null)
   const [aoStatus, setAoStatus] = useState(ao.status)
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
+  const [closeModalOpen, setCloseModalOpen] = useState(false)
+  const [closeOutcome, setCloseOutcome] = useState<'LAUREAT' | 'INFRUCTUEUX' | null>(null)
+  const [selectedLaureatId, setSelectedLaureatId] = useState<string | null>(null)
   const [editOpen, setEditOpen] = useState(false)
   const [aoData, setAoData] = useState(ao)
   const [notifying, setNotifying] = useState(false)
   const [notifySuccess, setNotifySuccess] = useState(false)
 
   const deadline = new Date(aoData.deadline)
-  const isClosed = aoStatus === 'CLOSED' || aoStatus === 'ARCHIVED'
+  const isClosed = ['CLOSED', 'ANALYSED', 'AWARDED', 'INFRUCTUEUX', 'ARCHIVED'].includes(aoStatus)
 
   async function handleNotify() {
     setNotifying(true)
@@ -672,18 +681,22 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
     }
   }
 
-  async function handleClose() {
+  async function handleClose(outcome: 'LAUREAT' | 'INFRUCTUEUX', awardedCompanyId?: string) {
     setClosing(true)
     setError(null)
-
     try {
-      const res = await fetch(`/api/ao/${ao.id}/close`, { method: 'POST' })
+      const res = await fetch(`/api/ao/${ao.id}/close`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outcome, awardedCompanyId }),
+      })
       if (!res.ok) {
         const data = await res.json() as { error?: string }
         setError(data.error ?? 'Erreur')
         return
       }
-      setAoStatus('CLOSED')
+      setAoStatus(outcome === 'LAUREAT' ? 'AWARDED' : 'INFRUCTUEUX')
+      setCloseModalOpen(false)
     } catch {
       setError('Erreur réseau')
     } finally {
@@ -771,14 +784,13 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
             )}
             {!isClosed && (
               <Button
-                onClick={handleClose}
-                disabled={closing}
+                onClick={() => setCloseModalOpen(true)}
                 variant="outline"
                 className="text-sm"
                 style={{ borderColor: 'var(--red)', color: 'var(--red)' }}
               >
                 <XCircle size={15} className="mr-1.5" />
-                {closing ? 'Clôture...' : "Clôturer l'AO"}
+                Clôturer l&apos;AO
               </Button>
             )}
           </div>
@@ -991,6 +1003,140 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
         onClose={() => setEditOpen(false)}
         onSaved={(updates) => setAoData((prev) => ({ ...prev, ...updates }))}
       />
+
+      {/* Modal de clôture */}
+      {closeModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.4)' }}
+          onClick={() => !closing && setCloseModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-[var(--radius-lg)] p-6"
+            style={{ background: '#fff', boxShadow: 'var(--shadow-md)', margin: '0 16px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-base font-semibold" style={{ color: 'var(--text)' }}>
+                  Clôturer l&apos;appel d&apos;offre
+                </h2>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text2)' }}>
+                  Choisissez le résultat de la consultation
+                </p>
+              </div>
+              <button onClick={() => !closing && setCloseModalOpen(false)} style={{ color: 'var(--text3)' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Options */}
+            <div className="space-y-3 mb-5">
+              {/* Option : Déclarer un lauréat */}
+              <button
+                className="w-full text-left p-4 rounded-[var(--radius)] border-2 transition-all"
+                style={{
+                  borderColor: closeOutcome === 'LAUREAT' ? 'var(--green)' : 'var(--border)',
+                  background: closeOutcome === 'LAUREAT' ? 'var(--green-light)' : 'var(--surface)',
+                }}
+                onClick={() => { setCloseOutcome('LAUREAT'); setSelectedLaureatId(null) }}
+              >
+                <div className="flex items-center gap-3 mb-1">
+                  <Trophy size={18} style={{ color: closeOutcome === 'LAUREAT' ? 'var(--green)' : 'var(--text3)' }} />
+                  <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>
+                    Déclarer un lauréat
+                  </span>
+                </div>
+                <p className="text-xs ml-9" style={{ color: 'var(--text2)' }}>
+                  Désignez l&apos;entreprise retenue pour ce marché.
+                </p>
+                {closeOutcome === 'LAUREAT' && (
+                  <div className="mt-3 ml-9" onClick={(e) => e.stopPropagation()}>
+                    <select
+                      value={selectedLaureatId ?? ''}
+                      onChange={(e) => setSelectedLaureatId(e.target.value || null)}
+                      className="w-full text-sm rounded-[var(--radius)] px-3 py-2"
+                      style={{ border: '1px solid var(--border)', background: '#fff', color: 'var(--text)' }}
+                    >
+                      <option value="">— Sélectionner une entreprise —</option>
+                      {companies
+                        .filter((c) => c.status === 'SUBMITTED')
+                        .map((c) => {
+                          const name =
+                            c.companyUser?.agency?.name ??
+                            ([c.companyUser?.firstName, c.companyUser?.lastName].filter(Boolean).join(' ') || c.companyUser?.email) ??
+                            'Entreprise'
+                          return <option key={c.id} value={c.id}>{name}</option>
+                        })}
+                    </select>
+                    {companies.filter((c) => c.status === 'SUBMITTED').length === 0 && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--text3)' }}>
+                        Aucune offre soumise — vous pouvez tout de même clôturer.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </button>
+
+              {/* Option : AO infructueux */}
+              <button
+                className="w-full text-left p-4 rounded-[var(--radius)] border-2 transition-all"
+                style={{
+                  borderColor: closeOutcome === 'INFRUCTUEUX' ? 'var(--text2)' : 'var(--border)',
+                  background: closeOutcome === 'INFRUCTUEUX' ? 'var(--surface2)' : 'var(--surface)',
+                }}
+                onClick={() => { setCloseOutcome('INFRUCTUEUX'); setSelectedLaureatId(null) }}
+              >
+                <div className="flex items-center gap-3 mb-1">
+                  <Ban size={18} style={{ color: closeOutcome === 'INFRUCTUEUX' ? 'var(--text2)' : 'var(--text3)' }} />
+                  <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>
+                    Déclarer l&apos;AO infructueux
+                  </span>
+                </div>
+                <p className="text-xs ml-9" style={{ color: 'var(--text2)' }}>
+                  Aucune offre n&apos;est retenue. Le marché n&apos;aboutit pas.
+                </p>
+              </button>
+            </div>
+
+            {error && (
+              <p className="text-sm mb-4 px-3 py-2 rounded" style={{ background: 'var(--red-light)', color: 'var(--red)' }}>
+                {error}
+              </p>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => !closing && setCloseModalOpen(false)}
+                className="px-4 py-2 text-sm rounded-lg"
+                style={{ background: 'var(--surface2)', color: 'var(--text2)' }}
+                disabled={closing}
+              >
+                Annuler
+              </button>
+              <button
+                disabled={!closeOutcome || closing || (closeOutcome === 'LAUREAT' && !selectedLaureatId && companies.filter((c) => c.status === 'SUBMITTED').length > 0)}
+                onClick={() => {
+                  if (!closeOutcome) return
+                  void handleClose(
+                    closeOutcome,
+                    closeOutcome === 'LAUREAT' ? (selectedLaureatId ?? undefined) : undefined
+                  )
+                }}
+                className="px-4 py-2 text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+                style={{
+                  background: closeOutcome === 'INFRUCTUEUX' ? 'var(--text2)' : 'var(--red)',
+                  color: '#fff',
+                }}
+              >
+                {closing ? 'Clôture...' : 'Confirmer la clôture'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

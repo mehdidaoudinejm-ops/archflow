@@ -105,6 +105,7 @@ model ProjectPermission {
   project     Project @relation(fields: [projectId], references: [id])
   user        User    @relation(fields: [userId], references: [id])
 
+  @@unique([projectId, userId, module])
   @@index([projectId])
   @@index([userId])
 }
@@ -480,6 +481,7 @@ enum AOStatus {
   CLOSED
   ANALYSED
   AWARDED
+  INFRUCTUEUX
   ARCHIVED
 }
 

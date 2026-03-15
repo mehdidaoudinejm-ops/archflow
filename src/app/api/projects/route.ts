@@ -5,6 +5,12 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
+export const PROJECT_LIMITS: Record<string, number> = {
+  SOLO: 3,
+  STUDIO: 10,
+  AGENCY: Infinity,
+}
+
 const createProjectSchema = z.object({
   name: z.string().min(1, 'Le nom est requis').max(100),
   address: z.string().max(200).optional(),
@@ -13,7 +19,6 @@ const createProjectSchema = z.object({
   budget: z.number().positive().optional(),
   startDate: z.string().optional(),
   description: z.string().max(2000).optional(),
-  // Client inline — crée un Contact de type CLIENT si renseigné
   clientFirstName: z.string().max(100).optional(),
   clientLastName: z.string().max(100).optional(),
   clientEmail: z.string().email().optional().or(z.literal('')),
@@ -29,10 +34,7 @@ export async function GET() {
     }
 
     const projects = await prisma.project.findMany({
-      where: {
-        agencyId: user.agencyId,
-        status: 'ACTIVE',
-      },
+      where: { agencyId: user.agencyId, status: 'ACTIVE' },
       orderBy: { createdAt: 'desc' },
     })
 
@@ -54,6 +56,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Agence introuvable' }, { status: 400 })
     }
 
+    // Vérifier limite de projets selon plan
+    const agency = await prisma.agency.findUnique({
+      where: { id: user.agencyId },
+      select: { plan: true },
+    })
+    const plan = agency?.plan ?? 'SOLO'
+    const limit = PROJECT_LIMITS[plan] ?? 3
+
+    const activeCount = await prisma.project.count({
+      where: { agencyId: user.agencyId, status: 'ACTIVE' },
+    })
+
+    if (activeCount >= limit) {
+      return NextResponse.json(
+        { error: `Limite de projets atteinte pour votre plan ${plan} (${limit} max). Archivez un projet ou passez à un plan supérieur.` },
+        { status: 403 }
+      )
+    }
+
     const body: unknown = await req.json()
     const parsed = createProjectSchema.safeParse(body)
 
@@ -67,7 +88,6 @@ export async function POST(req: Request) {
     const { name, address, projectType, surface, budget, startDate, description,
       clientFirstName, clientLastName, clientEmail, clientPhone } = parsed.data
 
-    // Créer le contact client si un prénom est fourni
     let clientContactId: string | null = null
     if (clientFirstName?.trim()) {
       const contact = await prisma.contact.create({

@@ -5,13 +5,17 @@ import { prisma } from '@/lib/prisma'
 export const dynamic = 'force-dynamic'
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: { aoId: string } }
 ) {
   try {
     const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
 
-    // Vérifier que l'AO appartient à l'agence
+    const body = await req.json().catch(() => ({})) as {
+      outcome?: 'LAUREAT' | 'INFRUCTUEUX'
+      awardedCompanyId?: string
+    }
+
     const ao = await prisma.aO.findUnique({
       where: { id: params.aoId },
       include: { dpgf: { include: { project: { select: { agencyId: true } } } } },
@@ -21,16 +25,30 @@ export async function POST(
       return NextResponse.json({ error: 'AO introuvable' }, { status: 404 })
     }
 
-    if (ao.status === 'CLOSED' || ao.status === 'ARCHIVED') {
+    const terminalStatuses = ['CLOSED', 'ANALYSED', 'AWARDED', 'INFRUCTUEUX', 'ARCHIVED']
+    if (terminalStatuses.includes(ao.status)) {
       return NextResponse.json({ error: 'Cet AO est déjà clôturé' }, { status: 400 })
+    }
+
+    let newStatus: 'CLOSED' | 'AWARDED' | 'INFRUCTUEUX' = 'CLOSED'
+    let publishedElementsUpdate: Record<string, unknown> | undefined
+
+    if (body.outcome === 'LAUREAT' && body.awardedCompanyId) {
+      newStatus = 'AWARDED'
+      const existing = (ao.publishedElements ?? {}) as Record<string, unknown>
+      publishedElementsUpdate = { ...existing, awardedCompanyId: body.awardedCompanyId }
+    } else if (body.outcome === 'INFRUCTUEUX') {
+      newStatus = 'INFRUCTUEUX'
     }
 
     const closed = await prisma.aO.update({
       where: { id: params.aoId },
-      data: { status: 'CLOSED' },
+      data: {
+        status: newStatus,
+        ...(publishedElementsUpdate ? { publishedElements: publishedElementsUpdate as object } : {}),
+      },
     })
 
-    // Mettre à jour le statut de la DPGF
     await prisma.dPGF.update({
       where: { id: ao.dpgfId },
       data: { status: 'CLOSED' },

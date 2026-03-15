@@ -46,7 +46,7 @@ const patchSchema = z.object({
   budget: z.number().positive().optional().nullable(),
   startDate: z.string().optional().nullable(),
   description: z.string().max(2000).optional().nullable(),
-  // Client contact fields
+  status: z.enum(['ACTIVE', 'ARCHIVED']).optional(),
   clientFirstName: z.string().max(100).optional().nullable(),
   clientLastName: z.string().max(100).optional().nullable(),
   clientEmail: z.string().email().optional().or(z.literal('')).nullable(),
@@ -75,15 +75,13 @@ export async function PATCH(
       return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten() }, { status: 422 })
     }
 
-    const { name, address, projectType, surface, budget, startDate, description,
+    const { name, address, projectType, surface, budget, startDate, description, status,
       clientFirstName, clientLastName, clientEmail, clientPhone } = parsed.data
 
-    // Upsert contact client
     let clientContactId = project.clientContactId
     if (clientFirstName !== undefined) {
       if (clientFirstName && clientFirstName.trim()) {
         if (clientContactId) {
-          // Mettre à jour le contact existant
           await prisma.contact.update({
             where: { id: clientContactId },
             data: {
@@ -94,7 +92,6 @@ export async function PATCH(
             },
           })
         } else {
-          // Créer un nouveau contact
           const contact = await prisma.contact.create({
             data: {
               agencyId: user.agencyId!,
@@ -120,6 +117,7 @@ export async function PATCH(
         ...(budget !== undefined && { budget }),
         ...(startDate !== undefined && { startDate: startDate ? new Date(startDate) : null }),
         ...(description !== undefined && { description }),
+        ...(status !== undefined && { status }),
         clientContactId,
       },
       include: { clientContact: true },
@@ -128,6 +126,51 @@ export async function PATCH(
     return NextResponse.json(updated)
   } catch (error) {
     console.error('[PATCH /api/projects/[projectId]]', error)
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: { projectId: string } }
+) {
+  try {
+    const user = await requireRole(['ARCHITECT'])
+
+    const project = await prisma.project.findUnique({
+      where: { id: params.projectId },
+      include: {
+        dpgfs: {
+          include: {
+            aos: {
+              where: { status: { in: ['SENT', 'IN_PROGRESS'] } },
+              select: { id: true },
+            },
+          },
+        },
+      },
+    })
+
+    if (!project || project.agencyId !== user.agencyId) {
+      return NextResponse.json({ error: 'Projet introuvable' }, { status: 404 })
+    }
+
+    const hasActiveAO = project.dpgfs.some((d) => d.aos.length > 0)
+    if (hasActiveAO) {
+      return NextResponse.json(
+        { error: 'Impossible de supprimer un projet avec un AO en cours. Clôturez l\'AO d\'abord.' },
+        { status: 400 }
+      )
+    }
+
+    await prisma.project.delete({ where: { id: params.projectId } })
+
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    console.error('[DELETE /api/projects/[projectId]]', error)
+    if (error instanceof Error && error.name === 'AuthError') {
+      return NextResponse.json({ error: error.message }, { status: 401 })
+    }
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

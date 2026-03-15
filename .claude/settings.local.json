@@ -34,7 +34,8 @@
       "Bash(wc:*)",
       "Bash(mkdir:*)",
       "Bash(npx vercel:*)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(xargs:*)"
     ]
   }
 }
