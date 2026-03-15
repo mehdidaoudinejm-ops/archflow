@@ -33,7 +33,7 @@ export async function POST(
     const rawUrl = process.env.NEXT_PUBLIC_APP_URL ?? `${proto}://${host}`
     // Normaliser : s'assurer que l'URL commence par http(s)://
     const appUrl = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`
-    const redirectTo = `${appUrl}/client/${params.projectId}`
+    const redirectTo = `${appUrl}/auth/callback?next=/client/${params.projectId}`
     console.log('[invite-client] redirectTo:', redirectTo)
 
     const supabaseAdmin = createClient(
