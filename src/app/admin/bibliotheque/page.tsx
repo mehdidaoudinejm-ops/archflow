@@ -260,27 +260,56 @@ export default function AdminBibliothequePage() {
 
       const dataStart = headerRowIdx >= 0 ? headerRowIdx + 1 : 0
 
+      const UNIT_LIST = ['m²', 'm2', 'm³', 'm3', 'ml', 'u', 'kg', 't', 'h', 'j', 'ens', 'pm', 'forfait', 'nb', 'pce', 'l', 'cm', 'mm', '%', 'for', 'for.', 'ff', 'ml.']
+      const looksLikeUnit = (s: string) => UNIT_LIST.includes(norm(s))
+      // Un "prix" est un nombre > 10 (pas un numéro de ref comme "01", "1.1")
+      const looksLikePrice = (s: string) => {
+        const n = parseFloat(s.replace(',', '.').replace(/\s/g, ''))
+        return !isNaN(n) && n > 10 && /^\d/.test(s)
+      }
+      // Ligne-titre de lot : peu de cellules, sans unité, sans prix réels
+      const isSectionHeader = (row: string[], titleIdx: number): string | null => {
+        const nonEmpty = row.filter((c) => c.length > 0)
+        if (nonEmpty.length > 4) return null
+        if (nonEmpty.some(looksLikeUnit)) return null
+        if (nonEmpty.some(looksLikePrice)) return null
+        // Choisit la cellule la plus longue qui n'est pas un nombre pur
+        const candidate = nonEmpty
+          .filter((c) => c.length > 2 && !/^\d+([.,]\d+)?$/.test(c) && !looksLikeUnit(c))
+          .sort((a, b) => b.length - a.length)[0]
+        return candidate ?? null
+      }
+
       for (let i = dataStart; i < rows.length; i++) {
         const row = rows[i].map((c) => String(c ?? '').trim())
 
+        const intituleVal = row[intituleIdx] ?? ''
+        const uniteVal = uniteIdx >= 0 ? (row[uniteIdx] ?? '') : ''
+
         // ── Détection du lot depuis une colonne dédiée ──
-        if (lotIdx >= 0 && row[lotIdx] && row[lotIdx].length > 1) {
-          currentLot = row[lotIdx]
-          currentSousLot = ''
+        if (lotIdx >= 0) {
+          const lotVal = row[lotIdx] ?? ''
+          // Utilise la valeur de la colonne lot seulement si c'est un vrai nom (pas juste un chiffre/ref)
+          if (lotVal.length > 2 && !/^\d+([.,]?\d+)?$/.test(lotVal)) {
+            currentLot = lotVal
+            currentSousLot = ''
+          } else if (!lotVal || /^\d+([.,]?\d+)?$/.test(lotVal)) {
+            // Colonne lot vide ou numérique → vérifie si la ligne est un en-tête de section
+            const header = isSectionHeader(row, intituleIdx)
+            if (header) {
+              currentLot = header
+              currentSousLot = ''
+              continue
+            }
+          }
         }
 
         if (sousLotIdx >= 0 && row[sousLotIdx] && row[sousLotIdx].length > 1) {
           currentSousLot = row[sousLotIdx]
         }
 
-        const intituleVal = row[intituleIdx] ?? ''
-        const uniteVal = uniteIdx >= 0 ? (row[uniteIdx] ?? '') : ''
-
         // ── Détection du lot depuis une ligne-titre (pas de colonne lot) ──
         if (lotIdx === -1) {
-          const UNIT_LIST = ['m²', 'm2', 'm³', 'm3', 'ml', 'u', 'kg', 't', 'h', 'j', 'ens', 'pm', 'forfait', 'nb', 'pce', 'l', 'cm', 'mm', '%']
-          const looksLikeUnit = (s: string) => UNIT_LIST.includes(norm(s))
-
           // Cas A : colonne intitulé vide → cherche un nom dans les 6 premières colonnes
           if (!intituleVal || intituleVal.length < 2) {
             for (let j = 0; j < Math.min(row.length, 6); j++) {
@@ -295,7 +324,6 @@ export default function AdminBibliothequePage() {
           }
 
           // Cas B : intitulé présent mais toutes les autres colonnes sont vides
-          // → le texte de la colonne intitulé EST le nom du lot
           const allOtherEmpty = row.every((c, j) => j === intituleIdx || c.length === 0)
           if (allOtherEmpty) {
             currentLot = intituleVal
@@ -303,13 +331,11 @@ export default function AdminBibliothequePage() {
             continue
           }
 
-          // Cas C : ligne avec 1-3 cellules non vides, sans unité ni nombre → en-tête de section
-          const nonEmpty = row.filter((c) => c.length > 0)
-          const hasUnit = nonEmpty.some(looksLikeUnit)
-          const hasNumber = nonEmpty.some((c) => /^\d+([.,]\d+)?$/.test(c))
-          if (nonEmpty.length <= 3 && !hasUnit && !hasNumber) {
-            const candidate = nonEmpty.find((c) => c.length > 2 && !looksLikeUnit(c))
-            if (candidate) { currentLot = candidate; currentSousLot = '' }
+          // Cas C : ligne avec ≤4 cellules non vides, sans unité ni prix → en-tête de section
+          const header = isSectionHeader(row, intituleIdx)
+          if (header) {
+            currentLot = header
+            currentSousLot = ''
             continue
           }
         }
