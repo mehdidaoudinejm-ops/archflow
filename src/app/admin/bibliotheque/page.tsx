@@ -24,7 +24,7 @@ interface EditableCandidate {
 }
 
 // Lots DPGF conventionnels (référentiel français)
-export const STANDARD_LOTS = [
+const STANDARD_LOTS = [
   'Démolition / Dépose',
   'Gros œuvre / Maçonnerie',
   'Charpente bois',
