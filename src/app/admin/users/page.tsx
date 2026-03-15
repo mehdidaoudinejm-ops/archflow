@@ -380,7 +380,7 @@ export default function AdminUsersPage() {
 
       {/* Vérificateur Prisma / Supabase */}
       <div className="mb-5 p-4 rounded-[14px]" style={{ background: '#F8F8F6', border: '1px solid #E8E8E3' }}>
-        <p className="text-xs font-medium mb-2" style={{ color: '#6B6B65' }}>Vérifier l'état d'un compte (Prisma + Supabase Auth)</p>
+        <p className="text-xs font-medium mb-2" style={{ color: '#6B6B65' }}>Vérifier l&apos;état d&apos;un compte (Prisma + Supabase Auth)</p>
         <div className="flex gap-2">
           <input
             type="email"
