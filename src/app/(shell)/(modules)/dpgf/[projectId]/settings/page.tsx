@@ -42,6 +42,7 @@ export default async function ProjectSettingsPage({ params }: { params: { projec
               phone: project.clientContact.phone,
             }
           : null,
+        clientUserId: project.clientUserId,
       }}
       contacts={contacts.map((c) => ({
         id: c.id,

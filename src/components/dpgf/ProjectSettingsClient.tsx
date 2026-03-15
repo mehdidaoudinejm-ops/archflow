@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, Mail, Send } from 'lucide-react'
 
 const PROJECT_TYPES = [
   'Logement individuel', 'Logement collectif', 'Bureau',
@@ -28,6 +28,7 @@ interface ProjectData {
   startDate: string | null
   description: string | null
   clientContact: ContactOption | null
+  clientUserId: string | null
 }
 
 function Field({ label, optional, children }: { label: string; optional?: boolean; children: React.ReactNode }) {
@@ -111,6 +112,33 @@ export function ProjectSettingsClient({ project, contacts }: { project: ProjectD
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Invitation client
+  const [clientInvited, setClientInvited] = useState(!!project.clientUserId)
+  const [inviting, setInviting] = useState(false)
+  const [inviteSuccess, setInviteSuccess] = useState(false)
+  const [inviteError, setInviteError] = useState<string | null>(null)
+
+  async function handleInviteClient() {
+    setInviting(true)
+    setInviteError(null)
+    setInviteSuccess(false)
+    try {
+      const res = await fetch(`/api/projects/${projectId}/invite-client`, { method: 'POST' })
+      const data = await res.json() as { error?: string }
+      if (!res.ok) {
+        setInviteError(data.error ?? 'Erreur lors de l\'invitation')
+      } else {
+        setClientInvited(true)
+        setInviteSuccess(true)
+        setTimeout(() => setInviteSuccess(false), 4000)
+      }
+    } catch {
+      setInviteError('Erreur réseau')
+    } finally {
+      setInviting(false)
+    }
+  }
 
   // Annuaire picker
   const [showPicker, setShowPicker] = useState(false)
@@ -293,6 +321,49 @@ export function ProjectSettingsClient({ project, contacts }: { project: ProjectD
               <TextInput value={clientPhone} onChange={setClientPhone} placeholder="06 12 34 56 78" />
             </Field>
           </div>
+        </div>
+
+        {/* Invitation client */}
+        <div style={{ marginTop: 24, padding: '16px 20px', borderRadius: 12, border: '1px solid var(--border)', background: clientInvited ? 'var(--green-light)' : 'var(--surface2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: clientInvited ? 'var(--green)' : 'var(--border2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {clientInvited ? <Check size={15} color="#fff" /> : <Mail size={15} color="var(--text3)" />}
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                  {clientInvited ? 'Espace client activé' : 'Inviter le client'}
+                </p>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--text2)' }}>
+                  {clientInvited
+                    ? `Un lien d'accès a été envoyé à ${clientEmail || project.clientContact?.email}`
+                    : clientEmail
+                      ? `Envoyer un lien d'accès à ${clientEmail}`
+                      : 'Renseignez l\'email client pour activer'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleInviteClient}
+              disabled={inviting || !clientEmail || !!inviteSuccess}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 16px', borderRadius: 8, border: 'none',
+                background: !clientEmail ? 'var(--border)' : clientInvited ? 'rgba(26,92,58,0.15)' : 'var(--green-btn)',
+                color: !clientEmail ? 'var(--text3)' : clientInvited ? 'var(--green)' : '#fff',
+                fontSize: 13, fontWeight: 600,
+                cursor: !clientEmail || inviting || !!inviteSuccess ? 'not-allowed' : 'pointer',
+                opacity: inviting ? 0.6 : 1,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <Send size={13} />
+              {inviting ? 'Envoi...' : inviteSuccess ? 'Envoyé ✓' : clientInvited ? 'Renvoyer' : 'Envoyer l\'invitation'}
+            </button>
+          </div>
+          {inviteError && (
+            <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--red)' }}>{inviteError}</p>
+          )}
         </div>
 
         {/* Error */}
