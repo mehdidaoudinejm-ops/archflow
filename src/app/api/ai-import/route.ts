@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireRole, AuthError } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { analyzeExcel, analyzePDF } from '@/lib/ai-import'
+import { AI_IMPORT_LIMITS } from '@/lib/project-limits'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,14 +21,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'dpgfId manquant' }, { status: 400 })
     }
 
-    // Rate limit : limite par user (aiImportLimit) ou globale (5)
-    const limit = user.aiImportLimit ?? 5
-    const totalImports = await prisma.aIImport.count({
-      where: { createdById: user.id },
+    // Rate limit : limite mensuelle par plan (ou override admin aiImportLimit)
+    const agency = await prisma.agency.findUnique({
+      where: { id: user.agencyId! },
+      select: { plan: true },
     })
-    if (totalImports >= limit) {
+    const planLimit = AI_IMPORT_LIMITS[agency?.plan ?? 'SOLO'] ?? 3
+    const limit = user.aiImportLimit ?? planLimit
+
+    const startOfMonth = new Date()
+    startOfMonth.setDate(1)
+    startOfMonth.setHours(0, 0, 0, 0)
+
+    const monthlyImports = await prisma.aIImport.count({
+      where: { createdById: user.id, createdAt: { gte: startOfMonth } },
+    })
+    if (monthlyImports >= limit) {
       return NextResponse.json(
-        { error: `Limite atteinte. Maximum ${limit} import${limit > 1 ? 's' : ''} IA par compte.` },
+        { error: `Limite atteinte. Maximum ${limit} import${limit > 1 ? 's' : ''} IA par mois sur votre plan.` },
         { status: 429 }
       )
     }

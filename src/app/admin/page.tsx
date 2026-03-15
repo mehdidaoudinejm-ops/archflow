@@ -4,6 +4,7 @@ import {
   Users, Building2, TrendingUp, FolderOpen, FileText,
   Briefcase, UserCheck, Activity, Clock,
 } from 'lucide-react'
+import { COLLABORATOR_LIMITS, AI_IMPORT_LIMITS } from '@/lib/project-limits'
 import { WeeklySignupsChart } from '@/components/shell/WeeklySignupsChart'
 import { SetupStorageButton } from '@/components/shell/SetupStorageButton'
 import { BackfillAnnuaireButton } from '@/components/shell/BackfillAnnuaireButton'
@@ -436,6 +437,46 @@ export default async function AdminDashboardPage() {
           </Card>
 
         </div>
+
+        {/* ── Limites par plan ──────────────────────────────────────────── */}
+        <Card title="Limites par plan">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ borderBottom: '1px solid #E8E8E3' }}>
+                  {['Plan', 'Collaborateurs', 'Imports IA / mois'].map((h) => (
+                    <th key={h} className="text-left px-5 py-3 font-medium" style={{ color: '#6B6B65', fontSize: 12 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(['SOLO', 'STUDIO', 'AGENCY'] as const).map((plan, i) => {
+                  const planBadge = PLAN_BADGE[plan]
+                  const collab = COLLABORATOR_LIMITS[plan]
+                  const ai = AI_IMPORT_LIMITS[plan]
+                  return (
+                    <tr key={plan} style={{ borderBottom: i < 2 ? '1px solid #E8E8E3' : undefined }}>
+                      <td className="px-5 py-3">
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full font-medium"
+                          style={{ background: planBadge.bg, color: planBadge.color }}
+                        >
+                          {planBadge.label}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 tabular-nums" style={{ color: '#1A1A18' }}>
+                        {collab === 0 ? <span style={{ color: '#9B9B94' }}>Aucun</span> : collab}
+                      </td>
+                      <td className="px-5 py-3 tabular-nums" style={{ color: '#1A1A18' }}>
+                        {ai === Infinity ? <span style={{ color: '#1A5C3A' }}>Illimité</span> : ai}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
 
         {/* ── Outils maintenance ────────────────────────────────────────── */}
         <div>
