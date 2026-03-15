@@ -30,7 +30,9 @@ export async function POST(
 
     const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? 'localhost:3000'
     const proto = req.headers.get('x-forwarded-proto') ?? 'https'
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? `${proto}://${host}`
+    const rawUrl = process.env.NEXT_PUBLIC_APP_URL ?? `${proto}://${host}`
+    // Normaliser : s'assurer que l'URL commence par http(s)://
+    const appUrl = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`
     const redirectTo = `${appUrl}/client/${params.projectId}`
     console.log('[invite-client] redirectTo:', redirectTo)
 
