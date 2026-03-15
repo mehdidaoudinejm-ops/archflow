@@ -1,11 +1,11 @@
 export function ClientInvitationEmail({
   projectName,
   agencyName,
-  magicLink,
+  clientLink,
 }: {
   projectName: string
   agencyName: string
-  magicLink: string
+  clientLink: string
 }): string {
   return `<!DOCTYPE html>
 <html lang="fr">
@@ -44,14 +44,25 @@ export function ClientInvitationEmail({
               <table cellpadding="0" cellspacing="0" style="margin:8px 0 28px;">
                 <tr>
                   <td style="background:#1A5C3A;border-radius:10px;">
-                    <a href="${magicLink}" style="display:inline-block;padding:13px 28px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;">
+                    <a href="${clientLink}" style="display:inline-block;padding:13px 28px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;">
                       Accéder à mon espace projet →
                     </a>
                   </td>
                 </tr>
               </table>
 
-              <p style="margin:0 0 4px;font-size:12px;color:#9B9B94;">Ce lien est à usage unique et expire dans 24h.</p>
+              <!-- Encadré mise en favori -->
+              <table cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 20px;">
+                <tr>
+                  <td style="background:#EAF3ED;border-radius:10px;padding:16px 20px;border-left:3px solid #1A5C3A;">
+                    <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#1A5C3A;">&#9733; Mettez ce lien en favori</p>
+                    <p style="margin:0;font-size:13px;color:#2D7A50;line-height:1.5;">
+                      Ce lien est votre accès permanent à votre espace projet. Conservez cet email ou ajoutez la page à vos favoris pour vous y reconnecter à tout moment.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
               <p style="margin:0;font-size:12px;color:#9B9B94;">Si vous n'attendiez pas cet email, vous pouvez l'ignorer.</p>
             </td>
           </tr>

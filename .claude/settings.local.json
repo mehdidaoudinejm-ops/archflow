@@ -35,7 +35,17 @@
       "Bash(mkdir:*)",
       "Bash(npx vercel:*)",
       "Bash(npx tsx:*)",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "WebSearch",
+      "WebFetch(domain:www.houzz.com)",
+      "WebFetch(domain:monday.com)",
+      "WebFetch(domain:www.studiodesigner.com)",
+      "WebFetch(domain:www.mesetys.tech)",
+      "WebFetch(domain:blog.designfiles.co)",
+      "WebFetch(domain:www.g2.com)",
+      "Bash(do:*)",
+      "Bash(do grep:*)",
+      "Bash(/Users/linalaghrabli/archflow/prisma/migrations/20260315200000_add_client_token/migration.sql:*)"
     ]
   }
 }

@@ -29,6 +29,7 @@ interface ProjectData {
   description: string | null
   clientContact: ContactOption | null
   clientUserId: string | null
+  clientToken: string | null
 }
 
 function Field({ label, optional, children }: { label: string; optional?: boolean; children: React.ReactNode }) {
@@ -114,7 +115,7 @@ export function ProjectSettingsClient({ project, contacts }: { project: ProjectD
   const [error, setError] = useState<string | null>(null)
 
   // Invitation client
-  const [clientInvited, setClientInvited] = useState(!!project.clientUserId)
+  const [clientInvited, setClientInvited] = useState(!!project.clientToken)
   const [inviting, setInviting] = useState(false)
   const [inviteSuccess, setInviteSuccess] = useState(false)
   const [inviteError, setInviteError] = useState<string | null>(null)

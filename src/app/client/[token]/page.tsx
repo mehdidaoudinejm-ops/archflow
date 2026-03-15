@@ -1,31 +1,21 @@
-import { redirect } from 'next/navigation'
-import { getSession } from '@/lib/auth'
+import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 
 interface Props {
-  params: { projectId: string }
+  params: { token: string }
 }
 
 export default async function ClientPage({ params }: Props) {
-  const session = await getSession()
-  if (!session) redirect(`/client/login?next=/client/${params.projectId}`)
-
-  const user = await prisma.user.findUnique({ where: { email: session.user.email! } })
-  if (!user || user.role !== 'CLIENT') redirect(`/client/login?next=/client/${params.projectId}`)
-
-  // Première connexion : profil incomplet → setup
-  if (!user.firstName) redirect(`/client/setup?next=/client/${params.projectId}`)
-
   const project = await prisma.project.findUnique({
-    where: { id: params.projectId },
-    select: { id: true, name: true, clientUserId: true },
+    where: { clientToken: params.token },
+    select: { id: true, name: true },
   })
 
-  if (!project || project.clientUserId !== user.id) redirect('/login')
+  if (!project) notFound()
 
   const ao = await prisma.aO.findFirst({
     where: {
-      dpgf: { projectId: params.projectId },
+      dpgf: { projectId: project.id },
       clientPublished: true,
       status: { not: 'ARCHIVED' },
     },
@@ -51,10 +41,7 @@ export default async function ClientPage({ params }: Props) {
   if (!ao) {
     return (
       <div className="max-w-2xl mx-auto py-16 px-4 text-center">
-        <h1
-          className="text-3xl mb-3"
-          style={{ fontFamily: '"DM Serif Display", serif', color: 'var(--text)' }}
-        >
+        <h1 className="text-3xl mb-3" style={{ fontFamily: '"DM Serif Display", serif', color: 'var(--text)' }}>
           {project.name}
         </h1>
         <p className="text-sm" style={{ color: 'var(--text2)' }}>
@@ -77,10 +64,7 @@ export default async function ClientPage({ params }: Props) {
     <div className="max-w-3xl mx-auto py-8 px-4 space-y-6">
       {/* En-tête */}
       <div>
-        <h1
-          className="text-3xl mb-1"
-          style={{ fontFamily: '"DM Serif Display", serif', color: 'var(--text)' }}
-        >
+        <h1 className="text-3xl mb-1" style={{ fontFamily: '"DM Serif Display", serif', color: 'var(--text)' }}>
           {project.name}
         </h1>
         <p className="text-sm" style={{ color: 'var(--text2)' }}>{ao.name}</p>
@@ -100,77 +84,50 @@ export default async function ClientPage({ params }: Props) {
           </p>
         </div>
         {isDeadlinePassed ? (
-          <span
-            className="px-3 py-1.5 rounded-full text-sm font-medium"
-            style={{ background: 'var(--surface2)', color: 'var(--text2)' }}
-          >
+          <span className="px-3 py-1.5 rounded-full text-sm font-medium" style={{ background: 'var(--surface2)', color: 'var(--text2)' }}>
             Délai dépassé
           </span>
         ) : (
-          <span
-            className="px-3 py-1.5 rounded-full text-sm font-medium"
-            style={{ background: 'var(--amber-light)', color: 'var(--amber)' }}
-          >
+          <span className="px-3 py-1.5 rounded-full text-sm font-medium" style={{ background: 'var(--amber-light)', color: 'var(--amber)' }}>
             J-{daysLeft}
           </span>
         )}
       </div>
 
-      {/* Stats anonymisées */}
+      {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
           { label: 'Entreprises consultées', value: publishedElements.companies ? totalInvited : '—' },
           { label: 'Offres reçues', value: publishedElements.offers ? totalSubmitted : '—' },
           { label: 'Taux de réponse', value: publishedElements.offers ? `${responseRate}%` : '—' },
         ].map((stat, i) => (
-          <div
-            key={i}
-            className="p-4 rounded-[var(--radius-lg)]"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
-          >
+          <div key={i} className="p-4 rounded-[var(--radius-lg)]" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
             <p className="text-xs mb-1" style={{ color: 'var(--text3)' }}>{stat.label}</p>
-            <p
-              className="text-2xl font-semibold"
-              style={{ fontFamily: '"DM Serif Display", serif', color: 'var(--text)' }}
-            >
+            <p className="text-2xl font-semibold" style={{ fontFamily: '"DM Serif Display", serif', color: 'var(--text)' }}>
               {stat.value}
             </p>
           </div>
         ))}
       </div>
 
-      {/* Avancement anonymisé par entreprise */}
+      {/* Avancement */}
       {publishedElements.progress && (
-        <div
-          className="rounded-[var(--radius-lg)] overflow-hidden"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
-        >
+        <div className="rounded-[var(--radius-lg)] overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
           <div className="px-4 py-3 border-b" style={{ background: 'var(--surface2)', borderColor: 'var(--border)' }}>
-            <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
-              Avancement des réponses
-            </p>
+            <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Avancement des réponses</p>
           </div>
           <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
             {ao.aoCompanies.map((company, i) => (
               <div key={company.id} className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm" style={{ color: 'var(--text2)' }}>
-                  Entreprise {String.fromCharCode(65 + i)}
-                </span>
+                <span className="text-sm" style={{ color: 'var(--text2)' }}>Entreprise {String.fromCharCode(65 + i)}</span>
                 <span
                   className="text-xs px-2.5 py-1 rounded-full font-medium"
                   style={{
-                    background:
-                      company.status === 'SUBMITTED' ? 'var(--green-light)' :
-                      company.status === 'IN_PROGRESS' ? 'var(--amber-light)' :
-                      'var(--surface2)',
-                    color:
-                      company.status === 'SUBMITTED' ? 'var(--green)' :
-                      company.status === 'IN_PROGRESS' ? 'var(--amber)' :
-                      'var(--text3)',
+                    background: company.status === 'SUBMITTED' ? 'var(--green-light)' : company.status === 'IN_PROGRESS' ? 'var(--amber-light)' : 'var(--surface2)',
+                    color: company.status === 'SUBMITTED' ? 'var(--green)' : company.status === 'IN_PROGRESS' ? 'var(--amber)' : 'var(--text3)',
                   }}
                 >
-                  {company.status === 'SUBMITTED' ? 'Offre soumise' :
-                   company.status === 'IN_PROGRESS' ? 'En cours' : 'En attente'}
+                  {company.status === 'SUBMITTED' ? 'Offre soumise' : company.status === 'IN_PROGRESS' ? 'En cours' : 'En attente'}
                 </span>
               </div>
             ))}
@@ -178,16 +135,11 @@ export default async function ClientPage({ params }: Props) {
         </div>
       )}
 
-      {/* Section analyse verrouillée */}
+      {/* Analyse verrouillée */}
       {!publishedElements.analysis && (
-        <div
-          className="p-6 rounded-[var(--radius-lg)] text-center"
-          style={{ background: 'var(--surface)', border: '1px dashed var(--border2)' }}
-        >
+        <div className="p-6 rounded-[var(--radius-lg)] text-center" style={{ background: 'var(--surface)', border: '1px dashed var(--border2)' }}>
           <p className="text-2xl mb-2">🔒</p>
-          <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
-            Analyse comparative
-          </p>
+          <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Analyse comparative</p>
           <p className="text-sm mt-1" style={{ color: 'var(--text2)' }}>
             L&apos;architecte publiera l&apos;analyse dès que toutes les offres auront été étudiées.
           </p>

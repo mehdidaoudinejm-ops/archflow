@@ -9,6 +9,7 @@ export default async function ProjectSettingsPage({ params }: { params: { projec
   const project = await prisma.project.findUnique({
     where: { id: params.projectId },
     include: { clientContact: true },
+    // clientToken included via default select
   })
 
   if (!project || project.agencyId !== user.agencyId) {
@@ -43,6 +44,7 @@ export default async function ProjectSettingsPage({ params }: { params: { projec
             }
           : null,
         clientUserId: project.clientUserId,
+        clientToken: project.clientToken,
       }}
       contacts={contacts.map((c) => ({
         id: c.id,

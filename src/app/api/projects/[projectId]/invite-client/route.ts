@@ -1,11 +1,11 @@
+export const dynamic = 'force-dynamic'
+
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { randomBytes } from 'crypto'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { ClientInvitationEmail } from '@/emails/ClientInvitationEmail'
-
-export const dynamic = 'force-dynamic'
 
 export async function POST(
   req: Request,
@@ -28,82 +28,30 @@ export async function POST(
       return NextResponse.json({ error: 'Aucun email client renseigné dans les informations du projet' }, { status: 400 })
     }
 
+    // Réutiliser le token existant ou en générer un nouveau
+    const token = project.clientToken ?? randomBytes(32).toString('hex')
+
+    await prisma.project.update({
+      where: { id: params.projectId },
+      data: { clientToken: token },
+    })
+
     const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? 'localhost:3000'
     const proto = req.headers.get('x-forwarded-proto') ?? 'https'
     const rawUrl = process.env.NEXT_PUBLIC_APP_URL ?? `${proto}://${host}`
-    // Normaliser : s'assurer que l'URL commence par http(s)://
     const appUrl = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`
-    const redirectTo = `${appUrl}/auth/callback?next=/client/${params.projectId}`
-    console.log('[invite-client] redirectTo:', redirectTo)
-
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    )
-
-    // Conflit : email déjà utilisé par un rôle non-CLIENT
-    const existing = await prisma.user.findUnique({ where: { email } })
-    if (existing && existing.role !== 'CLIENT') {
-      const professionalRoles = ['ARCHITECT', 'COLLABORATOR', 'ADMIN']
-      if (professionalRoles.includes(existing.role)) {
-        // Vérifier si le compte Supabase Auth existe vraiment —
-        // si non, c'est un zombie Prisma (Supabase delete a échoué + getUserWithProfile a recréé)
-        const authRows = await prisma.$queryRaw<{ id: string }[]>`
-          SELECT id::text FROM auth.users WHERE email = ${email} LIMIT 1
-        `
-        if (authRows.length > 0) {
-          return NextResponse.json({ error: 'Cet email appartient déjà à un compte architecte ou admin actif' }, { status: 409 })
-        }
-        // Zombie Prisma sans compte Supabase → supprimer et continuer
-      }
-      // COMPANY, ou zombie ARCHITECT sans Supabase → supprimer pour re-créer en CLIENT
-      await prisma.$transaction([
-        prisma.projectPermission.deleteMany({ where: { userId: existing.id } }),
-        prisma.notification.deleteMany({ where: { userId: existing.id } }),
-        prisma.activityLog.deleteMany({ where: { userId: existing.id } }),
-        prisma.user.delete({ where: { id: existing.id } }),
-      ])
-    }
-
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email,
-      options: { redirectTo },
-    })
-
-    if (linkError || !linkData) {
-      console.error('[invite-client] generateLink error:', linkError)
-      return NextResponse.json({ error: 'Erreur lors de la génération du lien' }, { status: 500 })
-    }
-
-    const supabaseUserId = linkData.user.id
-    const magicLink = linkData.properties.action_link
-
-    // Créer ou retrouver le User Prisma CLIENT
-    const clientUser = await prisma.user.upsert({
-      where: { email },
-      update: {},
-      create: { id: supabaseUserId, email, role: 'CLIENT' },
-    })
-
-    // Lier le client au projet
-    await prisma.project.update({
-      where: { id: params.projectId },
-      data: { clientUserId: clientUser.id },
-    })
-
-    // Envoyer l'email
-    const agencyName = user.agency?.name ?? 'Votre architecte'
-    const projectName = project.name
+    const clientLink = `${appUrl}/client/${token}`
 
     if (process.env.NODE_ENV === 'development') {
-      console.log(`\n[DEV INVITE CLIENT] Lien magic (${email}):\n${magicLink}\n`)
+      console.log(`\n[DEV INVITE CLIENT] Lien client (${email}):\n${clientLink}\n`)
     }
+
+    const agencyName = user.agency?.name ?? 'Votre architecte'
 
     await sendEmail({
       to: email,
-      subject: `Votre espace projet "${projectName}" est prêt`,
-      html: ClientInvitationEmail({ projectName, agencyName, magicLink }),
+      subject: `Votre espace projet "${project.name}" est prêt`,
+      html: ClientInvitationEmail({ projectName: project.name, agencyName, clientLink }),
     })
 
     return NextResponse.json({ ok: true })
