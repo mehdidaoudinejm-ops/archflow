@@ -124,6 +124,21 @@ export default function AdminBibliothequePage() {
     setPage(1)
   }
 
+  async function patchItem(id: string, data: { lot?: string; validated?: boolean }) {
+    const res = await fetch(`/api/admin/library/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    if (res.ok) {
+      setItems((prev) => prev.map((i) => i.id === id ? { ...i, ...data } : i))
+      // Rafraîchir la liste des lots si le lot a changé
+      if (data.lot) {
+        setLots((prev) => Array.from(new Set([...prev, data.lot!])).sort())
+      }
+    }
+  }
+
   async function toggleValidate(item: LibraryItem) {
     setActionId(item.id)
     const res = await fetch(`/api/admin/library/${item.id}`, {
@@ -452,7 +467,14 @@ export default function AdminBibliothequePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid #E8E8E3', background: '#FAFAF8' }}>
-                  {['Lot', 'Sous-lot', 'Intitulé', 'Unité', 'Source', 'Utilisations', 'Statut', ''].map((h) => (
+                  {/* Datalist pour l'édition des lots existants */}
+          <datalist id="global-lots-datalist">
+            {STANDARD_LOTS.map((l) => <option key={l} value={l} />)}
+            {lots.filter((l) => !STANDARD_LOTS.includes(l)).map((l) => (
+              <option key={l} value={l} />
+            ))}
+          </datalist>
+          {['Lot', 'Sous-lot', 'Intitulé', 'Unité', 'Source', 'Utilisations', 'Statut', ''].map((h) => (
                     <th key={h} className="text-left px-4 py-3 font-medium text-xs" style={{ color: '#6B6B65' }}>{h}</th>
                   ))}
                 </tr>
@@ -463,10 +485,22 @@ export default function AdminBibliothequePage() {
                     key={item.id}
                     style={{ borderBottom: i < items.length - 1 ? '1px solid #E8E8E3' : undefined, opacity: actionId === item.id ? 0.5 : 1 }}
                   >
-                    <td className="px-4 py-2.5">
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#EAF3ED', color: '#1A5C3A' }}>
-                        {item.lot}
-                      </span>
+                    <td className="px-3 py-2">
+                      <input
+                        list="global-lots-datalist"
+                        defaultValue={item.lot}
+                        onBlur={(e) => {
+                          const newLot = e.target.value.trim()
+                          if (newLot && newLot !== item.lot) void patchItem(item.id, { lot: newLot })
+                          else e.target.value = item.lot
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') e.currentTarget.blur()
+                          if (e.key === 'Escape') { e.currentTarget.value = item.lot; e.currentTarget.blur() }
+                        }}
+                        className="text-xs rounded-full px-2 py-0.5 outline-none font-medium w-full"
+                        style={{ border: '1px solid #C6DFD0', background: '#EAF3ED', color: '#1A5C3A', minWidth: 120, maxWidth: 200 }}
+                      />
                     </td>
                     <td className="px-4 py-2.5 text-xs" style={{ color: '#6B6B65' }}>{item.sousLot ?? '—'}</td>
                     <td className="px-4 py-2.5 font-medium" style={{ color: '#1A1A18', maxWidth: 320 }}>

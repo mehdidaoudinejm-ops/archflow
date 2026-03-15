@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 const patchSchema = z.object({
   validated: z.boolean().optional(),
+  lot: z.string().min(1).optional(),
 })
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
