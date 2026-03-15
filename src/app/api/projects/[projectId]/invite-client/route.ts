@@ -32,6 +32,7 @@ export async function POST(
     const proto = req.headers.get('x-forwarded-proto') ?? 'https'
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? `${proto}://${host}`
     const redirectTo = `${appUrl}/client/${params.projectId}`
+    console.log('[invite-client] redirectTo:', redirectTo)
 
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
