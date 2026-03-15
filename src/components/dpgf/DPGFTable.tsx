@@ -919,9 +919,30 @@ function AddSubLotRow({ lot, onAdd }: AddSubLotRowProps) {
 }
 
 // ── AddLotRow ──────────────────────────────────────────────────────────────────
+const STANDARD_LOTS_DPGF = [
+  'Démolition / Dépose', 'Gros œuvre / Maçonnerie', 'Charpente bois',
+  'Charpente métallique', 'Couverture / Zinguerie', 'Étanchéité',
+  'Façades / Ravalement', "Isolation thermique par l'extérieur (ITE)",
+  'Menuiseries extérieures / Vitrerie', 'Menuiseries intérieures / Agencement',
+  'Cloisons / Plâtrerie / Faux-plafonds', 'Isolation thermique / Acoustique',
+  'Carrelage / Faïence', 'Revêtements de sols souples', 'Parquet',
+  'Peinture / Finitions', 'Serrurerie / Métallerie', 'Plomberie / Sanitaires',
+  'Chauffage / Ventilation / Climatisation (CVC)', 'Électricité courants forts',
+  'Courants faibles / Domotique', 'VRD / Terrassement', 'Espaces verts / Paysagisme',
+  'Cuisines / Mobilier', 'Ascenseur / Élévateur', 'Divers / Nettoyage',
+]
+
 function AddLotRow({ onAdd }: { onAdd: (name: string) => Promise<void> }) {
   const [adding, setAdding] = useState(false)
-  const [name, setName] = useState('')
+  const [isCustom, setIsCustom] = useState(false)
+  const [customName, setCustomName] = useState('')
+
+  function reset() { setAdding(false); setIsCustom(false); setCustomName('') }
+
+  async function submit(name: string) {
+    if (name.trim()) await onAdd(name.trim())
+    reset()
+  }
 
   if (!adding) {
     return (
@@ -938,35 +959,50 @@ function AddLotRow({ onAdd }: { onAdd: (name: string) => Promise<void> }) {
     )
   }
 
+  if (isCustom) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: '#2B2B28' }}>
+        <span className="px-2 py-0.5 rounded text-xs font-bold text-white shrink-0" style={{ background: 'var(--green)', opacity: 0.5 }}>?</span>
+        <input
+          autoFocus
+          className="flex-1 text-sm font-medium bg-transparent outline-none border-b"
+          style={{ color: '#FFFFFF', borderColor: 'rgba(255,255,255,0.3)' }}
+          placeholder="Nom du lot personnalisé…"
+          value={customName}
+          onChange={(e) => setCustomName(e.target.value)}
+          onBlur={() => submit(customName)}
+          onKeyDown={async (e) => {
+            if (e.key === 'Enter') await submit(customName)
+            if (e.key === 'Escape') reset()
+          }}
+        />
+        <button onClick={reset} className="text-xs shrink-0" style={{ color: 'rgba(255,255,255,0.4)' }}>✕</button>
+      </div>
+    )
+  }
+
   return (
     <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: '#2B2B28' }}>
-      <span
-        className="px-2 py-0.5 rounded text-xs font-bold text-white shrink-0"
-        style={{ background: 'var(--green)', opacity: 0.5 }}
-      >
-        ?
-      </span>
-      <input
+      <span className="px-2 py-0.5 rounded text-xs font-bold text-white shrink-0" style={{ background: 'var(--green)', opacity: 0.5 }}>+</span>
+      <select
         autoFocus
-        className="flex-1 text-sm font-medium bg-transparent outline-none border-b"
-        style={{ color: '#FFFFFF', borderColor: 'rgba(255,255,255,0.3)' }}
-        placeholder="Nom du lot…"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onBlur={async () => {
-          if (name.trim()) await onAdd(name.trim())
-          setName('')
-          setAdding(false)
+        className="flex-1 text-sm bg-transparent outline-none"
+        style={{ color: '#FFFFFF', background: '#2B2B28' }}
+        defaultValue=""
+        onChange={async (e) => {
+          const val = e.target.value
+          if (val === '__custom__') { setIsCustom(true); return }
+          if (val) await submit(val)
         }}
-        onKeyDown={async (e) => {
-          if (e.key === 'Enter' && name.trim()) {
-            await onAdd(name.trim())
-            setName('')
-            setAdding(false)
-          }
-          if (e.key === 'Escape') { setName(''); setAdding(false) }
-        }}
-      />
+        onBlur={(e) => { if (!e.target.value) reset() }}
+      >
+        <option value="" disabled style={{ background: '#2B2B28' }}>Choisir un lot…</option>
+        {STANDARD_LOTS_DPGF.map((l) => (
+          <option key={l} value={l} style={{ background: '#2B2B28' }}>{l}</option>
+        ))}
+        <option value="__custom__" style={{ background: '#2B2B28' }}>✏ Lot personnalisé…</option>
+      </select>
+      <button onClick={reset} className="text-xs shrink-0" style={{ color: 'rgba(255,255,255,0.4)' }}>✕</button>
     </div>
   )
 }

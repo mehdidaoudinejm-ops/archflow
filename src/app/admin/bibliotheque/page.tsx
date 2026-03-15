@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { BookOpen, Upload, CheckCheck, Trash2, Check, X, ChevronLeft, ChevronRight, FileSpreadsheet, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { STANDARD_LOTS } from '@/lib/standard-lots'
 
 interface LibraryItem {
   id: string
@@ -23,35 +24,6 @@ interface EditableCandidate {
   unite: string
 }
 
-// Lots DPGF conventionnels (référentiel français)
-const STANDARD_LOTS = [
-  'Démolition / Dépose',
-  'Gros œuvre / Maçonnerie',
-  'Charpente bois',
-  'Charpente métallique',
-  'Couverture / Zinguerie',
-  'Étanchéité',
-  'Façades / Ravalement',
-  'Isolation thermique par l\'extérieur (ITE)',
-  'Menuiseries extérieures / Vitrerie',
-  'Menuiseries intérieures / Agencement',
-  'Cloisons / Plâtrerie / Faux-plafonds',
-  'Isolation thermique / Acoustique',
-  'Carrelage / Faïence',
-  'Revêtements de sols souples',
-  'Parquet',
-  'Peinture / Finitions',
-  'Serrurerie / Métallerie',
-  'Plomberie / Sanitaires',
-  'Chauffage / Ventilation / Climatisation (CVC)',
-  'Électricité courants forts',
-  'Courants faibles / Domotique',
-  'VRD / Terrassement',
-  'Espaces verts / Paysagisme',
-  'Cuisines / Mobilier',
-  'Ascenseur / Élévateur',
-  'Divers / Nettoyage',
-]
 
 // Unités de mesure valides
 const VALID_UNITS = new Set([
