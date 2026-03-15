@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { BookOpen, Upload, CheckCheck, Trash2, Check, X, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { BookOpen, Upload, CheckCheck, Trash2, Check, X, ChevronLeft, ChevronRight, FileSpreadsheet, AlertTriangle } from 'lucide-react'
 
 interface LibraryItem {
   id: string
@@ -15,11 +15,28 @@ interface LibraryItem {
   createdAt: string
 }
 
-interface ParsedCandidate {
+interface EditableCandidate {
+  key: number
   lot: string
-  sousLot?: string
+  sousLot: string
   intitule: string
-  unite?: string
+  unite: string
+}
+
+// Unités de mesure valides
+const VALID_UNITS = new Set([
+  'm', 'm2', 'm²', 'm3', 'm³', 'ml', 'ml.', 'ml ', 'ml²',
+  'u', 'ens', 'ens.', 'forfait', 'lot', 'pm', '%',
+  'kg', 't', 'h', 'j', 'nb', 'p', 'pce',
+  'l', 'cm', 'mm', 'ha', 'dm', 'dm2', 'dm3',
+])
+
+function isUnitValid(u: string): boolean {
+  if (!u.trim()) return true // vide = ok (pas d'unité)
+  const v = u.trim().toLowerCase().replace(/\s+/g, '')
+  if (/^\d+([.,]\d+)?$/.test(v)) return false // nombre pur : invalide
+  if (/^\d/.test(v)) return false // commence par un chiffre : invalide
+  return true
 }
 
 const PAGE_SIZE = 50
@@ -39,12 +56,17 @@ export default function AdminBibliothequePage() {
   // Import dialog
   const [importOpen, setImportOpen] = useState(false)
   const [parsing, setParsing] = useState(false)
-  const [candidates, setCandidates] = useState<ParsedCandidate[]>([])
+  const [candidates, setCandidates] = useState<EditableCandidate[]>([])
   const [parseError, setParseError] = useState('')
   const [importFileName, setImportFileName] = useState('')
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ imported: number; duplicates: number } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Preview controls
+  const [previewLotFilter, setPreviewLotFilter] = useState('')
+  const [showInvalidOnly, setShowInvalidOnly] = useState(false)
+  const [sortLot, setSortLot] = useState(false)
 
   // Validate-all loading
   const [validatingAll, setValidatingAll] = useState(false)
@@ -187,7 +209,7 @@ export default function AdminBibliothequePage() {
         return
       }
 
-      const result: ParsedCandidate[] = []
+      const result: { lot: string; sousLot?: string; intitule: string; unite?: string }[] = []
       let currentLot = ''
       let currentSousLot = ''
 
@@ -246,7 +268,16 @@ export default function AdminBibliothequePage() {
           `Aucun poste extrait. Structure détectée : colonne intitulé = ${intituleIdx >= 0 ? `col. ${intituleIdx + 1}` : 'non trouvée'}, colonne lot = ${lotIdx >= 0 ? `col. ${lotIdx + 1}` : 'non trouvée (détection par ligne)'}, ${rows.length} lignes lues. Vérifiez que le fichier contient bien des postes avec des libellés.`
         )
       } else {
-        setCandidates(result)
+        setCandidates(result.map((r, i) => ({
+          key: i,
+          lot: r.lot,
+          sousLot: r.sousLot ?? '',
+          intitule: r.intitule,
+          unite: r.unite ?? '',
+        })))
+        setPreviewLotFilter('')
+        setShowInvalidOnly(false)
+        setSortLot(false)
       }
     } catch {
       setParseError('Erreur lors de la lecture du fichier.')
@@ -255,12 +286,28 @@ export default function AdminBibliothequePage() {
     setParsing(false)
   }
 
+  function updateCandidate(key: number, patch: Partial<EditableCandidate>) {
+    setCandidates((prev) => prev.map((c) => c.key === key ? { ...c, ...patch } : c))
+  }
+
+  function removeCandidate(key: number) {
+    setCandidates((prev) => prev.filter((c) => c.key !== key))
+  }
+
   async function confirmImport() {
     setImporting(true)
     const res = await fetch('/api/admin/library/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: candidates, source: importFileName }),
+      body: JSON.stringify({
+        items: candidates.map((c) => ({
+          lot: c.lot,
+          sousLot: c.sousLot || undefined,
+          intitule: c.intitule,
+          unite: c.unite || undefined,
+        })),
+        source: importFileName,
+      }),
     })
     if (res.ok) {
       const data = await res.json()
@@ -283,6 +330,17 @@ export default function AdminBibliothequePage() {
 
   const pendingCount = items.filter((i) => !i.validated).length
   const totalPages = Math.ceil(total / PAGE_SIZE)
+
+  // Preview derived data
+  const previewLots = useMemo(() => Array.from(new Set(candidates.map((c) => c.lot))).sort(), [candidates])
+  const invalidCount = useMemo(() => candidates.filter((c) => !isUnitValid(c.unite)).length, [candidates])
+  const previewFiltered = useMemo(() => {
+    let list = candidates
+    if (previewLotFilter) list = list.filter((c) => c.lot === previewLotFilter)
+    if (showInvalidOnly) list = list.filter((c) => !isUnitValid(c.unite))
+    if (sortLot) list = [...list].sort((a, b) => a.lot.localeCompare(b.lot, 'fr'))
+    return list
+  }, [candidates, previewLotFilter, showInvalidOnly, sortLot])
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
@@ -466,7 +524,7 @@ export default function AdminBibliothequePage() {
       {/* Import Dialog */}
       {importOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
-          <div className="w-full max-w-3xl mx-4 rounded-[16px] overflow-hidden flex flex-col" style={{ background: '#fff', border: '1px solid #E8E8E3', maxHeight: '90vh' }}>
+          <div className="w-full max-w-4xl mx-4 rounded-[16px] overflow-hidden flex flex-col" style={{ background: '#fff', border: '1px solid #E8E8E3', maxHeight: '92vh' }}>
 
             {/* Dialog Header */}
             <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #E8E8E3' }}>
@@ -536,40 +594,121 @@ export default function AdminBibliothequePage() {
                     </div>
                   )}
 
-                  {/* Preview */}
+                  {/* Preview éditable */}
                   {candidates.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium mb-2" style={{ color: '#1A1A18' }}>
-                        {candidates.length} poste{candidates.length > 1 ? 's' : ''} détecté{candidates.length > 1 ? 's' : ''}
-                      </p>
-                      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E8E8E3', maxHeight: 320, overflowY: 'auto' }}>
+                    <div className="space-y-3">
+
+                      {/* Stats + alerte unités invalides */}
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <p className="text-sm font-medium" style={{ color: '#1A1A18' }}>
+                          {candidates.length} poste{candidates.length > 1 ? 's' : ''} · {previewLots.length} lot{previewLots.length > 1 ? 's' : ''}
+                        </p>
+                        {invalidCount > 0 && (
+                          <span className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: '#FEF3E2', color: '#B45309' }}>
+                            <AlertTriangle size={12} />
+                            {invalidCount} unité{invalidCount > 1 ? 's' : ''} invalide{invalidCount > 1 ? 's' : ''} (chiffres)
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Filtres preview */}
+                      <div className="flex flex-wrap gap-2">
+                        <select
+                          value={previewLotFilter}
+                          onChange={(e) => setPreviewLotFilter(e.target.value)}
+                          className="text-xs rounded-lg px-2.5 py-1.5 outline-none"
+                          style={{ border: '1px solid #E8E8E3', background: '#fff', color: '#1A1A18' }}
+                        >
+                          <option value="">Tous les lots ({candidates.length})</option>
+                          {previewLots.map((l) => (
+                            <option key={l} value={l}>{l} ({candidates.filter((c) => c.lot === l).length})</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => setShowInvalidOnly((v) => !v)}
+                          className="text-xs px-2.5 py-1.5 rounded-lg font-medium"
+                          style={showInvalidOnly
+                            ? { background: '#FEF3E2', color: '#B45309', border: '1px solid #FCD34D' }
+                            : { background: '#F3F4F6', color: '#6B6B65', border: '1px solid #E8E8E3' }
+                          }
+                        >
+                          {showInvalidOnly ? '✕ ' : ''}Unités invalides seulement
+                        </button>
+                        <button
+                          onClick={() => setSortLot((v) => !v)}
+                          className="text-xs px-2.5 py-1.5 rounded-lg"
+                          style={sortLot
+                            ? { background: '#EEF2FF', color: '#4338CA', border: '1px solid #C7D2FE' }
+                            : { background: '#F3F4F6', color: '#6B6B65', border: '1px solid #E8E8E3' }
+                          }
+                        >
+                          Trier par lot
+                        </button>
+                      </div>
+
+                      {/* Table éditable */}
+                      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E8E8E3', maxHeight: 380, overflowY: 'auto' }}>
                         <table className="w-full text-xs">
                           <thead style={{ position: 'sticky', top: 0, background: '#FAFAF8', borderBottom: '1px solid #E8E8E3', zIndex: 1 }}>
                             <tr>
-                              {['Lot', 'Sous-lot', 'Intitulé', 'Unité'].map((h) => (
-                                <th key={h} className="text-left px-3 py-2 font-medium" style={{ color: '#6B6B65' }}>{h}</th>
-                              ))}
+                              <th className="text-left px-3 py-2 font-medium" style={{ color: '#6B6B65', width: 160 }}>Lot</th>
+                              <th className="text-left px-3 py-2 font-medium" style={{ color: '#6B6B65' }}>Intitulé</th>
+                              <th className="text-left px-3 py-2 font-medium" style={{ color: '#6B6B65', width: 80 }}>Unité</th>
+                              <th style={{ width: 32 }} />
                             </tr>
                           </thead>
                           <tbody>
-                            {candidates.slice(0, 200).map((c, i) => (
-                              <tr key={i} style={{ borderBottom: '1px solid #F3F3F0' }}>
-                                <td className="px-3 py-1.5">
-                                  <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: '#EAF3ED', color: '#1A5C3A' }}>
-                                    {c.lot}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-1.5" style={{ color: '#6B6B65' }}>{c.sousLot ?? '—'}</td>
-                                <td className="px-3 py-1.5 font-medium" style={{ color: '#1A1A18', maxWidth: 240 }}>
-                                  <span className="line-clamp-1">{c.intitule}</span>
-                                </td>
-                                <td className="px-3 py-1.5 font-mono" style={{ color: '#6B6B65' }}>{c.unite ?? '—'}</td>
-                              </tr>
-                            ))}
-                            {candidates.length > 200 && (
+                            {previewFiltered.map((c) => {
+                              const unitInvalid = !isUnitValid(c.unite)
+                              return (
+                                <tr key={c.key} style={{ borderBottom: '1px solid #F3F3F0', background: unitInvalid ? '#FFFBEB' : undefined }}>
+                                  {/* Lot — select */}
+                                  <td className="px-2 py-1">
+                                    <select
+                                      value={c.lot}
+                                      onChange={(e) => updateCandidate(c.key, { lot: e.target.value })}
+                                      className="w-full text-xs rounded px-1.5 py-0.5 outline-none"
+                                      style={{ border: '1px solid #E8E8E3', background: '#EAF3ED', color: '#1A5C3A', maxWidth: 150 }}
+                                    >
+                                      {previewLots.map((l) => <option key={l} value={l}>{l}</option>)}
+                                    </select>
+                                  </td>
+                                  {/* Intitulé */}
+                                  <td className="px-3 py-1 font-medium" style={{ color: '#1A1A18' }}>
+                                    <span className="line-clamp-1">{c.intitule}</span>
+                                  </td>
+                                  {/* Unité — input avec validation */}
+                                  <td className="px-2 py-1">
+                                    <input
+                                      value={c.unite}
+                                      onChange={(e) => updateCandidate(c.key, { unite: e.target.value })}
+                                      className="w-full text-xs rounded px-1.5 py-0.5 outline-none font-mono"
+                                      style={{
+                                        border: `1px solid ${unitInvalid ? '#FCD34D' : '#E8E8E3'}`,
+                                        background: unitInvalid ? '#FEF3E2' : '#F8F8F6',
+                                        color: unitInvalid ? '#B45309' : '#1A1A18',
+                                      }}
+                                      title={unitInvalid ? 'Unité invalide — doit être une unité de mesure (m², ml, u, kg…)' : ''}
+                                    />
+                                  </td>
+                                  {/* Supprimer */}
+                                  <td className="px-1 py-1">
+                                    <button
+                                      onClick={() => removeCandidate(c.key)}
+                                      className="p-1 rounded opacity-40 hover:opacity-100 transition-opacity"
+                                      style={{ color: '#9B1C1C' }}
+                                      title="Supprimer ce poste"
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                            {previewFiltered.length === 0 && (
                               <tr>
-                                <td colSpan={4} className="px-3 py-2 text-center" style={{ color: '#9B9B94' }}>
-                                  … et {candidates.length - 200} postes supplémentaires
+                                <td colSpan={4} className="px-3 py-6 text-center" style={{ color: '#9B9B94' }}>
+                                  Aucun poste pour ces filtres
                                 </td>
                               </tr>
                             )}
@@ -592,14 +731,21 @@ export default function AdminBibliothequePage() {
                 {importResult ? 'Fermer' : 'Annuler'}
               </button>
               {!importResult && candidates.length > 0 && (
-                <button
-                  onClick={confirmImport}
-                  disabled={importing}
-                  className="text-sm px-4 py-2 rounded-lg font-medium disabled:opacity-50"
-                  style={{ background: '#1A5C3A', color: '#fff' }}
-                >
-                  {importing ? 'Import...' : `Importer ${candidates.length} poste${candidates.length > 1 ? 's' : ''}`}
-                </button>
+                <div className="flex items-center gap-3">
+                  {invalidCount > 0 && (
+                    <span className="text-xs" style={{ color: '#B45309' }}>
+                      {invalidCount} unité{invalidCount > 1 ? 's' : ''} invalide{invalidCount > 1 ? 's' : ''} — corrigez ou laissez vide
+                    </span>
+                  )}
+                  <button
+                    onClick={confirmImport}
+                    disabled={importing}
+                    className="text-sm px-4 py-2 rounded-lg font-medium disabled:opacity-50"
+                    style={{ background: '#1A5C3A', color: '#fff' }}
+                  >
+                    {importing ? 'Import...' : `Importer ${candidates.length} poste${candidates.length > 1 ? 's' : ''}`}
+                  </button>
+                </div>
               )}
             </div>
           </div>
