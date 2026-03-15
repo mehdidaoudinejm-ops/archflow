@@ -8,10 +8,10 @@ interface Props {
 
 export default async function ClientPage({ params }: Props) {
   const session = await getSession()
-  if (!session) redirect('/login')
+  if (!session) redirect(`/client/login?next=/client/${params.projectId}`)
 
   const user = await prisma.user.findUnique({ where: { email: session.user.email! } })
-  if (!user || user.role !== 'CLIENT') redirect('/login')
+  if (!user || user.role !== 'CLIENT') redirect(`/client/login?next=/client/${params.projectId}`)
 
   // Première connexion : profil incomplet → setup
   if (!user.firstName) redirect(`/client/setup?next=/client/${params.projectId}`)

@@ -3,6 +3,27 @@
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
+import { createBrowserClient } from '@/lib/supabase'
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 12px',
+  fontSize: 14,
+  borderRadius: 8,
+  border: '1px solid #D4D4CC',
+  background: '#F8F8F6',
+  color: '#1A1A18',
+  outline: 'none',
+  boxSizing: 'border-box',
+}
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 12,
+  fontWeight: 500,
+  color: '#6B6B65',
+  marginBottom: 6,
+}
 
 function SetupForm() {
   const router = useRouter()
@@ -11,15 +32,31 @@ function SetupForm() {
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const passwordMismatch = confirm.length > 0 && password !== confirm
+  const passwordTooShort = password.length > 0 && password.length < 8
+  const canSubmit = firstName.trim() && lastName.trim() && password.length >= 8 && password === confirm
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!firstName.trim() || !lastName.trim()) return
+    if (!canSubmit) return
     setLoading(true)
     setError(null)
 
+    // 1. Définir le mot de passe dans Supabase Auth (session active via magic link)
+    const supabase = createBrowserClient()
+    const { error: pwError } = await supabase.auth.updateUser({ password })
+    if (pwError) {
+      setError(`Erreur mot de passe : ${pwError.message}`)
+      setLoading(false)
+      return
+    }
+
+    // 2. Sauvegarder prénom + nom dans Prisma
     const res = await fetch('/api/client/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -36,26 +73,9 @@ function SetupForm() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: '#F8F8F6',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem',
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: 420,
-          background: '#fff',
-          borderRadius: 14,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-          overflow: 'hidden',
-        }}
-      >
+    <div style={{ minHeight: '100vh', background: '#F8F8F6', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+      <div style={{ width: '100%', maxWidth: 420, background: '#fff', borderRadius: 14, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+
         {/* Header */}
         <div style={{ background: '#1A5C3A', padding: '24px 32px' }}>
           <p style={{ margin: 0, fontSize: 20, color: '#fff', fontWeight: 700 }}>ArchFlow</p>
@@ -66,61 +86,52 @@ function SetupForm() {
 
         {/* Body */}
         <div style={{ padding: '32px' }}>
-          <h1 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 600, color: '#1A1A18' }}>
-            Bienvenue !
-          </h1>
+          <h1 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 600, color: '#1A1A18' }}>Créez votre compte</h1>
           <p style={{ margin: '0 0 24px', fontSize: 14, color: '#6B6B65', lineHeight: 1.6 }}>
-            Complétez votre profil pour accéder à votre espace projet.
+            Définissez un mot de passe pour vous connecter lors de vos prochaines visites.
           </p>
 
           <form onSubmit={(e) => void handleSubmit(e)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6B65', marginBottom: 6 }}>
-                Prénom
-              </label>
-              <input
-                type="text"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                required
-                autoFocus
-                placeholder="Jean"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  fontSize: 14,
-                  borderRadius: 8,
-                  border: '1px solid #D4D4CC',
-                  background: '#F8F8F6',
-                  color: '#1A1A18',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Prénom</label>
+                <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} required autoFocus placeholder="Jean" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Nom</label>
+                <input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} required placeholder="Dupont" style={inputStyle} />
+              </div>
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6B65', marginBottom: 6 }}>
-                Nom
-              </label>
+              <label style={labelStyle}>Mot de passe</label>
               <input
-                type="text"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
-                placeholder="Dupont"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  fontSize: 14,
-                  borderRadius: 8,
-                  border: '1px solid #D4D4CC',
-                  background: '#F8F8F6',
-                  color: '#1A1A18',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
+                minLength={8}
+                placeholder="8 caractères minimum"
+                style={{ ...inputStyle, borderColor: passwordTooShort ? '#FCA5A5' : '#D4D4CC' }}
               />
+              {passwordTooShort && (
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#B45309' }}>8 caractères minimum</p>
+              )}
+            </div>
+
+            <div>
+              <label style={labelStyle}>Confirmer le mot de passe</label>
+              <input
+                type="password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                required
+                placeholder="Répétez le mot de passe"
+                style={{ ...inputStyle, borderColor: passwordMismatch ? '#FCA5A5' : '#D4D4CC' }}
+              />
+              {passwordMismatch && (
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9B1C1C' }}>Les mots de passe ne correspondent pas</p>
+              )}
             </div>
 
             {error && (
@@ -131,20 +142,20 @@ function SetupForm() {
 
             <button
               type="submit"
-              disabled={loading || !firstName.trim() || !lastName.trim()}
+              disabled={loading || !canSubmit}
               style={{
                 marginTop: 4,
                 padding: '12px',
                 fontSize: 14,
                 fontWeight: 600,
                 color: '#fff',
-                background: loading ? '#9B9B94' : '#1A5C3A',
+                background: !canSubmit || loading ? '#9B9B94' : '#1A5C3A',
                 border: 'none',
                 borderRadius: 10,
-                cursor: loading ? 'not-allowed' : 'pointer',
+                cursor: !canSubmit || loading ? 'not-allowed' : 'pointer',
               }}
             >
-              {loading ? 'Enregistrement…' : 'Accéder à mon espace projet →'}
+              {loading ? 'Création du compte…' : 'Créer mon compte →'}
             </button>
           </form>
         </div>
