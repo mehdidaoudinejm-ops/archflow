@@ -274,6 +274,21 @@ model Library {
   agency    Agency   @relation(fields:[agencyId], references:[id])
 }
 
+model LibraryItem {
+  id         String   @id @default(cuid())
+  lot        String
+  sousLot    String?
+  intitule   String
+  unite      String?
+  source     String?
+  validated  Boolean  @default(false)
+  usageCount Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  @@index([lot])
+  @@index([validated])
+}
+
 model AO {
   id               String    @id @default(cuid())
   dpgfId           String
@@ -567,6 +582,13 @@ export async function GET(req: Request) {
 | `GET /api/portal/[aoId]` | COMPANY (token JWT) | Retire TOUT l'estimatif archi |
 | `GET /api/client/[projectId]` | CLIENT | Retourne uniquement les données publiées |
 | `POST /api/portal/[aoId]/offer` | COMPANY (token JWT) | Vérifie que l'AO est encore ouvert |
+| `GET /api/admin/library` | ADMIN | Liste paginée avec filtres lot/validated + tri |
+| `POST /api/admin/library/import` | ADMIN | Import en masse depuis Excel, dédup par lot+intitule |
+| `PATCH /api/admin/library/validate-all` | ADMIN | Valide tous les items en attente |
+| `PATCH /api/admin/library/[id]` | ADMIN | Modifie lot ou validated |
+| `DELETE /api/admin/library/[id]` | ADMIN | Supprime un item |
+| `GET /api/library/suggestions` | ARCHITECT, COLLABORATOR | Suggestions autocomplete (validated=true) |
+| `PATCH /api/library/[id]/use` | ARCHITECT, COLLABORATOR | Incrémente usageCount |
 
 ---
 
@@ -625,6 +647,7 @@ Ajouter dans `layout.tsx` depuis Google Fonts.
 | S12 | Liste d'attente : /register waitlist, /register/invite, /admin/waitlist | ✅ Terminé |
 | S13 | Interface admin : dashboard, users, impersonation, announcements, emails broadcast | ✅ Terminé |
 | S14 | Corrections prod : flow invitation entreprise, bannière impersonation, suppression Supabase Auth | ✅ Terminé |
+| S15 | Bibliothèque DPGF admin + limites plan + améliorations admin | ✅ Terminé |
 
 ---
 
@@ -683,3 +706,21 @@ npx tsc --noEmit
 ### Impersonation admin
 - Le magic link ouvre un nouvel onglet (`_blank`) → utiliser `localStorage` (pas `sessionStorage`, non partagé entre onglets)
 - La bannière `AdminModeBanner` lit `localStorage.__adminImpersonating` et affiche le nom de l'user
+
+### Bibliothèque DPGF (LibraryItem)
+- `LibraryItem` est une table **globale** (pas par agence) gérée uniquement par l'admin
+- Import Excel côté client avec `xlsx` (dynamic import) — parsing dans le navigateur, pas sur le serveur
+- Détection du lot depuis le nom du fichier : mots du filename matchés contre `STANDARD_LOTS`
+- Hiérarchie lot/sous-lot : si lot trouvé dans le filename → les en-têtes de section deviennent des sous-lots
+- `STANDARD_LOTS` partagé via `src/lib/standard-lots.ts` (utilisé par bibliothèque admin + DPGFTable)
+- Autocomplete dans DPGFTable : `TitleAutocomplete` — debounce 300ms, fetch `/api/library/suggestions?lot=&q=`
+
+### Limites par plan
+- Définies dans `src/lib/project-limits.ts` : `COLLABORATOR_LIMITS` et `AI_IMPORT_LIMITS`
+- SOLO : 0 collabs / 3 imports IA/mois — STUDIO : 2 / 6 — AGENCY : 5 / 20
+- Limite imports IA : fenêtre mensuelle (`createdAt >= startOfMonth`), override admin via `user.aiImportLimit`
+- Agences architectes : `activeModules.includes('dpgf')` — Entreprises BTP : `activeModules = []`
+
+### <datalist> dans les tables
+- Ne jamais placer un `<datalist>` à l'intérieur d'un `<table>/<tr>/<td>` — HTML invalide, le navigateur le supprime silencieusement
+- Toujours placer le `<datalist>` en dehors de la table, ou préférer un `<select>` pour plus de fiabilité
