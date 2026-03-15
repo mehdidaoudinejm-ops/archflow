@@ -598,6 +598,14 @@ export default function AdminBibliothequePage() {
         </div>
       )}
 
+      {/* Datalist lots — doit être hors de la table pour être valide en HTML */}
+      <datalist id="global-lots-datalist">
+        {STANDARD_LOTS.map((l) => <option key={l} value={l} />)}
+        {lots.filter((l) => !STANDARD_LOTS.includes(l)).map((l) => (
+          <option key={l} value={l} />
+        ))}
+      </datalist>
+
       {/* Table */}
       <div className="rounded-[14px] overflow-hidden" style={{ background: '#fff', border: '1px solid #E8E8E3', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
         {loading ? (
@@ -607,14 +615,7 @@ export default function AdminBibliothequePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid #E8E8E3', background: '#FAFAF8' }}>
-                  {/* Datalist pour l'édition des lots existants */}
-          <datalist id="global-lots-datalist">
-            {STANDARD_LOTS.map((l) => <option key={l} value={l} />)}
-            {lots.filter((l) => !STANDARD_LOTS.includes(l)).map((l) => (
-              <option key={l} value={l} />
-            ))}
-          </datalist>
-          <th className="pl-4 pr-2 py-3 w-8">
+                  <th className="pl-4 pr-2 py-3 w-8">
             <input
               type="checkbox"
               checked={allSelected}
