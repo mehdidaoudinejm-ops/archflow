@@ -266,20 +266,17 @@ export function DashboardClient({
 
     return (
       <div
-        className="relative rounded-[var(--radius-lg)] border transition-shadow hover:shadow-md"
+        className="rounded-[var(--radius-lg)] border transition-shadow hover:shadow-md"
         style={{
           background: archived ? 'var(--surface2)' : 'var(--surface)',
           borderColor: isActive ? 'var(--amber)' : 'var(--border)',
           boxShadow: 'var(--shadow-sm)',
           opacity: archived ? 0.8 : 1,
+          cursor: archived ? 'default' : 'pointer',
         }}
+        onClick={() => { if (!archived) router.push(`/dpgf/${project.id}`) }}
       >
-        {/* Link overlay */}
-        {!archived && (
-          <Link href={`/dpgf/${project.id}`} className="absolute inset-0 rounded-[var(--radius-lg)] z-0" />
-        )}
-
-        <div className="relative z-10 p-5">
+        <div className="p-5">
           <div className="flex items-start justify-between mb-4">
             <div
               className="w-10 h-10 rounded-[var(--radius)] flex items-center justify-center"
@@ -306,7 +303,7 @@ export function DashboardClient({
                       className="p-1 rounded hover:bg-[var(--surface2)] transition-colors"
                       style={{ color: 'var(--text3)' }}
                       disabled={isActioning}
-                      onClick={(e) => e.preventDefault()}
+                      onClick={(e) => e.stopPropagation()}
                     >
                       <MoreVertical size={15} />
                     </button>
