@@ -126,6 +126,22 @@ export default function AdminBibliothequePage() {
     })
   }
 
+  async function bulkChangeLot(newLot: string) {
+    const ids = Array.from(selectedIds)
+    setBulkLoading(true)
+    await Promise.all(ids.map((id) =>
+      fetch(`/api/admin/library/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lot: newLot }),
+      })
+    ))
+    setItems((prev) => prev.map((i) => selectedIds.has(i.id) ? { ...i, lot: newLot } : i))
+    setLots((prev) => Array.from(new Set([...prev, newLot])).sort())
+    setSelectedIds(new Set())
+    setBulkLoading(false)
+  }
+
   async function bulkValidate() {
     const ids = Array.from(selectedIds)
     setBulkLoading(true)
@@ -673,7 +689,12 @@ export default function AdminBibliothequePage() {
                         value={item.lot}
                         onChange={(e) => {
                           const newLot = e.target.value
-                          if (newLot && newLot !== item.lot) void patchItem(item.id, { lot: newLot })
+                          if (!newLot || newLot === item.lot) return
+                          if (selectedIds.has(item.id) && selectedIds.size > 1) {
+                            void bulkChangeLot(newLot)
+                          } else {
+                            void patchItem(item.id, { lot: newLot })
+                          }
                         }}
                         className="text-xs rounded-full px-2 py-0.5 outline-none font-medium"
                         style={{ border: '1px solid #C6DFD0', background: '#EAF3ED', color: '#1A5C3A', minWidth: 120, maxWidth: 200 }}
