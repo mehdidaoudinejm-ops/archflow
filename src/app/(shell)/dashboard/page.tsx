@@ -11,7 +11,6 @@ export default async function DashboardPage() {
 
   if (!user) redirect('/login')
   if (user.role === 'COMPANY') redirect('/mes-appels-doffres')
-  if (user.role === 'ADMIN') redirect('/admin')
 
   if (!user.agencyId) {
     return (
