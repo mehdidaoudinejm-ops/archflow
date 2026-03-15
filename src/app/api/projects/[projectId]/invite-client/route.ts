@@ -8,7 +8,7 @@ import { ClientInvitationEmail } from '@/emails/ClientInvitationEmail'
 export const dynamic = 'force-dynamic'
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: { projectId: string } }
 ) {
   try {
@@ -28,7 +28,9 @@ export async function POST(
       return NextResponse.json({ error: 'Aucun email client renseigné dans les informations du projet' }, { status: 400 })
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+    const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? 'localhost:3000'
+    const proto = req.headers.get('x-forwarded-proto') ?? 'https'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? `${proto}://${host}`
     const redirectTo = `${appUrl}/client/${params.projectId}`
 
     const supabaseAdmin = createClient(
