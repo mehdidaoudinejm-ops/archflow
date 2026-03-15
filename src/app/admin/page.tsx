@@ -46,7 +46,8 @@ export default async function AdminDashboardPage() {
   // ── Stats ─────────────────────────────────────────────────────────────────
   let totalUsers = 0
   let activeArchitects = 0
-  let totalAgencies = 0
+  let totalArchAgencies = 0
+  let totalCompanyAgencies = 0
   let mrr = 0
   let activeProjects = 0
   let activeAOs = 0
@@ -68,6 +69,7 @@ export default async function AdminDashboardPage() {
     id: string
     name: string
     plan: string
+    activeModules: string[]
     createdAt: Date
     _count: { users: number; projects: number }
   }
@@ -112,7 +114,7 @@ export default async function AdminDashboardPage() {
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { role: 'ARCHITECT', suspended: false } }),
-      prisma.agency.findMany({ select: { plan: true } }),
+      prisma.agency.findMany({ select: { plan: true, activeModules: true } }),
       prisma.project.count({ where: { status: 'ACTIVE' } }),
       prisma.aO.count({ where: { status: { in: ['SENT', 'IN_PROGRESS'] } } }),
       prisma.user.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
@@ -137,6 +139,7 @@ export default async function AdminDashboardPage() {
           id: true,
           name: true,
           plan: true,
+          activeModules: true,
           createdAt: true,
           _count: { select: { users: true, projects: true } },
         },
@@ -167,8 +170,12 @@ export default async function AdminDashboardPage() {
 
     totalUsers = usersTotal
     activeArchitects = architectsActive
-    totalAgencies = agenciesAll.length
-    mrr = agenciesAll.reduce((sum, a) => sum + (MRR_BY_PLAN[a.plan] ?? 0), 0)
+    // Agences archi = activeModules contient "dpgf" | Entreprises construction = activeModules vide
+    totalArchAgencies = agenciesAll.filter((a) => a.activeModules.includes('dpgf')).length
+    totalCompanyAgencies = agenciesAll.filter((a) => !a.activeModules.includes('dpgf')).length
+    mrr = agenciesAll
+      .filter((a) => a.activeModules.includes('dpgf'))
+      .reduce((sum, a) => sum + (MRR_BY_PLAN[a.plan] ?? 0), 0)
     activeProjects = projectsActive
     activeAOs = aosActive
     newUsersLast30Days = usersNew
@@ -220,7 +227,7 @@ export default async function AdminDashboardPage() {
         )}
 
         {/* ── Stats cards ──────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             icon={<Users size={20} />}
             iconBg="#EAF3ED" iconColor="#1A5C3A"
@@ -238,13 +245,19 @@ export default async function AdminDashboardPage() {
           <StatCard
             icon={<Building2 size={20} />}
             iconBg="#FEF3E2" iconColor="#B45309"
-            label="Agences"
-            value={totalAgencies}
+            label="Agences archi"
+            value={totalArchAgencies}
+          />
+          <StatCard
+            icon={<Briefcase size={20} />}
+            iconBg="#F3F4F6" iconColor="#6B7280"
+            label="Entreprises construction"
+            value={totalCompanyAgencies}
           />
           <StatCard
             icon={<TrendingUp size={20} />}
             iconBg="#EAF3ED" iconColor="#1A5C3A"
-            label="MRR estimé"
+            label="MRR estimé (archi)"
             value={mrr}
             suffix="€"
           />
@@ -325,18 +338,19 @@ export default async function AdminDashboardPage() {
         </Card>
 
         {/* ── Dernières agences ─────────────────────────────────────────── */}
-        <Card title="Dernières agences">
+        <Card title="Derniers comptes (agences &amp; entreprises)">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid #E8E8E3' }}>
-                  {['Agence', 'Plan', 'Utilisateurs', 'Projets', 'Créée le'].map((h) => (
+                  {['Nom', 'Type', 'Plan', 'Membres', 'Projets', 'Créé le'].map((h) => (
                     <th key={h} className="text-left px-4 py-3 font-medium" style={{ color: '#6B6B65', fontSize: 12 }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {recentAgencies.map((a, i) => {
+                  const isArchi = a.activeModules.includes('dpgf')
                   const planBadge = PLAN_BADGE[a.plan] ?? { bg: '#F3F4F6', color: '#6B7280', label: a.plan }
                   return (
                     <tr key={a.id} style={{ borderBottom: i < recentAgencies.length - 1 ? '1px solid #E8E8E3' : undefined }}>
@@ -344,10 +358,25 @@ export default async function AdminDashboardPage() {
                       <td className="px-4 py-3">
                         <span
                           className="text-xs px-2 py-0.5 rounded-full font-medium"
-                          style={{ background: planBadge.bg, color: planBadge.color }}
+                          style={isArchi
+                            ? { background: '#EEF2FF', color: '#4338CA' }
+                            : { background: '#FEF3E2', color: '#B45309' }
+                          }
                         >
-                          {planBadge.label}
+                          {isArchi ? 'Agence archi' : 'Entreprise'}
                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {isArchi ? (
+                          <span
+                            className="text-xs px-2 py-0.5 rounded-full font-medium"
+                            style={{ background: planBadge.bg, color: planBadge.color }}
+                          >
+                            {planBadge.label}
+                          </span>
+                        ) : (
+                          <span style={{ color: '#9B9B94', fontSize: 12 }}>—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 tabular-nums" style={{ color: '#6B6B65' }}>{a._count.users}</td>
                       <td className="px-4 py-3 tabular-nums" style={{ color: '#6B6B65' }}>{a._count.projects}</td>
@@ -358,7 +387,7 @@ export default async function AdminDashboardPage() {
                   )
                 })}
                 {recentAgencies.length === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: '#9B9B94' }}>Aucune agence</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: '#9B9B94' }}>Aucun compte</td></tr>
                 )}
               </tbody>
             </table>
