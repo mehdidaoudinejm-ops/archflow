@@ -1,0 +1,546 @@
+'use client'
+
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { BookOpen, Upload, CheckCheck, Trash2, Check, X, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react'
+
+interface LibraryItem {
+  id: string
+  lot: string
+  sousLot: string | null
+  intitule: string
+  unite: string | null
+  source: string | null
+  validated: boolean
+  usageCount: number
+  createdAt: string
+}
+
+interface ParsedCandidate {
+  lot: string
+  sousLot?: string
+  intitule: string
+  unite?: string
+}
+
+const PAGE_SIZE = 50
+
+export default function AdminBibliothequePage() {
+  const [items, setItems] = useState<LibraryItem[]>([])
+  const [total, setTotal] = useState(0)
+  const [lots, setLots] = useState<string[]>([])
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [actionId, setActionId] = useState<string | null>(null)
+
+  // Filters
+  const [filterLot, setFilterLot] = useState('')
+  const [filterValidated, setFilterValidated] = useState<'' | 'true' | 'false'>('')
+
+  // Import dialog
+  const [importOpen, setImportOpen] = useState(false)
+  const [parsing, setParsing] = useState(false)
+  const [candidates, setCandidates] = useState<ParsedCandidate[]>([])
+  const [parseError, setParseError] = useState('')
+  const [importFileName, setImportFileName] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ imported: number; duplicates: number } | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  // Validate-all loading
+  const [validatingAll, setValidatingAll] = useState(false)
+
+  const load = useCallback(async (p = page) => {
+    setLoading(true)
+    const params = new URLSearchParams({ page: String(p) })
+    if (filterLot) params.set('lot', filterLot)
+    if (filterValidated) params.set('validated', filterValidated)
+    const res = await fetch(`/api/admin/library?${params}`)
+    if (res.ok) {
+      const data = await res.json()
+      setItems(data.items)
+      setTotal(data.total)
+      setLots(data.lots)
+    }
+    setLoading(false)
+  }, [page, filterLot, filterValidated])
+
+  useEffect(() => { void load() }, [load])
+
+  function resetFilters() {
+    setFilterLot('')
+    setFilterValidated('')
+    setPage(1)
+  }
+
+  async function toggleValidate(item: LibraryItem) {
+    setActionId(item.id)
+    const res = await fetch(`/api/admin/library/${item.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ validated: !item.validated }),
+    })
+    if (res.ok) {
+      setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, validated: !i.validated } : i))
+    }
+    setActionId(null)
+  }
+
+  async function deleteItem(item: LibraryItem) {
+    if (!confirm(`Supprimer "${item.intitule}" ?`)) return
+    setActionId(item.id)
+    const res = await fetch(`/api/admin/library/${item.id}`, { method: 'DELETE' })
+    if (res.ok) setItems((prev) => prev.filter((i) => i.id !== item.id))
+    setActionId(null)
+  }
+
+  async function validateAll() {
+    if (!confirm('Valider tous les postes en attente ?')) return
+    setValidatingAll(true)
+    const res = await fetch('/api/admin/library/validate-all', { method: 'PATCH' })
+    if (res.ok) {
+      await load(page)
+    }
+    setValidatingAll(false)
+  }
+
+  // ── Import dialog ─────────────────────────────────────────────────────────
+
+  async function handleFile(file: File) {
+    setParsing(true)
+    setParseError('')
+    setCandidates([])
+    setImportResult(null)
+    setImportFileName(file.name)
+
+    try {
+      const XLSX = await import('xlsx')
+      const buffer = await file.arrayBuffer()
+      const workbook = XLSX.read(buffer, { type: 'array' })
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, {
+        header: 1,
+        defval: null,
+      }) as (string | number | null)[][]
+
+      const normalize = (s: string) =>
+        s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+
+      const findCol = (headers: (string | number | null)[], kws: string[]) => {
+        for (let i = 0; i < headers.length; i++) {
+          const h = normalize(String(headers[i] ?? ''))
+          if (kws.some((k) => h.includes(k))) return i
+        }
+        return -1
+      }
+
+      let headerRowIdx = 0
+      let lotIdx = -1, sousLotIdx = -1, intituleIdx = -1, uniteIdx = -1
+
+      for (let i = 0; i < Math.min(15, rows.length); i++) {
+        const row = rows[i].map((c) => String(c ?? ''))
+        const ti = findCol(row, ['intitule', 'designation', 'libelle', 'description', 'prestation', 'poste'])
+        if (ti !== -1) {
+          headerRowIdx = i
+          intituleIdx = ti
+          lotIdx = findCol(row, ['lot'])
+          sousLotIdx = findCol(row, ['sous-lot', 'sous lot', 'sous_lot', 'sous-ouvrage', 'section', 'chapitre'])
+          uniteIdx = findCol(row, ['unite', 'u.', 'unit'])
+          break
+        }
+      }
+
+      if (intituleIdx === -1) {
+        setParseError("Aucune colonne d'intitulé détectée. Vérifiez que votre fichier contient une colonne \"Intitulé\", \"Désignation\" ou similaire.")
+        setParsing(false)
+        return
+      }
+
+      const result: ParsedCandidate[] = []
+      let currentLot = ''
+      let currentSousLot = ''
+
+      for (let i = headerRowIdx + 1; i < rows.length; i++) {
+        const row = rows[i].map((c) => String(c ?? '').trim())
+        const lotVal = lotIdx >= 0 ? row[lotIdx] : ''
+        const sousLotVal = sousLotIdx >= 0 ? row[sousLotIdx] : ''
+        const intituleVal = intituleIdx >= 0 ? row[intituleIdx] : ''
+        const uniteVal = uniteIdx >= 0 ? row[uniteIdx] : ''
+
+        if (lotVal && lotVal.length > 1) currentLot = lotVal
+        if (sousLotVal && sousLotVal.length > 1) currentSousLot = sousLotVal
+        if (!intituleVal || intituleVal.length < 3) continue
+        if (!currentLot) continue
+
+        result.push({
+          lot: currentLot,
+          sousLot: currentSousLot || undefined,
+          intitule: intituleVal,
+          unite: uniteVal || undefined,
+        })
+      }
+
+      if (result.length === 0) {
+        setParseError('Aucun poste extrait. Vérifiez la structure du fichier.')
+      } else {
+        setCandidates(result)
+      }
+    } catch {
+      setParseError('Erreur lors de la lecture du fichier.')
+    }
+
+    setParsing(false)
+  }
+
+  async function confirmImport() {
+    setImporting(true)
+    const res = await fetch('/api/admin/library/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: candidates, source: importFileName }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setImportResult(data)
+      setCandidates([])
+      await load(1)
+      setPage(1)
+    }
+    setImporting(false)
+  }
+
+  function closeImport() {
+    setImportOpen(false)
+    setCandidates([])
+    setParseError('')
+    setImportResult(null)
+    setImportFileName('')
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  const pendingCount = items.filter((i) => !i.validated).length
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+
+  return (
+    <div className="p-8 max-w-7xl mx-auto space-y-6">
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-[10px] flex items-center justify-center" style={{ background: '#EAF3ED', color: '#1A5C3A' }}>
+            <BookOpen size={18} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: '#1A1A18' }}>Bibliothèque DPGF</h1>
+            <p className="text-sm" style={{ color: '#6B6B65' }}>{total} intitulé{total > 1 ? 's' : ''}</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {pendingCount > 0 && (
+            <button
+              onClick={validateAll}
+              disabled={validatingAll}
+              className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg font-medium disabled:opacity-50"
+              style={{ background: '#EAF3ED', color: '#1A5C3A', border: '1px solid #C6DFD0' }}
+            >
+              <CheckCheck size={15} />
+              Valider tout ({pendingCount})
+            </button>
+          )}
+          <button
+            onClick={() => setImportOpen(true)}
+            className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg font-medium"
+            style={{ background: '#1A5C3A', color: '#fff' }}
+          >
+            <Upload size={15} />
+            Importer une DPGF
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <select
+          value={filterLot}
+          onChange={(e) => { setFilterLot(e.target.value); setPage(1) }}
+          className="text-sm rounded-lg px-3 py-2 outline-none"
+          style={{ border: '1px solid #E8E8E3', background: '#fff', color: '#1A1A18' }}
+        >
+          <option value="">Tous les lots</option>
+          {lots.map((l) => <option key={l} value={l}>{l}</option>)}
+        </select>
+        <select
+          value={filterValidated}
+          onChange={(e) => { setFilterValidated(e.target.value as '' | 'true' | 'false'); setPage(1) }}
+          className="text-sm rounded-lg px-3 py-2 outline-none"
+          style={{ border: '1px solid #E8E8E3', background: '#fff', color: '#1A1A18' }}
+        >
+          <option value="">Tous les statuts</option>
+          <option value="true">Validés</option>
+          <option value="false">En attente</option>
+        </select>
+        {(filterLot || filterValidated) && (
+          <button
+            onClick={resetFilters}
+            className="text-xs px-3 py-1.5 rounded-lg"
+            style={{ color: '#6B6B65', background: '#F3F4F6', border: '1px solid #E8E8E3' }}
+          >
+            Réinitialiser
+          </button>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="rounded-[14px] overflow-hidden" style={{ background: '#fff', border: '1px solid #E8E8E3', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+        {loading ? (
+          <div className="px-6 py-12 text-center text-sm" style={{ color: '#9B9B94' }}>Chargement...</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ borderBottom: '1px solid #E8E8E3', background: '#FAFAF8' }}>
+                  {['Lot', 'Sous-lot', 'Intitulé', 'Unité', 'Source', 'Utilisations', 'Statut', ''].map((h) => (
+                    <th key={h} className="text-left px-4 py-3 font-medium text-xs" style={{ color: '#6B6B65' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, i) => (
+                  <tr
+                    key={item.id}
+                    style={{ borderBottom: i < items.length - 1 ? '1px solid #E8E8E3' : undefined, opacity: actionId === item.id ? 0.5 : 1 }}
+                  >
+                    <td className="px-4 py-2.5">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#EAF3ED', color: '#1A5C3A' }}>
+                        {item.lot}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs" style={{ color: '#6B6B65' }}>{item.sousLot ?? '—'}</td>
+                    <td className="px-4 py-2.5 font-medium" style={{ color: '#1A1A18', maxWidth: 320 }}>
+                      <span className="line-clamp-2">{item.intitule}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs font-mono" style={{ color: '#6B6B65' }}>{item.unite ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-xs" style={{ color: '#9B9B94' }}>{item.source ?? '—'}</td>
+                    <td className="px-4 py-2.5 tabular-nums text-xs" style={{ color: '#6B6B65' }}>{item.usageCount}</td>
+                    <td className="px-4 py-2.5">
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full font-medium"
+                        style={item.validated
+                          ? { background: '#EAF3ED', color: '#1A5C3A' }
+                          : { background: '#FEF3E2', color: '#B45309' }
+                        }
+                      >
+                        {item.validated ? 'Validé' : 'En attente'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-1">
+                        <button
+                          title={item.validated ? 'Invalider' : 'Valider'}
+                          onClick={() => toggleValidate(item)}
+                          disabled={actionId !== null}
+                          className="p-1.5 rounded-lg transition-colors disabled:opacity-40"
+                          style={{
+                            background: item.validated ? '#F3F4F6' : '#EAF3ED',
+                            color: item.validated ? '#6B7280' : '#1A5C3A',
+                          }}
+                        >
+                          <Check size={14} />
+                        </button>
+                        <button
+                          title="Supprimer"
+                          onClick={() => deleteItem(item)}
+                          disabled={actionId !== null}
+                          className="p-1.5 rounded-lg transition-colors disabled:opacity-40"
+                          style={{ background: '#FEE8E8', color: '#9B1C1C' }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {items.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-sm" style={{ color: '#9B9B94' }}>
+                      Aucun intitulé{filterLot || filterValidated ? ' pour ces filtres' : ''}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: '1px solid #E8E8E3' }}>
+            <span className="text-xs" style={{ color: '#9B9B94' }}>
+              Page {page} / {totalPages} · {total} résultat{total > 1 ? 's' : ''}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { const p = page - 1; setPage(p); void load(p) }}
+                disabled={page === 1}
+                className="p-1.5 rounded-lg disabled:opacity-30"
+                style={{ background: '#F3F4F6', color: '#6B6B65' }}
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <button
+                onClick={() => { const p = page + 1; setPage(p); void load(p) }}
+                disabled={page === totalPages}
+                className="p-1.5 rounded-lg disabled:opacity-30"
+                style={{ background: '#F3F4F6', color: '#6B6B65' }}
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Import Dialog */}
+      {importOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
+          <div className="w-full max-w-3xl mx-4 rounded-[16px] overflow-hidden flex flex-col" style={{ background: '#fff', border: '1px solid #E8E8E3', maxHeight: '90vh' }}>
+
+            {/* Dialog Header */}
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #E8E8E3' }}>
+              <div className="flex items-center gap-2.5">
+                <FileSpreadsheet size={18} style={{ color: '#1A5C3A' }} />
+                <h2 className="text-base font-semibold" style={{ color: '#1A1A18' }}>Importer une DPGF Excel</h2>
+              </div>
+              <button onClick={closeImport} className="p-1 rounded" style={{ color: '#9B9B94' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+              {/* Success state */}
+              {importResult && (
+                <div className="rounded-xl p-4 text-sm" style={{ background: '#EAF3ED', color: '#1A5C3A', border: '1px solid #C6DFD0' }}>
+                  <div className="font-semibold mb-1">Import terminé</div>
+                  <div>{importResult.imported} poste{importResult.imported > 1 ? 's' : ''} importé{importResult.imported > 1 ? 's' : ''}</div>
+                  {importResult.duplicates > 0 && (
+                    <div className="text-xs mt-0.5" style={{ color: '#2D7A50' }}>{importResult.duplicates} doublon{importResult.duplicates > 1 ? 's' : ''} ignoré{importResult.duplicates > 1 ? 's' : ''}</div>
+                  )}
+                </div>
+              )}
+
+              {/* File upload zone */}
+              {!importResult && (
+                <>
+                  <div
+                    className="rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors"
+                    style={{ borderColor: '#D4D4CC', background: '#FAFAF8' }}
+                    onClick={() => fileRef.current?.click()}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      const file = e.dataTransfer.files[0]
+                      if (file) void handleFile(file)
+                    }}
+                  >
+                    <Upload size={24} className="mx-auto mb-2" style={{ color: '#9B9B94' }} />
+                    <p className="text-sm font-medium" style={{ color: '#1A1A18' }}>
+                      Déposez votre DPGF Excel ici
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: '#9B9B94' }}>ou cliquez pour sélectionner (.xlsx, .xls)</p>
+                    {importFileName && (
+                      <p className="text-xs mt-2 font-medium" style={{ color: '#1A5C3A' }}>{importFileName}</p>
+                    )}
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept=".xlsx,.xls"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) void handleFile(file)
+                      }}
+                    />
+                  </div>
+
+                  {parsing && (
+                    <div className="text-sm text-center py-2" style={{ color: '#9B9B94' }}>Analyse en cours...</div>
+                  )}
+
+                  {parseError && (
+                    <div className="rounded-xl p-3 text-sm" style={{ background: '#FEE8E8', color: '#9B1C1C', border: '1px solid #FCA5A5' }}>
+                      {parseError}
+                    </div>
+                  )}
+
+                  {/* Preview */}
+                  {candidates.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium mb-2" style={{ color: '#1A1A18' }}>
+                        {candidates.length} poste{candidates.length > 1 ? 's' : ''} détecté{candidates.length > 1 ? 's' : ''}
+                      </p>
+                      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E8E8E3', maxHeight: 320, overflowY: 'auto' }}>
+                        <table className="w-full text-xs">
+                          <thead style={{ position: 'sticky', top: 0, background: '#FAFAF8', borderBottom: '1px solid #E8E8E3', zIndex: 1 }}>
+                            <tr>
+                              {['Lot', 'Sous-lot', 'Intitulé', 'Unité'].map((h) => (
+                                <th key={h} className="text-left px-3 py-2 font-medium" style={{ color: '#6B6B65' }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {candidates.slice(0, 200).map((c, i) => (
+                              <tr key={i} style={{ borderBottom: '1px solid #F3F3F0' }}>
+                                <td className="px-3 py-1.5">
+                                  <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: '#EAF3ED', color: '#1A5C3A' }}>
+                                    {c.lot}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-1.5" style={{ color: '#6B6B65' }}>{c.sousLot ?? '—'}</td>
+                                <td className="px-3 py-1.5 font-medium" style={{ color: '#1A1A18', maxWidth: 240 }}>
+                                  <span className="line-clamp-1">{c.intitule}</span>
+                                </td>
+                                <td className="px-3 py-1.5 font-mono" style={{ color: '#6B6B65' }}>{c.unite ?? '—'}</td>
+                              </tr>
+                            ))}
+                            {candidates.length > 200 && (
+                              <tr>
+                                <td colSpan={4} className="px-3 py-2 text-center" style={{ color: '#9B9B94' }}>
+                                  … et {candidates.length - 200} postes supplémentaires
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Dialog Footer */}
+            <div className="flex justify-end gap-3 px-6 py-4" style={{ borderTop: '1px solid #E8E8E3' }}>
+              <button
+                onClick={closeImport}
+                className="text-sm px-4 py-2 rounded-lg"
+                style={{ background: '#F3F4F6', color: '#6B6B65', border: '1px solid #E8E8E3' }}
+              >
+                {importResult ? 'Fermer' : 'Annuler'}
+              </button>
+              {!importResult && candidates.length > 0 && (
+                <button
+                  onClick={confirmImport}
+                  disabled={importing}
+                  className="text-sm px-4 py-2 rounded-lg font-medium disabled:opacity-50"
+                  style={{ background: '#1A5C3A', color: '#fff' }}
+                >
+                  {importing ? 'Import...' : `Importer ${candidates.length} poste${candidates.length > 1 ? 's' : ''}`}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

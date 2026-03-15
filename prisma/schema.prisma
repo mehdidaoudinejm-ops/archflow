@@ -232,6 +232,22 @@ model Library {
   @@index([agencyId])
 }
 
+model LibraryItem {
+  id         String   @id @default(cuid())
+  lot        String
+  sousLot    String?
+  intitule   String
+  unite      String?
+  source     String?
+  validated  Boolean  @default(false)
+  usageCount Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([lot])
+  @@index([validated])
+}
+
 model AO {
   id                String           @id @default(cuid())
   dpgfId            String

@@ -301,10 +301,123 @@ function SubLotRow({ sublot, lot, collapsed, onToggle, onUpdate, onDelete, isRea
   )
 }
 
+// ── TitleAutocomplete ─────────────────────────────────────────────────────────
+interface Suggestion { id: string; intitule: string; unite: string | null }
+
+function TitleAutocomplete({
+  defaultValue,
+  lotName,
+  onCommit,
+  onCancel,
+}: {
+  defaultValue: string
+  lotName: string
+  onCommit: (title: string, unite?: string) => void
+  onCancel: () => void
+}) {
+  const [value, setValue] = useState(defaultValue)
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [open, setOpen] = useState(false)
+  const [activeIdx, setActiveIdx] = useState(-1)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { inputRef.current?.focus() }, [])
+
+  function fetchSuggestions(q: string) {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    if (q.length < 2) { setSuggestions([]); setOpen(false); return }
+    timerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/library/suggestions?lot=${encodeURIComponent(lotName)}&q=${encodeURIComponent(q)}`)
+        if (res.ok) {
+          const data: Suggestion[] = await res.json()
+          setSuggestions(data)
+          setOpen(data.length > 0)
+          setActiveIdx(-1)
+        }
+      } catch { /* ignore */ }
+    }, 250)
+  }
+
+  function selectSuggestion(s: Suggestion) {
+    void fetch(`/api/library/${s.id}/use`, { method: 'PATCH' })
+    setOpen(false)
+    onCommit(s.intitule, s.unite ?? undefined)
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIdx((i) => Math.min(i + 1, suggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIdx((i) => Math.max(i - 1, -1))
+    } else if (e.key === 'Enter') {
+      if (activeIdx >= 0 && suggestions[activeIdx]) {
+        selectSuggestion(suggestions[activeIdx])
+      } else {
+        setOpen(false)
+        onCommit(value)
+      }
+    } else if (e.key === 'Escape') {
+      setOpen(false)
+      onCancel()
+    }
+  }
+
+  return (
+    <div ref={wrapRef} className="relative w-full">
+      <input
+        ref={inputRef}
+        className="w-full text-sm outline-none rounded"
+        style={{ border: '1px solid var(--border)', padding: '4px 8px', color: 'var(--text)', background: 'var(--surface)' }}
+        value={value}
+        onChange={(e) => { setValue(e.target.value); fetchSuggestions(e.target.value) }}
+        onBlur={(e) => {
+          // Delay to allow click on dropdown
+          setTimeout(() => {
+            if (!wrapRef.current?.contains(document.activeElement)) {
+              setOpen(false)
+              onCommit(e.target.value)
+            }
+          }, 150)
+        }}
+        onKeyDown={handleKeyDown}
+      />
+      {open && (
+        <div
+          className="absolute left-0 top-full mt-0.5 rounded-lg overflow-hidden z-50 w-full"
+          style={{ background: '#fff', border: '1px solid #E8E8E3', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto', minWidth: 240 }}
+        >
+          {suggestions.map((s, idx) => (
+            <div
+              key={s.id}
+              className="px-3 py-2 cursor-pointer text-sm"
+              style={{
+                background: idx === activeIdx ? '#EAF3ED' : '#fff',
+                color: '#1A1A18',
+                borderBottom: idx < suggestions.length - 1 ? '1px solid #F3F3F0' : undefined,
+              }}
+              onMouseDown={(e) => { e.preventDefault(); selectSuggestion(s) }}
+              onMouseEnter={() => setActiveIdx(idx)}
+            >
+              <span>{s.intitule}</span>
+              {s.unite && <span className="ml-2 text-xs font-mono" style={{ color: '#9B9B94' }}>{s.unite}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── PostRow ────────────────────────────────────────────────────────────────────
 interface PostRowProps {
   post: Post
   sublot?: SubLotWithPosts
+  lotName: string
   isReadOnly: boolean
   onUpdate: (data: {
     title?: string
@@ -317,7 +430,7 @@ interface PostRowProps {
   onSaveToLibrary: (data: { trade?: string | null }) => Promise<void>
 }
 
-function PostRow({ post, sublot, isReadOnly, onUpdate, onDelete, onSaveToLibrary }: PostRowProps) {
+function PostRow({ post, sublot, lotName, isReadOnly, onUpdate, onDelete, onSaveToLibrary }: PostRowProps) {
   const [localPost, setLocalPost] = useState(post)
   const [editField, setEditField] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -408,16 +521,21 @@ function PostRow({ post, sublot, isReadOnly, onUpdate, onDelete, onSaveToLibrary
       {/* Désignation */}
       <div className="px-2 py-2 flex items-center gap-2 min-w-0">
         {editField === 'title' ? (
-          <input
-            autoFocus
-            className="w-full text-sm outline-none rounded"
-            style={{ border: '1px solid var(--border)', padding: '4px 8px', color: 'var(--text)', background: 'var(--surface)' }}
+          <TitleAutocomplete
             defaultValue={localPost.title}
-            onBlur={(e) => commitEdit('title', e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitEdit('title', e.currentTarget.value)
-              if (e.key === 'Escape') setEditField(null)
+            lotName={lotName}
+            onCommit={(title, unite) => {
+              const updates: { title: string; unit?: string } = { title }
+              if (unite) updates.unit = unite
+              setLocalPost((p) => ({ ...p, ...updates }))
+              setEditField(null)
+              void onUpdate(updates).then(() => {
+                if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+                setSaved(true)
+                savedTimerRef.current = setTimeout(() => setSaved(false), 2000)
+              })
             }}
+            onCancel={() => setEditField(null)}
           />
         ) : (
           <span
@@ -1056,6 +1174,7 @@ export function DPGFTable({
                   key={row.post.id}
                   post={row.post}
                   sublot={row.sublot}
+                  lotName={row.lot.name}
                   isReadOnly={isReadOnly}
                   onUpdate={(data) => onUpdatePost(row.lot.id, row.post.id, data)}
                   onDelete={() => onDeletePost(row.lot.id, row.post.id)}
