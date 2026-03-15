@@ -15,10 +15,10 @@ interface Announcement {
 
 const TYPES = ['INFO', 'SUCCESS', 'WARNING'] as const
 
-const typeColors: Record<string, string> = {
-  INFO: 'bg-blue-500/10 text-blue-400',
-  SUCCESS: 'bg-green-500/10 text-green-400',
-  WARNING: 'bg-amber-500/10 text-amber-400',
+const typeStyle: Record<string, { bg: string; color: string }> = {
+  INFO:    { bg: '#EEF2FF', color: '#4338CA' },
+  SUCCESS: { bg: '#EAF3ED', color: '#1A5C3A' },
+  WARNING: { bg: '#FEF3E2', color: '#B45309' },
 }
 
 function Toggle({
@@ -34,17 +34,26 @@ function Toggle({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${
-        active ? 'bg-green-500' : 'bg-zinc-700'
-      } disabled:opacity-50`}
+      className="w-10 h-5 rounded-full transition-colors relative shrink-0 disabled:opacity-50"
+      style={{ background: active ? '#1A5C3A' : '#D4D4CC' }}
     >
       <span
-        className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${
-          active ? 'left-5' : 'left-0.5'
-        }`}
+        className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
+        style={{ left: active ? '1.25rem' : '0.125rem' }}
       />
     </button>
   )
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  background: '#F8F8F6',
+  border: '1px solid #E8E8E3',
+  borderRadius: 8,
+  padding: '8px 12px',
+  fontSize: 14,
+  color: '#1A1A18',
+  outline: 'none',
 }
 
 export default function AdminAnnouncementsPage() {
@@ -116,66 +125,62 @@ export default function AdminAnnouncementsPage() {
   }
 
   if (loading) {
-    return <div className="p-8 text-zinc-400">Chargement...</div>
+    return <div className="p-8 text-sm" style={{ color: '#9B9B94' }}>Chargement...</div>
   }
 
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-semibold text-zinc-100 mb-8">Annonces</h1>
+      <h1 className="text-2xl font-bold mb-1" style={{ color: '#1A1A18' }}>Annonces</h1>
+      <p className="text-sm mb-8" style={{ color: '#6B6B65' }}>Bannières affichées aux utilisateurs de l&apos;app</p>
 
-      {/* Create form */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-8">
-        <h2 className="text-base font-semibold text-zinc-200 mb-4">Nouvelle annonce</h2>
+      {/* Formulaire création */}
+      <div
+        className="rounded-[14px] p-6 mb-8"
+        style={{ background: '#fff', border: '1px solid #E8E8E3', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+      >
+        <h2 className="text-sm font-semibold mb-4" style={{ color: '#1A1A18' }}>Nouvelle annonce</h2>
         <div className="space-y-3">
           <textarea
             value={form.message}
             onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
             placeholder="Message de l'annonce..."
             rows={3}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 resize-none"
+            style={{ ...inputStyle, resize: 'none' }}
           />
           <div className="flex gap-3 flex-wrap">
             <select
               value={form.type}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  type: e.target.value as 'INFO' | 'SUCCESS' | 'WARNING',
-                }))
-              }
-              className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-zinc-500"
+              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as 'INFO' | 'SUCCESS' | 'WARNING' }))}
+              style={{ ...inputStyle, width: 'auto' }}
             >
-              {TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
+              {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
             <input
               type="text"
               value={form.link}
               onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))}
               placeholder="Lien (optionnel)"
-              className="flex-1 min-w-48 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
+              style={{ ...inputStyle, flex: 1, minWidth: 192 }}
             />
             <input
               type="date"
               value={form.startDate}
               onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
-              className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-zinc-500"
+              style={{ ...inputStyle, width: 'auto' }}
             />
             <input
               type="date"
               value={form.endDate}
               onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
-              className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-zinc-500"
+              style={{ ...inputStyle, width: 'auto' }}
             />
           </div>
           <div className="flex justify-end">
             <button
               onClick={createAnnouncement}
               disabled={creating || !form.message.trim()}
-              className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-50"
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              style={{ background: 'var(--green)', color: '#fff' }}
             >
               {creating ? 'Création...' : "Créer l'annonce"}
             </button>
@@ -183,55 +188,64 @@ export default function AdminAnnouncementsPage() {
         </div>
       </div>
 
-      {/* List */}
+      {/* Liste */}
       {announcements.length === 0 ? (
-        <div className="text-zinc-500 text-sm">Aucune annonce.</div>
+        <div className="text-sm" style={{ color: '#9B9B94' }}>Aucune annonce.</div>
       ) : (
         <div className="space-y-3">
-          {announcements.map((a) => (
-            <div
-              key={a.id}
-              className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex items-start gap-4"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded font-medium ${typeColors[a.type]}`}
-                  >
-                    {a.type}
-                  </span>
-                  {!a.isActive && (
-                    <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-500">
-                      Inactif
+          {announcements.map((a) => {
+            const ts = typeStyle[a.type] ?? typeStyle.INFO
+            return (
+              <div
+                key={a.id}
+                className="rounded-[14px] p-5 flex items-start gap-4"
+                style={{ background: '#fff', border: '1px solid #E8E8E3', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span
+                      className="text-xs px-2 py-0.5 rounded font-medium"
+                      style={{ background: ts.bg, color: ts.color }}
+                    >
+                      {a.type}
                     </span>
-                  )}
-                  {(a.startDate || a.endDate) && (
-                    <span className="text-xs text-zinc-600">
-                      {a.startDate && new Date(a.startDate).toLocaleDateString('fr-FR')}
-                      {a.startDate && a.endDate && ' → '}
-                      {a.endDate && new Date(a.endDate).toLocaleDateString('fr-FR')}
-                    </span>
-                  )}
+                    {!a.isActive && (
+                      <span
+                        className="text-xs px-2 py-0.5 rounded"
+                        style={{ background: '#F3F4F6', color: '#9B9B94' }}
+                      >
+                        Inactif
+                      </span>
+                    )}
+                    {(a.startDate || a.endDate) && (
+                      <span className="text-xs" style={{ color: '#9B9B94' }}>
+                        {a.startDate && new Date(a.startDate).toLocaleDateString('fr-FR')}
+                        {a.startDate && a.endDate && ' → '}
+                        {a.endDate && new Date(a.endDate).toLocaleDateString('fr-FR')}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm" style={{ color: '#1A1A18' }}>{a.message}</p>
+                  {a.link && <p className="text-xs mt-1 truncate" style={{ color: '#9B9B94' }}>→ {a.link}</p>}
                 </div>
-                <p className="text-zinc-200 text-sm">{a.message}</p>
-                {a.link && <p className="text-zinc-500 text-xs mt-1 truncate">→ {a.link}</p>}
+                <div className="flex items-center gap-3 shrink-0">
+                  <Toggle
+                    active={a.isActive}
+                    disabled={actionLoading === `toggle-${a.id}`}
+                    onClick={() => toggleActive(a)}
+                  />
+                  <button
+                    onClick={() => deleteAnnouncement(a.id)}
+                    disabled={actionLoading === `delete-${a.id}`}
+                    className="text-xs px-3 py-1 rounded-lg transition-colors disabled:opacity-50"
+                    style={{ background: '#FEE8E8', color: '#9B1C1C', border: '1px solid #FCA5A5' }}
+                  >
+                    {actionLoading === `delete-${a.id}` ? '...' : 'Supprimer'}
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <Toggle
-                  active={a.isActive}
-                  disabled={actionLoading === `toggle-${a.id}`}
-                  onClick={() => toggleActive(a)}
-                />
-                <button
-                  onClick={() => deleteAnnouncement(a.id)}
-                  disabled={actionLoading === `delete-${a.id}`}
-                  className="text-xs px-3 py-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50"
-                >
-                  {actionLoading === `delete-${a.id}` ? '...' : 'Supprimer'}
-                </button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

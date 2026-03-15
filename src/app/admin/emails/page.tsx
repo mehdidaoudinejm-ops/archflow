@@ -16,8 +16,19 @@ interface EmailLog {
 const segmentLabels: Record<Segment, string> = {
   TOUS: 'Tous les utilisateurs actifs',
   SANS_PROJET: 'Sans projet créé',
-  SANS_AO: 'Sans appel d\'offre lancé',
+  SANS_AO: "Sans appel d'offre lancé",
   INACTIFS_30J: 'Inactifs depuis 30 jours',
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  background: '#F8F8F6',
+  border: '1px solid #E8E8E3',
+  borderRadius: 8,
+  padding: '8px 12px',
+  fontSize: 14,
+  color: '#1A1A18',
+  outline: 'none',
 }
 
 export default function AdminEmailsPage() {
@@ -45,7 +56,6 @@ export default function AdminEmailsPage() {
     if (!form.subject.trim() || !form.body.trim()) return
     if (test) setTestSending(true)
     else setSending(true)
-
     setResult(null)
     const res = await fetch('/api/admin/emails/send', {
       method: 'POST',
@@ -59,22 +69,26 @@ export default function AdminEmailsPage() {
     else setSending(false)
   }
 
-  const inputClass = 'w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500'
-
   return (
     <div className="p-8 space-y-8">
-      <h1 className="text-2xl font-semibold text-zinc-100">Emails</h1>
+      <div>
+        <h1 className="text-2xl font-bold mb-1" style={{ color: '#1A1A18' }}>Emails</h1>
+        <p className="text-sm" style={{ color: '#6B6B65' }}>Envoi de campagnes email aux utilisateurs</p>
+      </div>
 
       {/* Formulaire */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-4">
-        <h2 className="text-base font-semibold text-zinc-200">Nouvelle campagne</h2>
+      <div
+        className="rounded-[14px] p-6 space-y-4"
+        style={{ background: '#fff', border: '1px solid #E8E8E3', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+      >
+        <h2 className="text-sm font-semibold" style={{ color: '#1A1A18' }}>Nouvelle campagne</h2>
 
         <div>
-          <label className="block text-xs text-zinc-500 mb-1.5">Segment destinataires</label>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B6B65' }}>Segment destinataires</label>
           <select
             value={form.segment}
             onChange={(e) => setForm((f) => ({ ...f, segment: e.target.value as Segment }))}
-            className={inputClass}
+            style={inputStyle}
           >
             {(Object.entries(segmentLabels) as [Segment, string][]).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
@@ -83,34 +97,40 @@ export default function AdminEmailsPage() {
         </div>
 
         <div>
-          <label className="block text-xs text-zinc-500 mb-1.5">Sujet</label>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B6B65' }}>Sujet</label>
           <input
             type="text"
             value={form.subject}
             onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
             placeholder="Objet de l'email..."
-            className={inputClass}
+            style={inputStyle}
           />
         </div>
 
         <div>
-          <label className="block text-xs text-zinc-500 mb-1.5">Corps du message</label>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B6B65' }}>Corps du message</label>
           <textarea
             value={form.body}
             onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
             placeholder="Contenu de l'email..."
             rows={6}
-            className={`${inputClass} resize-none`}
+            style={{ ...inputStyle, resize: 'none' }}
           />
         </div>
 
         {result && (
-          <div className={`px-4 py-3 rounded-lg text-sm ${result.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+          <div
+            className="px-4 py-3 rounded-lg text-sm"
+            style={{
+              background: result.ok ? '#EAF3ED' : '#FEE8E8',
+              color: result.ok ? '#1A5C3A' : '#9B1C1C',
+            }}
+          >
             {result.ok
               ? result.test
                 ? 'Email de test envoyé avec succès.'
                 : `Envoyé à ${result.recipientCount} destinataire${result.recipientCount > 1 ? 's' : ''}.`
-              : 'Erreur lors de l\'envoi.'}
+              : "Erreur lors de l'envoi."}
           </div>
         )}
 
@@ -118,14 +138,16 @@ export default function AdminEmailsPage() {
           <button
             onClick={() => send(true)}
             disabled={testSending || sending || !form.subject.trim() || !form.body.trim()}
-            className="px-4 py-2 rounded-lg bg-zinc-700 text-zinc-200 text-sm hover:bg-zinc-600 transition-colors disabled:opacity-50"
+            className="px-4 py-2 rounded-lg text-sm transition-colors disabled:opacity-50"
+            style={{ background: '#F3F4F6', color: '#6B6B65', border: '1px solid #E8E8E3' }}
           >
             {testSending ? 'Envoi...' : 'Envoyer test à moi-même'}
           </button>
           <button
             onClick={() => send(false)}
             disabled={sending || testSending || !form.subject.trim() || !form.body.trim()}
-            className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-50"
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            style={{ background: 'var(--green)', color: '#fff' }}
           >
             {sending ? 'Envoi en cours...' : `Envoyer à ${segmentLabels[form.segment]}`}
           </button>
@@ -134,40 +156,52 @@ export default function AdminEmailsPage() {
 
       {/* Historique */}
       <div>
-        <h2 className="text-base font-semibold text-zinc-200 mb-4">Historique des envois</h2>
+        <h2 className="text-sm font-semibold mb-4" style={{ color: '#1A1A18' }}>Historique des envois</h2>
         {logsLoading ? (
-          <p className="text-zinc-500 text-sm">Chargement...</p>
+          <p className="text-sm" style={{ color: '#9B9B94' }}>Chargement...</p>
         ) : logs.length === 0 ? (
-          <p className="text-zinc-600 text-sm">Aucun envoi pour le moment.</p>
+          <p className="text-sm" style={{ color: '#9B9B94' }}>Aucun envoi pour le moment.</p>
         ) : (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+          <div
+            className="rounded-[14px] overflow-hidden"
+            style={{ background: '#fff', border: '1px solid #E8E8E3', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+          >
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-800">
-                  <th className="text-left px-5 py-3 text-zinc-500 font-medium">Sujet</th>
-                  <th className="text-left px-5 py-3 text-zinc-500 font-medium">Segment</th>
-                  <th className="text-left px-5 py-3 text-zinc-500 font-medium">Envoyé par</th>
-                  <th className="text-left px-5 py-3 text-zinc-500 font-medium">Date</th>
-                  <th className="text-right px-5 py-3 text-zinc-500 font-medium">Destinataires</th>
+                <tr style={{ borderBottom: '1px solid #E8E8E3' }}>
+                  {['Sujet', 'Segment', 'Envoyé par', 'Date', 'Destinataires'].map((h, i) => (
+                    <th
+                      key={h}
+                      className="px-5 py-3 font-medium"
+                      style={{ color: '#6B6B65', fontSize: 12, textAlign: i === 4 ? 'right' : 'left' }}
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id} className="border-b border-zinc-800/50">
-                    <td className="px-5 py-3 text-zinc-200">{log.subject}</td>
+                {logs.map((log, i) => (
+                  <tr key={log.id} style={{ borderBottom: i < logs.length - 1 ? '1px solid #E8E8E3' : undefined }}>
+                    <td className="px-5 py-3 font-medium" style={{ color: '#1A1A18' }}>{log.subject}</td>
                     <td className="px-5 py-3">
-                      <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-400">
+                      <span
+                        className="text-xs px-2 py-0.5 rounded"
+                        style={{ background: '#F3F4F6', color: '#6B6B65' }}
+                      >
                         {log.segment}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-zinc-500 text-xs">{log.sentBy ?? '—'}</td>
-                    <td className="px-5 py-3 text-zinc-500">
+                    <td className="px-5 py-3 text-xs" style={{ color: '#9B9B94' }}>{log.sentBy ?? '—'}</td>
+                    <td className="px-5 py-3 text-xs" style={{ color: '#9B9B94' }}>
                       {new Date(log.sentAt).toLocaleDateString('fr-FR', {
                         day: 'numeric', month: 'short', year: 'numeric',
                         hour: '2-digit', minute: '2-digit',
                       })}
                     </td>
-                    <td className="px-5 py-3 text-right text-zinc-300 font-mono">{log.recipientCount}</td>
+                    <td className="px-5 py-3 text-right font-mono font-medium" style={{ color: '#1A1A18' }}>
+                      {log.recipientCount}
+                    </td>
                   </tr>
                 ))}
               </tbody>

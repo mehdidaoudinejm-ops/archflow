@@ -54,22 +54,17 @@ function Toggle({
   disabled: boolean
   onClick: () => void
 }) {
+  const activeColor = color === 'red' ? '#EF4444' : '#1A5C3A'
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${
-        active
-          ? color === 'red'
-            ? 'bg-red-500'
-            : 'bg-green-500'
-          : 'bg-zinc-700'
-      } disabled:opacity-50`}
+      className="w-10 h-5 rounded-full transition-colors relative shrink-0 disabled:opacity-50"
+      style={{ background: active ? activeColor : '#D4D4CC' }}
     >
       <span
-        className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${
-          active ? 'left-5' : 'left-0.5'
-        }`}
+        className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
+        style={{ left: active ? '1.25rem' : '0.125rem' }}
       />
     </button>
   )
@@ -82,12 +77,12 @@ function ImportLimitCell({ user, onUpdate }: { user: User; onUpdate: (id: string
   const inputRef = useRef<HTMLInputElement>(null)
 
   const ratio = user.aiImportCount / user.aiImportLimit
-  const badgeColor =
+  const badgeStyle =
     user.aiImportCount >= user.aiImportLimit
-      ? 'text-red-400 bg-red-500/10'
+      ? { background: '#FEE8E8', color: '#9B1C1C' }
       : ratio >= 0.8
-      ? 'text-amber-400 bg-amber-500/10'
-      : 'text-emerald-400 bg-emerald-500/10'
+      ? { background: '#FEF3E2', color: '#B45309' }
+      : { background: '#EAF3ED', color: '#1A5C3A' }
 
   function startEdit() {
     setValue(String(user.aiImportLimit))
@@ -112,7 +107,7 @@ function ImportLimitCell({ user, onUpdate }: { user: User; onUpdate: (id: string
   if (editing) {
     return (
       <div className="flex items-center gap-1.5">
-        <span className="text-zinc-500 text-xs">{user.aiImportCount} /</span>
+        <span className="text-xs" style={{ color: '#9B9B94' }}>{user.aiImportCount} /</span>
         <input
           ref={inputRef}
           type="number"
@@ -121,18 +116,21 @@ function ImportLimitCell({ user, onUpdate }: { user: User; onUpdate: (id: string
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') void save(); if (e.key === 'Escape') setEditing(false) }}
-          className="w-14 text-xs px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-600 text-zinc-100 focus:outline-none focus:border-zinc-400"
+          className="w-14 text-xs px-1.5 py-0.5 rounded focus:outline-none"
+          style={{ background: '#F8F8F6', border: '1px solid #D4D4CC', color: '#1A1A18' }}
         />
         <button
           onClick={() => void save()}
           disabled={saving}
-          className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-50"
+          className="text-xs px-1.5 py-0.5 rounded disabled:opacity-50"
+          style={{ background: '#EAF3ED', color: '#1A5C3A' }}
         >
           {saving ? '…' : '✓'}
         </button>
         <button
           onClick={() => setEditing(false)}
-          className="text-xs px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-400 hover:bg-zinc-600"
+          className="text-xs px-1.5 py-0.5 rounded"
+          style={{ background: '#F3F4F6', color: '#6B6B65' }}
         >
           ✕
         </button>
@@ -142,12 +140,13 @@ function ImportLimitCell({ user, onUpdate }: { user: User; onUpdate: (id: string
 
   return (
     <div className="flex items-center gap-2">
-      <span className={`text-xs px-2 py-0.5 rounded font-mono font-medium ${badgeColor}`}>
+      <span className="text-xs px-2 py-0.5 rounded font-mono font-medium" style={badgeStyle}>
         {user.aiImportCount} / {user.aiImportLimit}
       </span>
       <button
         onClick={startEdit}
-        className="text-zinc-600 hover:text-zinc-300 transition-colors text-xs"
+        className="text-xs transition-colors"
+        style={{ color: '#9B9B94' }}
         title="Modifier la limite"
       >
         ✎
