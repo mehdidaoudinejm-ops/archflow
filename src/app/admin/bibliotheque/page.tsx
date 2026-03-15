@@ -101,6 +101,54 @@ export default function AdminBibliothequePage() {
   // Validate-all loading
   const [validatingAll, setValidatingAll] = useState(false)
 
+  // Selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkLoading, setBulkLoading] = useState(false)
+
+  const allSelected = items.length > 0 && items.every((i) => selectedIds.has(i.id))
+  const someSelected = items.some((i) => selectedIds.has(i.id))
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(items.map((i) => i.id)))
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  async function bulkValidate() {
+    const ids = Array.from(selectedIds)
+    setBulkLoading(true)
+    await Promise.all(ids.map((id) =>
+      fetch(`/api/admin/library/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ validated: true }),
+      })
+    ))
+    setItems((prev) => prev.map((i) => selectedIds.has(i.id) ? { ...i, validated: true } : i))
+    setSelectedIds(new Set())
+    setBulkLoading(false)
+  }
+
+  async function bulkDelete() {
+    const ids = Array.from(selectedIds)
+    if (!confirm(`Supprimer ${ids.length} poste${ids.length > 1 ? 's' : ''} ?`)) return
+    setBulkLoading(true)
+    await Promise.all(ids.map((id) => fetch(`/api/admin/library/${id}`, { method: 'DELETE' })))
+    setItems((prev) => prev.filter((i) => !selectedIds.has(i.id)))
+    setSelectedIds(new Set())
+    setBulkLoading(false)
+  }
+
   const load = useCallback(async (p = page) => {
     setLoading(true)
     const params = new URLSearchParams({ page: String(p) })
@@ -116,7 +164,7 @@ export default function AdminBibliothequePage() {
     setLoading(false)
   }, [page, filterLot, filterValidated])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { void load(); setSelectedIds(new Set()) }, [load])
 
   function resetFilters() {
     setFilterLot('')
@@ -503,6 +551,41 @@ export default function AdminBibliothequePage() {
         )}
       </div>
 
+      {/* Bulk action bar */}
+      {someSelected && (
+        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl" style={{ background: '#1A1A18', color: '#fff' }}>
+          <span className="text-sm font-medium flex-1">
+            {selectedIds.size} sélectionné{selectedIds.size > 1 ? 's' : ''}
+          </span>
+          <button
+            onClick={bulkValidate}
+            disabled={bulkLoading}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium disabled:opacity-50"
+            style={{ background: '#EAF3ED', color: '#1A5C3A' }}
+          >
+            <CheckCheck size={13} />
+            Valider la sélection
+          </button>
+          <button
+            onClick={bulkDelete}
+            disabled={bulkLoading}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium disabled:opacity-50"
+            style={{ background: '#FEE8E8', color: '#9B1C1C' }}
+          >
+            <Trash2 size={13} />
+            Supprimer la sélection
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            disabled={bulkLoading}
+            className="text-xs px-3 py-1.5 rounded-lg disabled:opacity-50"
+            style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}
+          >
+            Désélectionner
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="rounded-[14px] overflow-hidden" style={{ background: '#fff', border: '1px solid #E8E8E3', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
         {loading ? (
@@ -519,6 +602,16 @@ export default function AdminBibliothequePage() {
               <option key={l} value={l} />
             ))}
           </datalist>
+          <th className="pl-4 pr-2 py-3 w-8">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected }}
+              onChange={toggleSelectAll}
+              className="rounded cursor-pointer"
+              style={{ accentColor: '#1A5C3A' }}
+            />
+          </th>
           {['Lot', 'Sous-lot', 'Intitulé', 'Unité', 'Source', 'Utilisations', 'Statut', ''].map((h) => (
                     <th key={h} className="text-left px-4 py-3 font-medium text-xs" style={{ color: '#6B6B65' }}>{h}</th>
                   ))}
@@ -528,8 +621,17 @@ export default function AdminBibliothequePage() {
                 {items.map((item, i) => (
                   <tr
                     key={item.id}
-                    style={{ borderBottom: i < items.length - 1 ? '1px solid #E8E8E3' : undefined, opacity: actionId === item.id ? 0.5 : 1 }}
+                    style={{ borderBottom: i < items.length - 1 ? '1px solid #E8E8E3' : undefined, opacity: actionId === item.id ? 0.5 : 1, background: selectedIds.has(item.id) ? '#F0F9F4' : undefined }}
                   >
+                    <td className="pl-4 pr-2 py-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(item.id)}
+                        onChange={() => toggleSelect(item.id)}
+                        className="rounded cursor-pointer"
+                        style={{ accentColor: '#1A5C3A' }}
+                      />
+                    </td>
                     <td className="px-3 py-2">
                       <input
                         list="global-lots-datalist"
