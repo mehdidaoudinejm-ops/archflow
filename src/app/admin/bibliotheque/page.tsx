@@ -598,14 +598,6 @@ export default function AdminBibliothequePage() {
         </div>
       )}
 
-      {/* Datalist lots — doit être hors de la table pour être valide en HTML */}
-      <datalist id="global-lots-datalist">
-        {STANDARD_LOTS.map((l) => <option key={l} value={l} />)}
-        {lots.filter((l) => !STANDARD_LOTS.includes(l)).map((l) => (
-          <option key={l} value={l} />
-        ))}
-      </datalist>
-
       {/* Table */}
       <div className="rounded-[14px] overflow-hidden" style={{ background: '#fff', border: '1px solid #E8E8E3', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
         {loading ? (
@@ -658,21 +650,30 @@ export default function AdminBibliothequePage() {
                       />
                     </td>
                     <td className="px-3 py-2">
-                      <input
-                        list="global-lots-datalist"
-                        defaultValue={item.lot}
-                        onBlur={(e) => {
-                          const newLot = e.target.value.trim()
+                      <select
+                        value={item.lot}
+                        onChange={(e) => {
+                          const newLot = e.target.value
                           if (newLot && newLot !== item.lot) void patchItem(item.id, { lot: newLot })
-                          else e.target.value = item.lot
                         }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') e.currentTarget.blur()
-                          if (e.key === 'Escape') { e.currentTarget.value = item.lot; e.currentTarget.blur() }
-                        }}
-                        className="text-xs rounded-full px-2 py-0.5 outline-none font-medium w-full"
+                        className="text-xs rounded-full px-2 py-0.5 outline-none font-medium"
                         style={{ border: '1px solid #C6DFD0', background: '#EAF3ED', color: '#1A5C3A', minWidth: 120, maxWidth: 200 }}
-                      />
+                      >
+                        {/* Lot actuel s'il est hors des listes standards */}
+                        {!STANDARD_LOTS.includes(item.lot) && (
+                          <option value={item.lot}>{item.lot}</option>
+                        )}
+                        <optgroup label="Lots standards">
+                          {STANDARD_LOTS.map((l) => <option key={l} value={l}>{l}</option>)}
+                        </optgroup>
+                        {lots.filter((l) => !STANDARD_LOTS.includes(l) && l !== item.lot).length > 0 && (
+                          <optgroup label="Lots personnalisés">
+                            {lots.filter((l) => !STANDARD_LOTS.includes(l) && l !== item.lot).map((l) => (
+                              <option key={l} value={l}>{l}</option>
+                            ))}
+                          </optgroup>
+                        )}
+                      </select>
                     </td>
                     <td className="px-4 py-2.5 text-xs" style={{ color: '#6B6B65' }}>{item.sousLot ?? '—'}</td>
                     <td className="px-4 py-2.5 font-medium" style={{ color: '#1A1A18', maxWidth: 320 }}>
