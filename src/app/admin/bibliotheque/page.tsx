@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
-import { BookOpen, Upload, CheckCheck, Trash2, Check, X, ChevronLeft, ChevronRight, FileSpreadsheet, AlertTriangle } from 'lucide-react'
+import { BookOpen, Upload, CheckCheck, Trash2, Check, X, ChevronLeft, ChevronRight, FileSpreadsheet, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 
 interface LibraryItem {
   id: string
@@ -82,6 +82,8 @@ export default function AdminBibliothequePage() {
   // Filters
   const [filterLot, setFilterLot] = useState('')
   const [filterValidated, setFilterValidated] = useState<'' | 'true' | 'false'>('')
+  const [sortBy, setSortBy] = useState<'createdAt' | 'lot'>('createdAt')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   // Import dialog
   const [importOpen, setImportOpen] = useState(false)
@@ -151,7 +153,7 @@ export default function AdminBibliothequePage() {
 
   const load = useCallback(async (p = page) => {
     setLoading(true)
-    const params = new URLSearchParams({ page: String(p) })
+    const params = new URLSearchParams({ page: String(p), sortBy, sortDir })
     if (filterLot) params.set('lot', filterLot)
     if (filterValidated) params.set('validated', filterValidated)
     const res = await fetch(`/api/admin/library?${params}`)
@@ -162,7 +164,17 @@ export default function AdminBibliothequePage() {
       setLots(data.lots)
     }
     setLoading(false)
-  }, [page, filterLot, filterValidated])
+  }, [page, filterLot, filterValidated, sortBy, sortDir])
+
+  function toggleSort() {
+    if (sortBy !== 'lot') {
+      setSortBy('lot')
+      setSortDir('asc')
+    } else {
+      setSortDir((d) => d === 'asc' ? 'desc' : 'asc')
+    }
+    setPage(1)
+  }
 
   useEffect(() => { void load(); setSelectedIds(new Set()) }, [load])
 
@@ -612,7 +624,19 @@ export default function AdminBibliothequePage() {
               style={{ accentColor: '#1A5C3A' }}
             />
           </th>
-          {['Lot', 'Sous-lot', 'Intitulé', 'Unité', 'Source', 'Utilisations', 'Statut', ''].map((h) => (
+          <th className="text-left px-4 py-3 font-medium text-xs">
+            <button
+              onClick={toggleSort}
+              className="flex items-center gap-1 hover:opacity-70 transition-opacity"
+              style={{ color: sortBy === 'lot' ? '#1A5C3A' : '#6B6B65' }}
+            >
+              Lot
+              {sortBy === 'lot'
+                ? (sortDir === 'asc' ? <ArrowUp size={11} /> : <ArrowDown size={11} />)
+                : <ArrowUpDown size={11} />}
+            </button>
+          </th>
+          {['Sous-lot', 'Intitulé', 'Unité', 'Source', 'Utilisations', 'Statut', ''].map((h) => (
                     <th key={h} className="text-left px-4 py-3 font-medium text-xs" style={{ color: '#6B6B65' }}>{h}</th>
                   ))}
                 </tr>

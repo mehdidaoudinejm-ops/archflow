@@ -12,6 +12,8 @@ export async function GET(req: Request) {
     const lot = searchParams.get('lot') ?? undefined
     const validated = searchParams.get('validated')
     const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
+    const sortBy = searchParams.get('sortBy') ?? 'createdAt'
+    const sortDir = searchParams.get('sortDir') === 'desc' ? 'desc' : 'asc'
     const limit = 50
 
     const where: { lot?: string; validated?: boolean } = {}
@@ -19,10 +21,15 @@ export async function GET(req: Request) {
     if (validated === 'true') where.validated = true
     if (validated === 'false') where.validated = false
 
+    const dir = sortDir as 'asc' | 'desc'
+    const orderBy = sortBy === 'lot'
+      ? [{ lot: dir }, { intitule: 'asc' as const }]
+      : [{ validated: 'asc' as const }, { createdAt: dir }]
+
     const [items, total, lotRows] = await Promise.all([
       prisma.libraryItem.findMany({
         where,
-        orderBy: [{ validated: 'asc' }, { createdAt: 'desc' }],
+        orderBy,
         skip: (page - 1) * limit,
         take: limit,
       }),
