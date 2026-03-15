@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { ProjectSettingsClient } from '@/components/dpgf/ProjectSettingsClient'
 
 export default async function ProjectSettingsPage({ params }: { params: { projectId: string } }) {
-  const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
+  const user = await requireRole(['ARCHITECT', 'COLLABORATOR', 'ADMIN'])
 
   const project = await prisma.project.findUnique({
     where: { id: params.projectId },

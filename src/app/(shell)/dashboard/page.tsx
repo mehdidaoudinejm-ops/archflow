@@ -107,7 +107,7 @@ export default async function DashboardPage() {
         projectLimit={projectLimit}
         collaborators={collaborators}
         permissionsByProject={permissionsByProject}
-        isArchitect={user.role === 'ARCHITECT'}
+        isArchitect={user.role === 'ARCHITECT' || user.role === 'ADMIN'}
       />
     </div>
   )

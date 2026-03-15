@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default async function AOTrackingPage({ params }: Props) {
-  const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
+  const user = await requireRole(['ARCHITECT', 'COLLABORATOR', 'ADMIN'])
 
   const ao = await prisma.aO.findUnique({
     where: { id: params.aoId },

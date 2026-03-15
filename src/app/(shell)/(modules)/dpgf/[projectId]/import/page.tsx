@@ -9,7 +9,7 @@ interface Props {
 }
 
 export default async function ImportPage({ params, searchParams }: Props) {
-  const user = await requireRole(['ARCHITECT', 'COLLABORATOR']).catch(() => null)
+  const user = await requireRole(['ARCHITECT', 'COLLABORATOR', 'ADMIN']).catch(() => null)
   if (!user) redirect('/login')
 
   const importId = searchParams.importId

@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default async function DCEPage({ params }: Props) {
-  const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
+  const user = await requireRole(['ARCHITECT', 'COLLABORATOR', 'ADMIN'])
 
   // Round-trip 2 : project + dpgf + ao en parallèle (tous utilisent params.projectId)
   const [project, dpgf, ao] = await Promise.all([

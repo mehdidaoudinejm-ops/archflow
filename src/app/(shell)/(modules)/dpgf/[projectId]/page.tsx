@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default async function DPGFPage({ params }: Props) {
-  const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
+  const user = await requireRole(['ARCHITECT', 'COLLABORATOR', 'ADMIN'])
 
   const project = await prisma.project.findUnique({
     where: { id: params.projectId },

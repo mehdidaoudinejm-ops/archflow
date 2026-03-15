@@ -9,7 +9,7 @@ interface Props {
 }
 
 export default async function AnalysePage({ params }: Props) {
-  const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
+  const user = await requireRole(['ARCHITECT', 'COLLABORATOR', 'ADMIN'])
 
   // Round-trip 2 : project + ao en parallèle (les deux utilisent params.projectId)
   const [project, ao] = await Promise.all([
