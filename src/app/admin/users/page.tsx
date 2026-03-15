@@ -218,10 +218,11 @@ export default function AdminUsersPage() {
     setActionLoading(`del-${user.id}`)
     setErrorMsg(null)
     const res = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' })
+    const data = await res.json().catch(() => ({}))
     if (res.ok) {
       setUsers((prev) => prev.filter((u) => u.id !== user.id))
+      if (data.warning) setErrorMsg(`⚠️ ${data.warning}`)
     } else {
-      const data = await res.json().catch(() => ({}))
       setErrorMsg(data.error ?? `Erreur lors de la suppression de ${user.email}`)
     }
     setActionLoading(null)

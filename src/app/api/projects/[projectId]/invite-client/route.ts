@@ -36,14 +36,22 @@ export async function POST(
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
-    // Conflit : bloquer uniquement si l'email appartient à un compte ARCHITECT / COLLABORATOR / ADMIN actif
+    // Conflit : email déjà utilisé par un rôle non-CLIENT
     const existing = await prisma.user.findUnique({ where: { email } })
     if (existing && existing.role !== 'CLIENT') {
       const professionalRoles = ['ARCHITECT', 'COLLABORATOR', 'ADMIN']
       if (professionalRoles.includes(existing.role)) {
-        return NextResponse.json({ error: 'Cet email appartient déjà à un compte architecte ou admin' }, { status: 409 })
+        // Vérifier si le compte Supabase Auth existe vraiment —
+        // si non, c'est un zombie Prisma (Supabase delete a échoué + getUserWithProfile a recréé)
+        const authRows = await prisma.$queryRaw<{ id: string }[]>`
+          SELECT id::text FROM auth.users WHERE email = ${email} LIMIT 1
+        `
+        if (authRows.length > 0) {
+          return NextResponse.json({ error: 'Cet email appartient déjà à un compte architecte ou admin actif' }, { status: 409 })
+        }
+        // Zombie Prisma sans compte Supabase → supprimer et continuer
       }
-      // COMPANY ou autre rôle non-professionnel → convertir en CLIENT (supprimer et re-créer)
+      // COMPANY, ou zombie ARCHITECT sans Supabase → supprimer pour re-créer en CLIENT
       await prisma.$transaction([
         prisma.projectPermission.deleteMany({ where: { userId: existing.id } }),
         prisma.notification.deleteMany({ where: { userId: existing.id } }),
