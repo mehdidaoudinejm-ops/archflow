@@ -122,35 +122,67 @@ export default function AdminBibliothequePage() {
         defval: null,
       }) as (string | number | null)[][]
 
-      const normalize = (s: string) =>
+      const norm = (s: string) =>
         s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
 
+      // Match exact word or start of cell — évite de matcher "total" pour "lot"
       const findCol = (headers: (string | number | null)[], kws: string[]) => {
         for (let i = 0; i < headers.length; i++) {
-          const h = normalize(String(headers[i] ?? ''))
+          const h = norm(String(headers[i] ?? ''))
+          if (kws.some((k) => h === k || h.startsWith(k + ' ') || h.startsWith(k + '/') || h.startsWith(k + '_') || h === k + 's')) return i
+        }
+        return -1
+      }
+
+      // Match partiel pour les colonnes intitulé/unité où on accepte plus de variantes
+      const findColLoose = (headers: (string | number | null)[], kws: string[]) => {
+        for (let i = 0; i < headers.length; i++) {
+          const h = norm(String(headers[i] ?? ''))
           if (kws.some((k) => h.includes(k))) return i
         }
         return -1
       }
 
-      let headerRowIdx = 0
+      let headerRowIdx = -1
       let lotIdx = -1, sousLotIdx = -1, intituleIdx = -1, uniteIdx = -1
 
-      for (let i = 0; i < Math.min(15, rows.length); i++) {
+      // Cherche la ligne d'en-tête sur les 20 premières lignes
+      for (let i = 0; i < Math.min(20, rows.length); i++) {
         const row = rows[i].map((c) => String(c ?? ''))
-        const ti = findCol(row, ['intitule', 'designation', 'libelle', 'description', 'prestation', 'poste'])
+        const ti = findColLoose(row, ['intitule', 'designation', 'libelle', 'description', 'prestation', 'nature des travaux', 'nature travaux', 'article', 'ouvrage'])
         if (ti !== -1) {
           headerRowIdx = i
           intituleIdx = ti
-          lotIdx = findCol(row, ['lot'])
-          sousLotIdx = findCol(row, ['sous-lot', 'sous lot', 'sous_lot', 'sous-ouvrage', 'section', 'chapitre'])
-          uniteIdx = findCol(row, ['unite', 'u.', 'unit'])
+          // Lot : correspondance stricte pour éviter "total", "sous-total"
+          lotIdx = findCol(row, ['lot', 'corps d\'etat', 'corps etat', 'categorie'])
+          sousLotIdx = findCol(row, ['sous-lot', 'sous lot', 'sous_lot', 'section', 'chapitre'])
+          if (sousLotIdx === -1) sousLotIdx = findColLoose(row, ['sous-lot', 'sous lot', 'sous_lot'])
+          uniteIdx = findColLoose(row, ['unite', 'u.', 'unite de mesure', 'um'])
+          // Fallback unité : colonne nommée exactement "u" ou "u "
+          if (uniteIdx === -1) {
+            for (let j = 0; j < row.length; j++) {
+              if (norm(row[j]) === 'u' || norm(row[j]) === 'unité') { uniteIdx = j; break }
+            }
+          }
           break
         }
       }
 
+      // Si pas d'en-tête trouvé, on tente quand même avec la première colonne non vide comme intitulé
       if (intituleIdx === -1) {
-        setParseError("Aucune colonne d'intitulé détectée. Vérifiez que votre fichier contient une colonne \"Intitulé\", \"Désignation\" ou similaire.")
+        // Cherche la première ligne avec plus de 2 cellules non vides
+        for (let i = 0; i < Math.min(20, rows.length); i++) {
+          const nonEmpty = rows[i].filter((c) => String(c ?? '').trim().length > 0)
+          if (nonEmpty.length >= 2) {
+            headerRowIdx = i
+            intituleIdx = 0 // première colonne par défaut
+            break
+          }
+        }
+      }
+
+      if (intituleIdx === -1) {
+        setParseError("Impossible de détecter la structure du fichier. Vérifiez qu'il contient des données tabulaires avec au moins une colonne de désignation.")
         setParsing(false)
         return
       }
@@ -159,17 +191,47 @@ export default function AdminBibliothequePage() {
       let currentLot = ''
       let currentSousLot = ''
 
-      for (let i = headerRowIdx + 1; i < rows.length; i++) {
-        const row = rows[i].map((c) => String(c ?? '').trim())
-        const lotVal = lotIdx >= 0 ? row[lotIdx] : ''
-        const sousLotVal = sousLotIdx >= 0 ? row[sousLotIdx] : ''
-        const intituleVal = intituleIdx >= 0 ? row[intituleIdx] : ''
-        const uniteVal = uniteIdx >= 0 ? row[uniteIdx] : ''
+      const dataStart = headerRowIdx >= 0 ? headerRowIdx + 1 : 0
 
-        if (lotVal && lotVal.length > 1) currentLot = lotVal
-        if (sousLotVal && sousLotVal.length > 1) currentSousLot = sousLotVal
+      for (let i = dataStart; i < rows.length; i++) {
+        const row = rows[i].map((c) => String(c ?? '').trim())
+
+        // ── Détection du lot depuis une colonne dédiée ──
+        if (lotIdx >= 0 && row[lotIdx] && row[lotIdx].length > 1) {
+          currentLot = row[lotIdx]
+          currentSousLot = ''
+        }
+
+        if (sousLotIdx >= 0 && row[sousLotIdx] && row[sousLotIdx].length > 1) {
+          currentSousLot = row[sousLotIdx]
+        }
+
+        const intituleVal = row[intituleIdx] ?? ''
+        const uniteVal = uniteIdx >= 0 ? (row[uniteIdx] ?? '') : ''
+
+        // ── Détection du lot depuis une ligne-titre (pas de colonne lot) ──
+        // Une ligne est un en-tête de lot si : l'intitulé est vide OU
+        // la ligne n'a qu'une cellule non vide qui n'est pas une unité courante
+        if (lotIdx === -1) {
+          const nonEmptyCells = row.filter((c) => c.length > 0)
+          const UNITS = ['m²', 'm2', 'm³', 'm3', 'ml', 'u', 'kg', 't', 'h', 'j', 'ens', 'lot', 'pm', 'forfait']
+          const looksLikeUnit = (s: string) => UNITS.includes(norm(s))
+          if (
+            nonEmptyCells.length <= 2 &&
+            nonEmptyCells.length > 0 &&
+            !looksLikeUnit(nonEmptyCells[0]) &&
+            nonEmptyCells[0].length > 3
+          ) {
+            currentLot = nonEmptyCells[0]
+            currentSousLot = ''
+            continue
+          }
+        }
+
         if (!intituleVal || intituleVal.length < 3) continue
-        if (!currentLot) continue
+
+        // Si toujours pas de lot, on utilise "Non catégorisé"
+        if (!currentLot) currentLot = 'Non catégorisé'
 
         result.push({
           lot: currentLot,
@@ -180,7 +242,9 @@ export default function AdminBibliothequePage() {
       }
 
       if (result.length === 0) {
-        setParseError('Aucun poste extrait. Vérifiez la structure du fichier.')
+        setParseError(
+          `Aucun poste extrait. Structure détectée : colonne intitulé = ${intituleIdx >= 0 ? `col. ${intituleIdx + 1}` : 'non trouvée'}, colonne lot = ${lotIdx >= 0 ? `col. ${lotIdx + 1}` : 'non trouvée (détection par ligne)'}, ${rows.length} lignes lues. Vérifiez que le fichier contient bien des postes avec des libellés.`
+        )
       } else {
         setCandidates(result)
       }
