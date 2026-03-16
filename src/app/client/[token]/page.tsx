@@ -30,7 +30,19 @@ export default async function ClientPage({ params }: Props) {
         select: {
           id: true,
           status: true,
-          offer: { select: { isComplete: true, submittedAt: true } },
+          offer: {
+            select: {
+              isComplete: true,
+              submittedAt: true,
+              offerPosts: {
+                select: {
+                  unitPrice: true,
+                  qtyCompany: true,
+                  post: { select: { qtyArchi: true } },
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -52,7 +64,26 @@ export default async function ClientPage({ params }: Props) {
     )
   }
 
-  const publishedElements = (ao.publishedElements ?? {}) as Record<string, boolean>
+  const publishedElements = (ao.publishedElements ?? {}) as Record<string, unknown>
+  const selectedCompanyIds = Array.isArray(publishedElements.selectedCompanyIds)
+    ? (publishedElements.selectedCompanyIds as string[])
+    : []
+
+  const companiesWithTotals = ao.aoCompanies
+    .filter((c) => c.status === 'SUBMITTED' && c.offer)
+    .map((c) => {
+      const total = (c.offer?.offerPosts ?? []).reduce((sum, op) => {
+        const qty = op.qtyCompany ?? op.post.qtyArchi
+        if (qty == null || op.unitPrice == null) return sum
+        return sum + qty * op.unitPrice
+      }, 0)
+      return { id: c.id, total, isSelected: selectedCompanyIds.includes(c.id) }
+    })
+    .sort((a, b) => a.total - b.total)
+
+  const fmtEur = (v: number) =>
+    new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v)
+
   const totalInvited = ao.aoCompanies.length
   const totalSubmitted = ao.aoCompanies.filter((c) => c.status === 'SUBMITTED').length
   const responseRate = totalInvited ? Math.round((totalSubmitted / totalInvited) * 100) : 0
@@ -100,6 +131,7 @@ export default async function ClientPage({ params }: Props) {
           { label: 'Entreprises consultées', value: publishedElements.companies ? totalInvited : '—' },
           { label: 'Offres reçues', value: publishedElements.offers ? totalSubmitted : '—' },
           { label: 'Taux de réponse', value: publishedElements.offers ? `${responseRate}%` : '—' },
+
         ].map((stat, i) => (
           <div key={i} className="p-4 rounded-[var(--radius-lg)]" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
             <p className="text-xs mb-1" style={{ color: 'var(--text3)' }}>{stat.label}</p>
@@ -111,7 +143,7 @@ export default async function ClientPage({ params }: Props) {
       </div>
 
       {/* Avancement */}
-      {publishedElements.progress && (
+      {!!publishedElements.progress && (
         <div className="rounded-[var(--radius-lg)] overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
           <div className="px-4 py-3 border-b" style={{ background: 'var(--surface2)', borderColor: 'var(--border)' }}>
             <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Avancement des réponses</p>
@@ -135,8 +167,37 @@ export default async function ClientPage({ params }: Props) {
         </div>
       )}
 
-      {/* Analyse verrouillée */}
-      {!publishedElements.analysis && (
+      {/* Analyse comparative */}
+      {publishedElements.analysis ? (
+        companiesWithTotals.length > 0 ? (
+          <div className="rounded-[var(--radius-lg)] overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+            <div className="px-4 py-3 border-b" style={{ background: 'var(--surface2)', borderColor: 'var(--border)' }}>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Analyse comparative des offres</p>
+            </div>
+            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+              {companiesWithTotals.map((company, i) => (
+                <div key={company.id} className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm" style={{ color: 'var(--text)' }}>Entreprise {String.fromCharCode(65 + i)}</span>
+                    {company.isSelected && (
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--green-light)', color: 'var(--green)' }}>
+                        Retenue
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-sm font-semibold tabular-nums" style={{ color: 'var(--text)' }}>
+                    {fmtEur(company.total)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="p-6 rounded-[var(--radius-lg)] text-center" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <p className="text-sm" style={{ color: 'var(--text2)' }}>Aucune offre soumise pour le moment.</p>
+          </div>
+        )
+      ) : (
         <div className="p-6 rounded-[var(--radius-lg)] text-center" style={{ background: 'var(--surface)', border: '1px dashed var(--border2)' }}>
           <p className="text-2xl mb-2">🔒</p>
           <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Analyse comparative</p>
