@@ -665,6 +665,9 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
       offers: pe?.offers ?? true,
       progress: pe?.progress ?? true,
       analysis: pe?.analysis ?? false,
+      ranking: pe?.ranking ?? true,
+      tableau: pe?.tableau ?? false,
+      graphiques: pe?.graphiques ?? false,
     }
   })
   const [publishing, setPublishing] = useState(false)
@@ -1377,19 +1380,23 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
           </p>
           <div className="space-y-2.5">
             {[
-              { key: 'companies', label: 'Nombre d\'entreprises consultées' },
-              { key: 'offers', label: 'Offres reçues et taux de réponse' },
-              { key: 'progress', label: 'Avancement des réponses par entreprise' },
-              { key: 'analysis', label: 'Débloquer l\'analyse comparative' },
-            ].map(({ key, label }) => (
-              <label key={key} className="flex items-center gap-2.5 cursor-pointer">
+              { key: 'companies', label: 'Nombre d\'entreprises consultées', indent: false },
+              { key: 'offers', label: 'Offres reçues et taux de réponse', indent: false },
+              { key: 'progress', label: 'Avancement des réponses par entreprise', indent: false },
+              { key: 'analysis', label: 'Débloquer l\'analyse comparative', indent: false, bold: true },
+              { key: 'ranking', label: 'Classement des entreprises', indent: true },
+              { key: 'graphiques', label: 'Graphiques par lot', indent: true },
+              { key: 'tableau', label: 'Tableau comparatif détaillé', indent: true },
+            ].map(({ key, label, indent, bold }) => (
+              <label key={key} className="flex items-center gap-2.5 cursor-pointer" style={{ paddingLeft: indent ? '20px' : '0' }}>
                 <input
                   type="checkbox"
                   checked={publishElements[key as keyof typeof publishElements]}
                   onChange={(e) => setPublishElements((prev) => ({ ...prev, [key]: e.target.checked }))}
                   className="w-4 h-4"
+                  disabled={indent && !publishElements.analysis}
                 />
-                <span className="text-sm" style={{ color: 'var(--text)' }}>{label}</span>
+                <span className="text-sm" style={{ color: indent && !publishElements.analysis ? 'var(--text3)' : 'var(--text)', fontWeight: bold ? 600 : 400 }}>{label}</span>
               </label>
             ))}
           </div>

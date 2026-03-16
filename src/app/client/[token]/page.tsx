@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
+import { ClientAnalysisView } from '@/components/client/ClientAnalysisView'
+import type { AnonymizedCompany, ClientLot } from '@/components/client/ClientAnalysisView'
 
 interface Props {
   params: { token: string }
@@ -26,6 +28,31 @@ export default async function ClientPage({ params }: Props) {
       deadline: true,
       status: true,
       publishedElements: true,
+      dpgf: {
+        select: {
+          lots: {
+            select: {
+              id: true,
+              number: true,
+              name: true,
+              position: true,
+              posts: {
+                select: {
+                  id: true,
+                  ref: true,
+                  title: true,
+                  unit: true,
+                  qtyArchi: true,
+                  // unitPriceArchi et totalArchi intentionnellement exclus
+                  position: true,
+                },
+                orderBy: { position: 'asc' },
+              },
+            },
+            orderBy: { position: 'asc' },
+          },
+        },
+      },
       aoCompanies: {
         select: {
           id: true,
@@ -36,6 +63,7 @@ export default async function ClientPage({ params }: Props) {
               submittedAt: true,
               offerPosts: {
                 select: {
+                  postId: true,
                   unitPrice: true,
                   qtyCompany: true,
                   post: { select: { qtyArchi: true } },
@@ -68,21 +96,7 @@ export default async function ClientPage({ params }: Props) {
   const selectedCompanyIds = Array.isArray(publishedElements.selectedCompanyIds)
     ? (publishedElements.selectedCompanyIds as string[])
     : []
-
-  const companiesWithTotals = ao.aoCompanies
-    .filter((c) => c.status === 'SUBMITTED' && c.offer)
-    .map((c) => {
-      const total = (c.offer?.offerPosts ?? []).reduce((sum, op) => {
-        const qty = op.qtyCompany ?? op.post.qtyArchi
-        if (qty == null || op.unitPrice == null) return sum
-        return sum + qty * op.unitPrice
-      }, 0)
-      return { id: c.id, total, isSelected: selectedCompanyIds.includes(c.id) }
-    })
-    .sort((a, b) => a.total - b.total)
-
-  const fmtEur = (v: number) =>
-    new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v)
+  const awardedCompanyId = (publishedElements.awardedCompanyId as string | null) ?? null
 
   const totalInvited = ao.aoCompanies.length
   const totalSubmitted = ao.aoCompanies.filter((c) => c.status === 'SUBMITTED').length
@@ -91,8 +105,87 @@ export default async function ClientPage({ params }: Props) {
   const isDeadlinePassed = now > deadline
   const daysLeft = Math.max(0, Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
 
+  // ── Calcul des données anonymisées pour l'analyse ──────────────────────────
+  const submittedCompaniesRaw = ao.aoCompanies.filter((c) => c.status === 'SUBMITTED' && c.offer)
+
+  // Totaux par entreprise → tri croissant → lettres A B C...
+  const sortedCompaniesRaw = submittedCompaniesRaw
+    .map((c) => {
+      const total = (c.offer?.offerPosts ?? []).reduce((sum, op) => {
+        const qty = op.qtyCompany ?? op.post.qtyArchi
+        if (qty == null || op.unitPrice == null) return sum
+        return sum + qty * op.unitPrice
+      }, 0)
+      return { id: c.id, total }
+    })
+    .sort((a, b) => a.total - b.total)
+
+  const companyLetterMap = new Map(
+    sortedCompaniesRaw.map((c, i) => [c.id, String.fromCharCode(65 + i)])
+  )
+
+  const companies: AnonymizedCompany[] = sortedCompaniesRaw.map((c, i) => ({
+    letter: String.fromCharCode(65 + i),
+    isSelected: selectedCompanyIds.includes(c.id) || c.id === awardedCompanyId,
+    total: c.total,
+  }))
+
+  // Map postId → companyLetter → pricing
+  const offerPriceMap = new Map<string, Map<string, { unitPrice: number | null; qty: number | null }>>()
+  for (const company of submittedCompaniesRaw) {
+    const letter = companyLetterMap.get(company.id)
+    if (!letter) continue
+    for (const op of company.offer?.offerPosts ?? []) {
+      if (!offerPriceMap.has(op.postId)) offerPriceMap.set(op.postId, new Map())
+      offerPriceMap.get(op.postId)!.set(letter, {
+        unitPrice: op.unitPrice,
+        qty: op.qtyCompany ?? op.post.qtyArchi,
+      })
+    }
+  }
+
+  const lots: ClientLot[] = ao.dpgf.lots.map((lot) => ({
+    id: lot.id,
+    number: lot.number,
+    name: lot.name,
+    posts: lot.posts.map((post) => {
+      const postPrices = offerPriceMap.get(post.id)
+
+      const pricesWithTotals = companies.map((c) => {
+        const p = postPrices?.get(c.letter)
+        const qty = p?.qty ?? post.qtyArchi
+        const unitPrice = p?.unitPrice ?? null
+        const total = qty != null && unitPrice != null ? qty * unitPrice : null
+        return { letter: c.letter, unitPrice, qty, total }
+      })
+
+      const validTotals = pricesWithTotals.filter((p) => p.total != null).map((p) => p.total!)
+      const minTotal = validTotals.length > 1 ? Math.min(...validTotals) : null
+      const maxTotal = validTotals.length > 1 ? Math.max(...validTotals) : null
+
+      const hasQtyDivergence = submittedCompaniesRaw.some((c) => {
+        const op = c.offer?.offerPosts.find((op) => op.postId === post.id)
+        return op?.qtyCompany != null && op.qtyCompany !== post.qtyArchi
+      })
+
+      return {
+        ref: post.ref,
+        title: post.title,
+        unit: post.unit,
+        qtyArchi: post.qtyArchi,
+        hasQtyDivergence,
+        prices: pricesWithTotals.map((p) => ({
+          ...p,
+          isMin: p.total != null && minTotal != null && p.total === minTotal,
+          isMax:
+            p.total != null && maxTotal != null && p.total === maxTotal && minTotal !== maxTotal,
+        })),
+      }
+    }),
+  }))
+
   return (
-    <div className="max-w-3xl mx-auto py-8 px-4 space-y-6">
+    <div className="max-w-4xl mx-auto py-8 px-4 space-y-6">
       {/* En-tête */}
       <div>
         <h1 className="text-3xl mb-1" style={{ fontFamily: '"DM Serif Display", serif', color: 'var(--text)' }}>
@@ -131,7 +224,6 @@ export default async function ClientPage({ params }: Props) {
           { label: 'Entreprises consultées', value: publishedElements.companies ? totalInvited : '—' },
           { label: 'Offres reçues', value: publishedElements.offers ? totalSubmitted : '—' },
           { label: 'Taux de réponse', value: publishedElements.offers ? `${responseRate}%` : '—' },
-
         ].map((stat, i) => (
           <div key={i} className="p-4 rounded-[var(--radius-lg)]" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
             <p className="text-xs mb-1" style={{ color: 'var(--text3)' }}>{stat.label}</p>
@@ -144,22 +236,41 @@ export default async function ClientPage({ params }: Props) {
 
       {/* Avancement */}
       {!!publishedElements.progress && (
-        <div className="rounded-[var(--radius-lg)] overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+        <div
+          className="rounded-[var(--radius-lg)] overflow-hidden"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
+        >
           <div className="px-4 py-3 border-b" style={{ background: 'var(--surface2)', borderColor: 'var(--border)' }}>
             <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Avancement des réponses</p>
           </div>
           <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
             {ao.aoCompanies.map((company, i) => (
               <div key={company.id} className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm" style={{ color: 'var(--text2)' }}>Entreprise {String.fromCharCode(65 + i)}</span>
+                <span className="text-sm" style={{ color: 'var(--text2)' }}>
+                  Entreprise {String.fromCharCode(65 + i)}
+                </span>
                 <span
                   className="text-xs px-2.5 py-1 rounded-full font-medium"
                   style={{
-                    background: company.status === 'SUBMITTED' ? 'var(--green-light)' : company.status === 'IN_PROGRESS' ? 'var(--amber-light)' : 'var(--surface2)',
-                    color: company.status === 'SUBMITTED' ? 'var(--green)' : company.status === 'IN_PROGRESS' ? 'var(--amber)' : 'var(--text3)',
+                    background:
+                      company.status === 'SUBMITTED'
+                        ? 'var(--green-light)'
+                        : company.status === 'IN_PROGRESS'
+                        ? 'var(--amber-light)'
+                        : 'var(--surface2)',
+                    color:
+                      company.status === 'SUBMITTED'
+                        ? 'var(--green)'
+                        : company.status === 'IN_PROGRESS'
+                        ? 'var(--amber)'
+                        : 'var(--text3)',
                   }}
                 >
-                  {company.status === 'SUBMITTED' ? 'Offre soumise' : company.status === 'IN_PROGRESS' ? 'En cours' : 'En attente'}
+                  {company.status === 'SUBMITTED'
+                    ? 'Offre soumise'
+                    : company.status === 'IN_PROGRESS'
+                    ? 'En cours'
+                    : 'En attente'}
                 </span>
               </div>
             ))}
@@ -169,38 +280,20 @@ export default async function ClientPage({ params }: Props) {
 
       {/* Analyse comparative */}
       {publishedElements.analysis ? (
-        companiesWithTotals.length > 0 ? (
-          <div className="rounded-[var(--radius-lg)] overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
-            <div className="px-4 py-3 border-b" style={{ background: 'var(--surface2)', borderColor: 'var(--border)' }}>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Analyse comparative des offres</p>
-            </div>
-            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-              {companiesWithTotals.map((company, i) => (
-                <div key={company.id} className="flex items-center justify-between px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm" style={{ color: 'var(--text)' }}>Entreprise {String.fromCharCode(65 + i)}</span>
-                    {company.isSelected && (
-                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--green-light)', color: 'var(--green)' }}>
-                        Retenue
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-sm font-semibold tabular-nums" style={{ color: 'var(--text)' }}>
-                    {fmtEur(company.total)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="p-6 rounded-[var(--radius-lg)] text-center" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <p className="text-sm" style={{ color: 'var(--text2)' }}>Aucune offre soumise pour le moment.</p>
-          </div>
-        )
+        <ClientAnalysisView
+          publishedElements={publishedElements}
+          companies={companies}
+          lots={lots}
+        />
       ) : (
-        <div className="p-6 rounded-[var(--radius-lg)] text-center" style={{ background: 'var(--surface)', border: '1px dashed var(--border2)' }}>
+        <div
+          className="p-6 rounded-[var(--radius-lg)] text-center"
+          style={{ background: 'var(--surface)', border: '1px dashed var(--border2)' }}
+        >
           <p className="text-2xl mb-2">🔒</p>
-          <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Analyse comparative</p>
+          <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+            Analyse comparative
+          </p>
           <p className="text-sm mt-1" style={{ color: 'var(--text2)' }}>
             L&apos;architecte publiera l&apos;analyse dès que toutes les offres auront été étudiées.
           </p>
