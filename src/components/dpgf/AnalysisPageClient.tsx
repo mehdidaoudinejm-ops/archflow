@@ -658,7 +658,15 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
     return (pe?.companyNotes ?? {}) as Record<string, string>
   })
   const [publishDialogOpen, setPublishDialogOpen] = useState(false)
-  const [publishElements, setPublishElements] = useState({ synthese: true, tableau: true, retenues: true, rapport: false })
+  const [publishElements, setPublishElements] = useState(() => {
+    const pe = ao.publishedElements as Record<string, boolean> | null
+    return {
+      companies: pe?.companies ?? true,
+      offers: pe?.offers ?? true,
+      progress: pe?.progress ?? true,
+      analysis: pe?.analysis ?? false,
+    }
+  })
   const [publishing, setPublishing] = useState(false)
   const [publishSuccess, setPublishSuccess] = useState(false)
   const [downloadingPdf, setDownloadingPdf] = useState(false)
@@ -1369,10 +1377,10 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
           </p>
           <div className="space-y-2.5">
             {[
-              { key: 'synthese', label: 'Synthèse des résultats (stats globales)' },
-              { key: 'tableau', label: 'Tableau simplifié des offres' },
-              { key: 'retenues', label: 'Entreprises retenues et notes' },
-              { key: 'rapport', label: 'Lien de téléchargement du rapport PDF' },
+              { key: 'companies', label: 'Nombre d\'entreprises consultées' },
+              { key: 'offers', label: 'Offres reçues et taux de réponse' },
+              { key: 'progress', label: 'Avancement des réponses par entreprise' },
+              { key: 'analysis', label: 'Débloquer l\'analyse comparative' },
             ].map(({ key, label }) => (
               <label key={key} className="flex items-center gap-2.5 cursor-pointer">
                 <input
