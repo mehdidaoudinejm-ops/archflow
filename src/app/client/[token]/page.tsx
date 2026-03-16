@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { ClientAnalysisView } from '@/components/client/ClientAnalysisView'
-import type { AnonymizedCompany, ClientLot } from '@/components/client/ClientAnalysisView'
+import type { ClientCompany, ClientLot } from '@/components/client/ClientAnalysisView'
 
 interface Props {
   params: { token: string }
@@ -57,6 +57,7 @@ export default async function ClientPage({ params }: Props) {
         select: {
           id: true,
           status: true,
+          companyUserId: true,
           offer: {
             select: {
               isComplete: true,
@@ -98,6 +99,29 @@ export default async function ClientPage({ params }: Props) {
     : []
   const awardedCompanyId = (publishedElements.awardedCompanyId as string | null) ?? null
 
+  // Résolution des noms d'entreprises (agency.name > prénom nom > email)
+  const companyUserIds = ao.aoCompanies.map((c) => c.companyUserId)
+  const companyUsers = await prisma.user.findMany({
+    where: { id: { in: companyUserIds } },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      agency: { select: { name: true } },
+    },
+  })
+  const userMap = new Map(companyUsers.map((u) => [u.id, u]))
+
+  function companyName(companyUserId: string): string {
+    const u = userMap.get(companyUserId)
+    if (!u) return 'Entreprise inconnue'
+    return (
+      u.agency?.name ??
+      ([u.firstName, u.lastName].filter(Boolean).join(' ') || u.email)
+    )
+  }
+
   const totalInvited = ao.aoCompanies.length
   const totalSubmitted = ao.aoCompanies.filter((c) => c.status === 'SUBMITTED').length
   const responseRate = totalInvited ? Math.round((totalSubmitted / totalInvited) * 100) : 0
@@ -105,10 +129,10 @@ export default async function ClientPage({ params }: Props) {
   const isDeadlinePassed = now > deadline
   const daysLeft = Math.max(0, Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
 
-  // ── Calcul des données anonymisées pour l'analyse ──────────────────────────
+  // ── Calcul des données pour l'analyse ────────────────────────────────────
   const submittedCompaniesRaw = ao.aoCompanies.filter((c) => c.status === 'SUBMITTED' && c.offer)
 
-  // Totaux par entreprise → tri croissant → lettres A B C...
+  // Totaux par entreprise → tri croissant (offre la moins chère en premier)
   const sortedCompaniesRaw = submittedCompaniesRaw
     .map((c) => {
       const total = (c.offer?.offerPosts ?? []).reduce((sum, op) => {
@@ -116,28 +140,23 @@ export default async function ClientPage({ params }: Props) {
         if (qty == null || op.unitPrice == null) return sum
         return sum + qty * op.unitPrice
       }, 0)
-      return { id: c.id, total }
+      return { id: c.id, companyUserId: c.companyUserId, total }
     })
     .sort((a, b) => a.total - b.total)
 
-  const companyLetterMap = new Map(
-    sortedCompaniesRaw.map((c, i) => [c.id, String.fromCharCode(65 + i)])
-  )
-
-  const companies: AnonymizedCompany[] = sortedCompaniesRaw.map((c, i) => ({
-    letter: String.fromCharCode(65 + i),
+  const companies: ClientCompany[] = sortedCompaniesRaw.map((c) => ({
+    id: c.id,
+    name: companyName(c.companyUserId),
     isSelected: selectedCompanyIds.includes(c.id) || c.id === awardedCompanyId,
     total: c.total,
   }))
 
-  // Map postId → companyLetter → pricing
+  // Map postId → aoCompanyId → pricing
   const offerPriceMap = new Map<string, Map<string, { unitPrice: number | null; qty: number | null }>>()
   for (const company of submittedCompaniesRaw) {
-    const letter = companyLetterMap.get(company.id)
-    if (!letter) continue
     for (const op of company.offer?.offerPosts ?? []) {
       if (!offerPriceMap.has(op.postId)) offerPriceMap.set(op.postId, new Map())
-      offerPriceMap.get(op.postId)!.set(letter, {
+      offerPriceMap.get(op.postId)!.set(company.id, {
         unitPrice: op.unitPrice,
         qty: op.qtyCompany ?? op.post.qtyArchi,
       })
@@ -152,11 +171,11 @@ export default async function ClientPage({ params }: Props) {
       const postPrices = offerPriceMap.get(post.id)
 
       const pricesWithTotals = companies.map((c) => {
-        const p = postPrices?.get(c.letter)
+        const p = postPrices?.get(c.id)
         const qty = p?.qty ?? post.qtyArchi
         const unitPrice = p?.unitPrice ?? null
         const total = qty != null && unitPrice != null ? qty * unitPrice : null
-        return { letter: c.letter, unitPrice, qty, total }
+        return { companyId: c.id, unitPrice, qty, total }
       })
 
       const validTotals = pricesWithTotals.filter((p) => p.total != null).map((p) => p.total!)
@@ -225,7 +244,11 @@ export default async function ClientPage({ params }: Props) {
           { label: 'Offres reçues', value: publishedElements.offers ? totalSubmitted : '—' },
           { label: 'Taux de réponse', value: publishedElements.offers ? `${responseRate}%` : '—' },
         ].map((stat, i) => (
-          <div key={i} className="p-4 rounded-[var(--radius-lg)]" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+          <div
+            key={i}
+            className="p-4 rounded-[var(--radius-lg)]"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
+          >
             <p className="text-xs mb-1" style={{ color: 'var(--text3)' }}>{stat.label}</p>
             <p className="text-2xl font-semibold" style={{ fontFamily: '"DM Serif Display", serif', color: 'var(--text)' }}>
               {stat.value}
@@ -244,31 +267,31 @@ export default async function ClientPage({ params }: Props) {
             <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Avancement des réponses</p>
           </div>
           <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-            {ao.aoCompanies.map((company, i) => (
-              <div key={company.id} className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm" style={{ color: 'var(--text2)' }}>
-                  Entreprise {String.fromCharCode(65 + i)}
+            {ao.aoCompanies.map((c) => (
+              <div key={c.id} className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm" style={{ color: 'var(--text)' }}>
+                  {companyName(c.companyUserId)}
                 </span>
                 <span
                   className="text-xs px-2.5 py-1 rounded-full font-medium"
                   style={{
                     background:
-                      company.status === 'SUBMITTED'
+                      c.status === 'SUBMITTED'
                         ? 'var(--green-light)'
-                        : company.status === 'IN_PROGRESS'
+                        : c.status === 'IN_PROGRESS'
                         ? 'var(--amber-light)'
                         : 'var(--surface2)',
                     color:
-                      company.status === 'SUBMITTED'
+                      c.status === 'SUBMITTED'
                         ? 'var(--green)'
-                        : company.status === 'IN_PROGRESS'
+                        : c.status === 'IN_PROGRESS'
                         ? 'var(--amber)'
                         : 'var(--text3)',
                   }}
                 >
-                  {company.status === 'SUBMITTED'
+                  {c.status === 'SUBMITTED'
                     ? 'Offre soumise'
-                    : company.status === 'IN_PROGRESS'
+                    : c.status === 'IN_PROGRESS'
                     ? 'En cours'
                     : 'En attente'}
                 </span>

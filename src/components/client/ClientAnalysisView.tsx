@@ -29,14 +29,15 @@ function medal(i: number) {
   return `${i + 1}.`
 }
 
-export interface AnonymizedCompany {
-  letter: string
+export interface ClientCompany {
+  id: string
+  name: string
   isSelected: boolean
   total: number
 }
 
 export interface ClientPostPrice {
-  letter: string
+  companyId: string
   unitPrice: number | null
   qty: number | null
   total: number | null
@@ -62,7 +63,7 @@ export interface ClientLot {
 
 interface Props {
   publishedElements: Record<string, unknown>
-  companies: AnonymizedCompany[]
+  companies: ClientCompany[]
   lots: ClientLot[]
 }
 
@@ -74,10 +75,10 @@ export function ClientAnalysisView({ publishedElements, companies, lots }: Props
       const row: Record<string, string | number> = { name: `Lot ${lot.number}` }
       companies.forEach((c) => {
         const lotTotal = lot.posts.reduce((sum, post) => {
-          const price = post.prices.find((p) => p.letter === c.letter)
+          const price = post.prices.find((p) => p.companyId === c.id)
           return sum + (price?.total ?? 0)
         }, 0)
-        row[`Ent. ${c.letter}`] = lotTotal
+        row[c.name] = lotTotal
       })
       return row
     })
@@ -134,13 +135,13 @@ export function ClientAnalysisView({ publishedElements, companies, lots }: Props
                   ? `+${(((c.total - bestTotal) / bestTotal) * 100).toFixed(1)}%`
                   : null
               return (
-                <div key={c.letter} className="flex items-center justify-between px-4 py-4">
+                <div key={c.id} className="flex items-center justify-between px-4 py-4">
                   <div className="flex items-center gap-3">
-                    <span className="text-xl w-8 text-center">{medal(i)}</span>
+                    <span className="text-xl w-8 text-center flex-shrink-0">{medal(i)}</span>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
-                          Entreprise {c.letter}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                          {c.name}
                         </span>
                         {c.isSelected && (
                           <span
@@ -152,14 +153,14 @@ export function ClientAnalysisView({ publishedElements, companies, lots }: Props
                         )}
                       </div>
                       {pctVsBest && (
-                        <span className="text-xs" style={{ color: 'var(--text3)' }}>
+                        <span className="text-xs mt-0.5 block" style={{ color: 'var(--text3)' }}>
                           {pctVsBest} vs offre la plus basse
                         </span>
                       )}
                     </div>
                   </div>
                   <span
-                    className="text-base font-semibold tabular-nums"
+                    className="text-base font-semibold tabular-nums flex-shrink-0"
                     style={{ color: i === 0 ? 'var(--green)' : 'var(--text)' }}
                   >
                     {fmtEur(c.total)}
@@ -203,7 +204,9 @@ export function ClientAnalysisView({ publishedElements, companies, lots }: Props
                   width={45}
                 />
                 <Tooltip
-                  formatter={(value: number | undefined, name: string | undefined) => [value != null ? fmtEur(value) : '—', name ?? ''] as [string, string]}
+                  formatter={(value: number | undefined, name: string | undefined) =>
+                    [value != null ? fmtEur(value) : '—', name ?? ''] as [string, string]
+                  }
                   contentStyle={{
                     background: 'var(--surface)',
                     border: '1px solid var(--border)',
@@ -218,8 +221,8 @@ export function ClientAnalysisView({ publishedElements, companies, lots }: Props
                 />
                 {companies.map((c, i) => (
                   <Bar
-                    key={c.letter}
-                    dataKey={`Ent. ${c.letter}`}
+                    key={c.id}
+                    dataKey={c.name}
                     fill={COMPANY_COLORS[i % COMPANY_COLORS.length]}
                     radius={[3, 3, 0, 0]}
                   />
@@ -243,41 +246,52 @@ export function ClientAnalysisView({ publishedElements, companies, lots }: Props
             <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
               Détail des postes
             </p>
-            {/* Lot filter */}
             <div className="flex gap-1 flex-wrap">
-              {[{ id: 'all', label: 'Tous' }, ...lots.map((l) => ({ id: l.id, label: `Lot ${l.number}` }))].map(
-                (opt) => (
-                  <button
-                    key={opt.id}
-                    onClick={() => setSelectedLotId(opt.id)}
-                    className="text-xs px-2.5 py-1 rounded-full border transition-colors"
-                    style={{
-                      background: selectedLotId === opt.id ? 'var(--green)' : 'var(--surface)',
-                      color: selectedLotId === opt.id ? '#fff' : 'var(--text2)',
-                      borderColor: selectedLotId === opt.id ? 'var(--green)' : 'var(--border)',
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                )
-              )}
+              {[
+                { id: 'all', label: 'Tous' },
+                ...lots.map((l) => ({ id: l.id, label: `Lot ${l.number}` })),
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => setSelectedLotId(opt.id)}
+                  className="text-xs px-2.5 py-1 rounded-full border transition-colors"
+                  style={{
+                    background: selectedLotId === opt.id ? 'var(--green)' : 'var(--surface)',
+                    color: selectedLotId === opt.id ? '#fff' : 'var(--text2)',
+                    borderColor: selectedLotId === opt.id ? 'var(--green)' : 'var(--border)',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse" style={{ minWidth: `${400 + companies.length * 160}px` }}>
+            <table
+              className="w-full text-xs border-collapse"
+              style={{ minWidth: `${400 + companies.length * 160}px` }}
+            >
               <thead>
                 <tr style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
-                  <th className="text-left px-3 py-2.5 font-medium" style={{ color: 'var(--text3)', width: 70 }}>Réf.</th>
-                  <th className="text-left px-3 py-2.5 font-medium" style={{ color: 'var(--text3)' }}>Désignation</th>
-                  <th className="text-right px-3 py-2.5 font-medium" style={{ color: 'var(--text3)', width: 60 }}>Qté</th>
-                  <th className="text-left px-3 py-2.5 font-medium" style={{ color: 'var(--text3)', width: 50 }}>Unité</th>
+                  <th className="text-left px-3 py-2.5 font-medium" style={{ color: 'var(--text3)', width: 70 }}>
+                    Réf.
+                  </th>
+                  <th className="text-left px-3 py-2.5 font-medium" style={{ color: 'var(--text3)' }}>
+                    Désignation
+                  </th>
+                  <th className="text-right px-3 py-2.5 font-medium" style={{ color: 'var(--text3)', width: 60 }}>
+                    Qté
+                  </th>
+                  <th className="text-left px-3 py-2.5 font-medium" style={{ color: 'var(--text3)', width: 50 }}>
+                    Unité
+                  </th>
                   {companies.map((c, i) => (
                     <th
-                      key={c.letter}
+                      key={c.id}
                       className="text-right px-3 py-2.5 font-medium"
                       style={{ color: COMPANY_COLORS[i % COMPANY_COLORS.length], width: 155 }}
                     >
-                      Ent. {c.letter}
+                      {c.name}
                       {c.isSelected && ' ✓'}
                     </th>
                   ))}
@@ -292,16 +306,28 @@ export function ClientAnalysisView({ publishedElements, companies, lots }: Props
                       borderBottom: '1px solid var(--border)',
                     }}
                   >
-                    <td className="px-3 py-2 tabular-nums" style={{ color: 'var(--text3)', fontFamily: 'monospace' }}>
+                    <td
+                      className="px-3 py-2 tabular-nums"
+                      style={{ color: 'var(--text3)', fontFamily: 'monospace' }}
+                    >
                       {post.ref}
                     </td>
                     <td className="px-3 py-2" style={{ color: 'var(--text)' }}>
                       {post.title}
                       {post.hasQtyDivergence && (
-                        <span className="ml-1.5 text-xs" style={{ color: 'var(--amber)' }} title="Métré modifié par une entreprise">⚠</span>
+                        <span
+                          className="ml-1.5 text-xs"
+                          style={{ color: 'var(--amber)' }}
+                          title="Métré modifié par une entreprise"
+                        >
+                          ⚠
+                        </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums" style={{ color: 'var(--text2)' }}>
+                    <td
+                      className="px-3 py-2 text-right tabular-nums"
+                      style={{ color: 'var(--text2)' }}
+                    >
                       {post.qtyArchi ?? '—'}
                     </td>
                     <td className="px-3 py-2" style={{ color: 'var(--text3)' }}>
@@ -320,24 +346,21 @@ export function ClientAnalysisView({ publishedElements, companies, lots }: Props
                         : 'var(--text2)'
                       return (
                         <td
-                          key={price.letter}
+                          key={price.companyId}
                           className="px-3 py-2 text-right tabular-nums"
                           style={{ background: bg }}
                         >
                           {price.total != null ? (
-                            <span style={{ color: textColor }}>
-                              <span className="font-semibold" style={{ color: textColor }}>
+                            <>
+                              <span className="font-semibold block" style={{ color: textColor }}>
                                 {fmtEur(price.total)}
                               </span>
                               {price.unitPrice != null && (
-                                <span
-                                  className="block"
-                                  style={{ color: 'var(--text3)', fontSize: 10, marginTop: 1 }}
-                                >
+                                <span style={{ color: 'var(--text3)', fontSize: 10 }}>
                                   {fmtEur(price.unitPrice)} / {post.unit}
                                 </span>
                               )}
-                            </span>
+                            </>
                           ) : (
                             <span style={{ color: 'var(--text3)' }}>—</span>
                           )}
