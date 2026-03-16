@@ -81,6 +81,7 @@ interface Props {
   projectName: string
   agencyName: string
   initialData: AnalysisData
+  readOnly?: boolean
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -421,6 +422,7 @@ function CompanyCard({
   fmt,
   isAwarded,
   aoId,
+  readOnly = false,
 }: {
   rank: number
   result: ScoringResult
@@ -429,6 +431,7 @@ function CompanyCard({
   fmt: (v: number | null) => string
   isAwarded?: boolean
   aoId: string
+  readOnly?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
   const [company, setCompany] = useState(initialCompany)
@@ -611,7 +614,7 @@ function CompanyCard({
           </div>
 
           {/* Documents admin */}
-          {company.adminDocs.length > 0 && (
+          {!readOnly && company.adminDocs.length > 0 && (
             <div style={{ marginTop: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#4B4B45', marginBottom: 6 }}>
                 Documents administratifs
@@ -629,6 +632,11 @@ function CompanyCard({
               </div>
             </div>
           )}
+          {readOnly && company.adminDocs.length > 0 && (
+            <div style={{ marginTop: 12, fontSize: 12, color: '#6B6B65' }}>
+              {company.adminDocs.filter((d) => d.status === 'VALID').length}/{company.adminDocs.length} documents administratifs validés
+            </div>
+          )}
           {company.adminDocs.length === 0 && (
             <div style={{ marginTop: 12, fontSize: 12, color: '#9B9B94' }}>
               Aucun document administratif déposé.
@@ -642,7 +650,7 @@ function CompanyCard({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function AnalysisPageClient({ projectId, projectName, agencyName, initialData }: Props) {
+export function AnalysisPageClient({ projectId, projectName, agencyName, initialData, readOnly = false }: Props) {
   const { ao, companies, lots, totals, divergenceCount } = initialData
   const vatRate = initialData.vatRate ?? 20
 
@@ -668,6 +676,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
       ranking: pe?.ranking ?? true,
       tableau: pe?.tableau ?? false,
       graphiques: pe?.graphiques ?? false,
+      full_analysis: pe?.full_analysis ?? false,
     }
   })
   const [publishing, setPublishing] = useState(false)
@@ -845,24 +854,26 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
             Analyse des offres
           </h1>
         </div>
-        <div className="flex gap-2 mt-1">
-          <Button variant="outline" onClick={handleDownloadPdf} disabled={downloadingPdf} className="h-9 text-sm">
-            <Download size={14} className="mr-1.5" />
-            {downloadingPdf ? 'Génération...' : 'Rapport PDF'}
-          </Button>
-          <Button
-            onClick={() => setPublishDialogOpen(true)}
-            className="h-9 text-sm"
-            style={{ background: 'var(--green-btn)', color: '#fff', border: 'none' }}
-          >
-            <Share2 size={14} className="mr-1.5" />
-            {publishSuccess || ao.clientPublished ? 'Republier au client' : 'Publier au client'}
-          </Button>
-        </div>
+        {!readOnly && (
+          <div className="flex gap-2 mt-1">
+            <Button variant="outline" onClick={handleDownloadPdf} disabled={downloadingPdf} className="h-9 text-sm">
+              <Download size={14} className="mr-1.5" />
+              {downloadingPdf ? 'Génération...' : 'Rapport PDF'}
+            </Button>
+            <Button
+              onClick={() => setPublishDialogOpen(true)}
+              className="h-9 text-sm"
+              style={{ background: 'var(--green-btn)', color: '#fff', border: 'none' }}
+            >
+              <Share2 size={14} className="mr-1.5" />
+              {publishSuccess || ao.clientPublished ? 'Republier au client' : 'Publier au client'}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-0" style={{ borderBottom: '2px solid var(--border)' }}>
+      {!readOnly && <div className="flex gap-0" style={{ borderBottom: '2px solid var(--border)' }}>
         {[
           { label: 'Infos', href: `/dpgf/${projectId}/settings`, active: false },
           { label: "DQE", href: `/dpgf/${projectId}`, active: false },
@@ -883,7 +894,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
             {tab.label}
           </Link>
         ))}
-      </div>
+      </div>}
 
       {/* AO Lifecycle panel */}
       {['CLOSED', 'ANALYSED', 'AWARDED'].includes(aoStatus) && (
@@ -929,30 +940,32 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
               )
             })}
           </div>
-          <div>
-            {aoStatus === 'CLOSED' && (
-              <button
-                onClick={() => void handleAdvanceStatus('ANALYSED')}
-                disabled={transitioning}
-                style={{ padding: '6px 14px', borderRadius: 8, background: 'var(--green-btn)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: transitioning ? 'not-allowed' : 'pointer', opacity: transitioning ? 0.6 : 1 }}
-              >
-                {transitioning ? '...' : 'Marquer comme analysé'}
-              </button>
-            )}
-            {aoStatus === 'ANALYSED' && (
-              <button
-                onClick={() => setAwardModalOpen(true)}
-                style={{ padding: '6px 14px', borderRadius: 8, background: '#B45309', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-              >
-                Attribuer le marché
-              </button>
-            )}
-          </div>
+          {!readOnly && (
+            <div>
+              {aoStatus === 'CLOSED' && (
+                <button
+                  onClick={() => void handleAdvanceStatus('ANALYSED')}
+                  disabled={transitioning}
+                  style={{ padding: '6px 14px', borderRadius: 8, background: 'var(--green-btn)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: transitioning ? 'not-allowed' : 'pointer', opacity: transitioning ? 0.6 : 1 }}
+                >
+                  {transitioning ? '...' : 'Marquer comme analysé'}
+                </button>
+              )}
+              {aoStatus === 'ANALYSED' && (
+                <button
+                  onClick={() => setAwardModalOpen(true)}
+                  style={{ padding: '6px 14px', borderRadius: 8, background: '#B45309', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Attribuer le marché
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
       {/* SECTION 1 — Weights config */}
-      <WeightsPanel aoId={ao.id} weights={weights} onWeightsChange={setWeights} />
+      {!readOnly && <WeightsPanel aoId={ao.id} weights={weights} onWeightsChange={setWeights} />}
 
       {/* Divergences banner */}
       {divergenceCount > 0 && (
@@ -1058,6 +1071,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
                 fmt={fmt}
                 aoId={ao.id}
                 isAwarded={awardedCompanyId === result.companyId}
+                readOnly={readOnly}
               />
             )
           })}
@@ -1275,7 +1289,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
       </div>
 
       {/* Selection */}
-      <div>
+      {!readOnly && <div>
         <h2 className="text-sm font-semibold mb-3" style={{ color: 'var(--text)' }}>Sélection des entreprises</h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
           {rankedResults.map((result) => {
@@ -1322,7 +1336,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
             )
           })}
         </div>
-      </div>
+      </div>}
 
       {/* Award dialog */}
       <Dialog open={awardModalOpen} onOpenChange={setAwardModalOpen}>
@@ -1387,6 +1401,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
               { key: 'ranking', label: 'Classement des entreprises', indent: true },
               { key: 'graphiques', label: 'Graphiques par lot', indent: true },
               { key: 'tableau', label: 'Tableau comparatif détaillé', indent: true },
+              { key: 'full_analysis', label: 'Vue complète (scoring multicritères, détail des notes)', indent: true, bold: false },
             ].map(({ key, label, indent, bold }) => (
               <label key={key} className="flex items-center gap-2.5 cursor-pointer" style={{ paddingLeft: indent ? '20px' : '0' }}>
                 <input
