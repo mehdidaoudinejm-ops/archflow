@@ -42,6 +42,20 @@ export async function PATCH(
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
+    // Uniqueness check when number is being changed
+    if (parsed.data.number && parsed.data.number !== sublot.number) {
+      const conflict = await prisma.subLot.findFirst({
+        where: { lotId: sublot.lotId, number: parsed.data.number, id: { not: params.sublotId } },
+        select: { id: true },
+      })
+      if (conflict) {
+        return NextResponse.json(
+          { error: `Un sous-lot avec le numéro ${parsed.data.number} existe déjà dans ce lot` },
+          { status: 409 }
+        )
+      }
+    }
+
     const updated = await prisma.subLot.update({
       where: { id: params.sublotId },
       data: parsed.data,

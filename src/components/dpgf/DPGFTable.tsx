@@ -146,8 +146,14 @@ function LotRow({ lot, collapsed, onToggle, onRename, onDelete, isReadOnly }: Lo
       {editName !== null ? (
         <input
           autoFocus
-          className="flex-1 bg-transparent outline-none text-sm font-medium border-b"
-          style={{ color: '#FFFFFF', borderColor: 'rgba(255,255,255,0.3)' }}
+          className="flex-1 outline-none text-sm font-medium rounded-md"
+          style={{
+            color: '#FFFFFF',
+            background: 'rgba(255,255,255,0.12)',
+            border: '1px solid rgba(255,255,255,0.35)',
+            boxShadow: '0 0 0 2px rgba(255,255,255,0.08)',
+            padding: '3px 8px',
+          }}
           value={editName}
           onChange={(e) => setEditName(e.target.value)}
           onBlur={commitRename}
@@ -158,8 +164,11 @@ function LotRow({ lot, collapsed, onToggle, onRename, onDelete, isReadOnly }: Lo
         />
       ) : (
         <span
-          className={`flex-1 text-sm font-medium ${isReadOnly ? '' : 'cursor-text'}`}
+          className={`flex-1 text-sm font-medium rounded-md px-2 py-0.5 transition-colors ${isReadOnly ? '' : 'cursor-text'}`}
+          style={{ border: '1px solid transparent' }}
           onDoubleClick={() => { if (!isReadOnly) setEditName(lot.name) }}
+          onMouseEnter={(e) => { if (!isReadOnly) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)' }}
+          onMouseLeave={(e) => { if (!isReadOnly) e.currentTarget.style.borderColor = 'transparent' }}
         >
           {lot.name}
         </span>
@@ -204,19 +213,19 @@ function SubLotRow({ sublot, lot, collapsed, onToggle, onUpdate, onDelete, isRea
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: sublot.id,
   })
-  const [editState, setEditState] = useState<{ number: string; name: string } | null>(null)
-  const nameInputRef = useRef<HTMLInputElement>(null)
+  const [editName, setEditName] = useState<string | null>(null)
+  const [nameError, setNameError] = useState<string | null>(null)
   const depth = (sublot.number.match(/\./g) ?? []).length
   const paddingLeft = 36 + depth * 16
 
   async function commitEdit() {
-    if (!editState) return
-    const number = editState.number.trim()
-    const name = editState.name.trim()
-    if (number && name && (number !== sublot.number || name !== sublot.name)) {
-      await onUpdate({ number, name })
+    if (editName === null) return
+    const name = editName.trim()
+    if (name && name !== sublot.name) {
+      await onUpdate({ name })
     }
-    setEditState(null)
+    setEditName(null)
+    setNameError(null)
   }
 
   return (
@@ -243,48 +252,44 @@ function SubLotRow({ sublot, lot, collapsed, onToggle, onUpdate, onDelete, isRea
           <GripVertical className="w-3.5 h-3.5" />
         </span>
       )}
-      {editState !== null ? (
-        <input
-          autoFocus
-          className="w-16 text-sm font-bold border-b outline-none bg-transparent shrink-0"
-          style={{ color: 'var(--green-mid)', borderColor: 'var(--border2)' }}
-          value={editState.number}
-          onChange={(e) => setEditState((s) => s && { ...s, number: e.target.value })}
-          onKeyDown={(e) => {
-            if (e.key === 'Tab') {
-              e.preventDefault()
-              nameInputRef.current?.focus()
-            }
-            if (e.key === 'Escape') setEditState(null)
-          }}
-        />
-      ) : (
-        <span
-          className={`text-sm font-bold shrink-0 ${isReadOnly ? '' : 'cursor-text'}`}
-          style={{ color: 'var(--green-mid)' }}
-          onDoubleClick={() => { if (!isReadOnly) setEditState({ number: sublot.number, name: sublot.name }) }}
-        >
-          {lot.number}.{sublot.number}
-        </span>
-      )}
+      <span
+        className="text-sm font-bold shrink-0"
+        style={{ color: 'var(--green-mid)' }}
+      >
+        {lot.number}.{sublot.number}
+      </span>
 
-      {editState !== null ? (
-        <input
-          ref={nameInputRef}
-          className="flex-1 text-sm font-semibold border-b outline-none bg-transparent"
-          style={{ borderColor: 'var(--border2)', color: 'var(--text)' }}
-          value={editState.name}
-          onChange={(e) => setEditState((s) => s && { ...s, name: e.target.value })}
-          onBlur={commitEdit}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commitEdit()
-            if (e.key === 'Escape') setEditState(null)
-          }}
-        />
+      {editName !== null ? (
+        <div className="flex-1 flex flex-col">
+          <input
+            autoFocus
+            className="w-full text-sm font-semibold outline-none rounded-md"
+            style={{
+              border: `1px solid ${nameError ? 'var(--red)' : 'var(--green-mid)'}`,
+              boxShadow: nameError ? '0 0 0 2px rgba(155,28,28,0.1)' : '0 0 0 2px rgba(45,122,80,0.1)',
+              padding: '4px 8px',
+              color: 'var(--text)',
+              background: 'var(--surface)',
+            }}
+            value={editName}
+            onChange={(e) => { setEditName(e.target.value); setNameError(null) }}
+            onBlur={commitEdit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitEdit()
+              if (e.key === 'Escape') { setEditName(null); setNameError(null) }
+            }}
+          />
+          {nameError && <span className="text-xs mt-0.5" style={{ color: 'var(--red)' }}>{nameError}</span>}
+        </div>
       ) : (
         <span
-          className={`flex-1 text-sm font-semibold ${isReadOnly ? '' : 'cursor-text'}`}
-          onDoubleClick={() => { if (!isReadOnly) setEditState({ number: sublot.number, name: sublot.name }) }}
+          className={`flex-1 text-sm font-semibold rounded-md px-2 py-1 transition-colors ${isReadOnly ? '' : 'cursor-text hover:bg-white/60'}`}
+          style={{
+            border: isReadOnly ? 'none' : '1px solid transparent',
+          }}
+          onDoubleClick={() => { if (!isReadOnly) setEditName(sublot.name) }}
+          onMouseEnter={(e) => { if (!isReadOnly) e.currentTarget.style.borderColor = 'var(--border)' }}
+          onMouseLeave={(e) => { if (!isReadOnly) e.currentTarget.style.borderColor = 'transparent' }}
         >
           {sublot.name}
         </span>
@@ -390,8 +395,8 @@ function TitleAutocomplete({
     <div ref={wrapRef} className="relative w-full">
       <input
         ref={inputRef}
-        className="w-full text-sm outline-none rounded"
-        style={{ border: '1px solid var(--border)', padding: '4px 8px', color: 'var(--text)', background: 'var(--surface)' }}
+        className="w-full text-sm outline-none rounded-md"
+        style={{ border: 'none', padding: '4px 8px', color: 'var(--text)', background: 'transparent' }}
         value={value}
         onChange={(e) => { setValue(e.target.value); fetchSuggestions(e.target.value) }}
         onBlur={(e) => {
@@ -560,28 +565,37 @@ function PostRow({ post, sublot, lotName, isReadOnly, onUpdate, onDelete, onSave
       </div>
 
       {/* Désignation */}
-      <div className="px-2 py-2 flex items-center gap-2 min-w-0">
+      <div className="px-2 py-1.5 flex items-center gap-2 min-w-0">
         {editField === 'title' ? (
-          <TitleAutocomplete
-            defaultValue={localPost.title}
-            lotName={lotName}
-            onCommit={(title, unite) => {
-              const updates: { title: string; unit?: string } = { title }
-              if (unite) updates.unit = unite
-              setLocalPost((p) => ({ ...p, ...updates }))
-              setEditField(null)
-              void onUpdate(updates).then(() => {
-                if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
-                setSaved(true)
-                savedTimerRef.current = setTimeout(() => setSaved(false), 2000)
-              })
-            }}
-            onCancel={() => setEditField(null)}
-          />
+          <div
+            className="flex-1 rounded-md"
+            style={{ border: '1px solid var(--green-mid)', boxShadow: '0 0 0 2px rgba(45,122,80,0.1)', background: 'var(--surface)' }}
+          >
+            <TitleAutocomplete
+              defaultValue={localPost.title}
+              lotName={lotName}
+              onCommit={(title, unite) => {
+                const updates: { title: string; unit?: string } = { title }
+                if (unite) updates.unit = unite
+                setLocalPost((p) => ({ ...p, ...updates }))
+                setEditField(null)
+                void onUpdate(updates).then(() => {
+                  if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+                  setSaved(true)
+                  savedTimerRef.current = setTimeout(() => setSaved(false), 2000)
+                })
+              }}
+              onCancel={() => setEditField(null)}
+            />
+          </div>
         ) : (
           <span
-            className={`text-sm truncate flex-1 ${isReadOnly ? '' : 'cursor-text'}`}
-            style={{ color: localPost.title ? 'var(--text)' : 'var(--text3)' }}
+            className={`text-sm truncate flex-1 rounded-md px-2 py-1 transition-colors ${isReadOnly ? '' : 'cursor-text hover:bg-neutral-50'}`}
+            style={{
+              color: localPost.title ? 'var(--text)' : 'var(--text3)',
+              border: isReadOnly ? 'none' : '1px solid var(--border)',
+              background: isReadOnly ? 'transparent' : 'var(--surface)',
+            }}
             onClick={() => { if (!isReadOnly) setEditField('title') }}
           >
             {localPost.title || 'Désignation…'}
@@ -611,8 +625,16 @@ function PostRow({ post, sublot, lotName, isReadOnly, onUpdate, onDelete, onSave
               setLocalPost((p) => ({ ...p, unit: val }))
               try { await onUpdate({ unit: val }) } catch { /* ignore */ }
             }}
-            className="w-full text-sm outline-none rounded"
-            style={{ border: '1px solid var(--border)', padding: '4px 6px', color: 'var(--text)', background: 'var(--surface)' }}
+            className="w-full text-sm outline-none rounded-md transition-colors"
+            style={{
+              border: '1px solid var(--border)',
+              padding: '4px 6px',
+              color: 'var(--text)',
+              background: 'var(--surface)',
+              cursor: 'pointer',
+            }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--green-mid)'; e.currentTarget.style.boxShadow = '0 0 0 2px rgba(45,122,80,0.1)' }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
           >
             {!UNITS.includes(localPost.unit) && <option value="">{localPost.unit}</option>}
             {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
@@ -621,12 +643,18 @@ function PostRow({ post, sublot, lotName, isReadOnly, onUpdate, onDelete, onSave
       </div>
 
       {/* Quantité */}
-      <div className="px-2 py-2">
+      <div className="px-2 py-1.5">
         {editField === 'qtyArchi' ? (
           <input
             autoFocus
-            className="w-full text-sm text-right outline-none rounded"
-            style={{ border: '1px solid var(--border)', padding: '4px 8px', color: 'var(--text)', background: 'var(--surface)' }}
+            className="w-full text-sm text-right outline-none rounded-md"
+            style={{
+              border: '1px solid var(--green-mid)',
+              boxShadow: '0 0 0 2px rgba(45,122,80,0.1)',
+              padding: '4px 8px',
+              color: 'var(--text)',
+              background: 'var(--surface)',
+            }}
             defaultValue={localPost.qtyArchi?.toString() ?? ''}
             onBlur={(e) => commitEdit('qtyArchi', e.target.value)}
             onKeyDown={(e) => {
@@ -636,8 +664,12 @@ function PostRow({ post, sublot, lotName, isReadOnly, onUpdate, onDelete, onSave
           />
         ) : (
           <span
-            className={`text-sm text-right block ${isReadOnly ? '' : 'cursor-text'}`}
-            style={{ color: localPost.qtyArchi == null ? 'var(--amber)' : 'var(--text2)' }}
+            className={`text-sm text-right block rounded-md px-2 py-1 transition-colors ${isReadOnly ? '' : 'cursor-text hover:bg-neutral-50'}`}
+            style={{
+              color: localPost.qtyArchi == null ? 'var(--amber)' : 'var(--text2)',
+              border: isReadOnly ? 'none' : '1px solid var(--border)',
+              background: isReadOnly ? 'transparent' : 'var(--surface)',
+            }}
             onClick={() => { if (!isReadOnly) setEditField('qtyArchi') }}
           >
             {localPost.qtyArchi != null ? localPost.qtyArchi.toLocaleString('fr-FR') : '—'}
@@ -646,12 +678,18 @@ function PostRow({ post, sublot, lotName, isReadOnly, onUpdate, onDelete, onSave
       </div>
 
       {/* Prix U. */}
-      <div className="px-2 py-2">
+      <div className="px-2 py-1.5">
         {editField === 'unitPriceArchi' ? (
           <input
             autoFocus
-            className="w-full text-sm text-right outline-none rounded"
-            style={{ border: '1px solid var(--border)', padding: '4px 8px', color: 'var(--text)', background: 'var(--surface)' }}
+            className="w-full text-sm text-right outline-none rounded-md"
+            style={{
+              border: '1px solid var(--green-mid)',
+              boxShadow: '0 0 0 2px rgba(45,122,80,0.1)',
+              padding: '4px 8px',
+              color: 'var(--text)',
+              background: 'var(--surface)',
+            }}
             defaultValue={localPost.unitPriceArchi?.toString() ?? ''}
             onBlur={(e) => commitEdit('unitPriceArchi', e.target.value)}
             onKeyDown={(e) => {
@@ -661,9 +699,11 @@ function PostRow({ post, sublot, lotName, isReadOnly, onUpdate, onDelete, onSave
           />
         ) : (
           <span
-            className={`text-sm text-right block ${isReadOnly ? '' : 'cursor-text'}`}
+            className={`text-sm text-right block rounded-md px-2 py-1 transition-colors ${isReadOnly ? '' : 'cursor-text hover:bg-neutral-50'}`}
             style={{
               color: localPost.unitPriceArchi == null ? 'var(--amber)' : 'var(--text2)',
+              border: isReadOnly ? 'none' : '1px solid var(--border)',
+              background: isReadOnly ? 'transparent' : 'var(--surface)',
             }}
             onClick={() => { if (!isReadOnly) setEditField('unitPriceArchi') }}
           >
@@ -841,8 +881,14 @@ function AddPostRow({ lot, sublot, onAdd }: AddPostRowProps) {
       <div className="px-2 py-1.5">
         <input
           autoFocus
-          className="w-full text-sm border-b outline-none bg-transparent"
-          style={{ borderColor: 'var(--green-mid)', color: 'var(--text)' }}
+          className="w-full text-sm outline-none rounded-md"
+          style={{
+            border: '1px solid var(--green-mid)',
+            boxShadow: '0 0 0 2px rgba(45,122,80,0.1)',
+            padding: '4px 8px',
+            color: 'var(--text)',
+            background: 'var(--surface)',
+          }}
           placeholder="Intitulé du poste…"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -863,8 +909,14 @@ function AddPostRow({ lot, sublot, onAdd }: AddPostRowProps) {
         <select
           value={unit}
           onChange={(e) => setUnit(e.target.value)}
-          className="w-full text-sm outline-none rounded"
-          style={{ border: '1px solid var(--green-mid)', padding: '4px 6px', color: 'var(--text)', background: 'var(--surface)' }}
+          className="w-full text-sm outline-none rounded-md"
+          style={{
+            border: '1px solid var(--green-mid)',
+            boxShadow: '0 0 0 2px rgba(45,122,80,0.1)',
+            padding: '4px 6px',
+            color: 'var(--text)',
+            background: 'var(--surface)',
+          }}
         >
           {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
         </select>
@@ -891,9 +943,7 @@ interface AddSubLotRowProps {
 
 function AddSubLotRow({ lot, onAdd }: AddSubLotRowProps) {
   const [adding, setAdding] = useState(false)
-  const [number, setNumber] = useState('')
   const [name, setName] = useState('')
-  const nameInputRef = useRef<HTMLInputElement>(null)
 
   if (!adding) {
     return (
@@ -910,10 +960,14 @@ function AddSubLotRow({ lot, onAdd }: AddSubLotRowProps) {
     )
   }
 
+  function nextNumber() {
+    const max = Math.max(0, ...lot.sublots.map((sl) => parseInt(sl.number) || 0))
+    return String(max + 1)
+  }
+
   async function commit() {
-    if (number.trim() && name.trim()) {
-      await onAdd(lot.id, { number: number.trim(), name: name.trim() })
-      setNumber('')
+    if (name.trim()) {
+      await onAdd(lot.id, { number: nextNumber(), name: name.trim() })
       setName('')
       setAdding(false)
     }
@@ -924,22 +978,22 @@ function AddSubLotRow({ lot, onAdd }: AddSubLotRowProps) {
       className="flex items-center gap-2 px-5 py-1.5 border-b"
       style={{ borderColor: 'var(--border)', background: 'var(--green-light)' }}
     >
+      <span
+        className="text-sm font-bold shrink-0"
+        style={{ color: 'var(--green-mid)' }}
+      >
+        {lot.number}.{nextNumber()}
+      </span>
       <input
         autoFocus
-        className="w-16 text-sm font-bold border-b outline-none bg-transparent shrink-0"
-        style={{ color: 'var(--green-mid)', borderColor: 'var(--green-mid)' }}
-        placeholder="N°"
-        value={number}
-        onChange={(e) => setNumber(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Tab') { e.preventDefault(); nameInputRef.current?.focus() }
-          if (e.key === 'Escape') setAdding(false)
+        className="flex-1 text-sm font-semibold outline-none rounded-md"
+        style={{
+          border: '1px solid var(--green-mid)',
+          boxShadow: '0 0 0 2px rgba(45,122,80,0.1)',
+          padding: '4px 8px',
+          color: 'var(--text)',
+          background: 'var(--surface)',
         }}
-      />
-      <input
-        ref={nameInputRef}
-        className="flex-1 text-sm font-semibold border-b outline-none bg-transparent"
-        style={{ borderColor: 'var(--green-mid)', color: 'var(--text)' }}
         placeholder="Nom du sous-lot…"
         value={name}
         onChange={(e) => setName(e.target.value)}

@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { createSubLotSchema } from '@/lib/validations/dpgf'
+import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
+
+const createSubLotSchema = z.object({
+  number: z.string().min(1).max(20),
+  name: z.string().min(1).max(200),
+})
 
 export async function POST(
   req: Request,
@@ -21,7 +26,10 @@ export async function POST(
     // Verify ownership chain: lot → dpgf → project → agency
     const lot = await prisma.lot.findUnique({
       where: { id: params.lotId },
-      include: { dpgf: { include: { project: true } } },
+      include: {
+        dpgf: { include: { project: true } },
+        sublots: { select: { number: true } },
+      },
     })
 
     if (
@@ -30,6 +38,15 @@ export async function POST(
       lot.dpgf.project.agencyId !== user.agencyId
     ) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
+    }
+
+    // Uniqueness check
+    const duplicate = lot.sublots.some((sl) => sl.number === parsed.data.number)
+    if (duplicate) {
+      return NextResponse.json(
+        { error: `Un sous-lot avec le numéro ${parsed.data.number} existe déjà dans ce lot` },
+        { status: 409 }
+      )
     }
 
     const maxPos = await prisma.subLot.aggregate({
