@@ -336,7 +336,7 @@ function TitleAutocomplete({
 }: {
   defaultValue: string
   lotName: string
-  onCommit: (title: string, unite?: string) => void
+  onCommit: (title: string, unite?: string, fromEnter?: boolean) => void
   onCancel: () => void
 }) {
   const [value, setValue] = useState(defaultValue)
@@ -368,7 +368,7 @@ function TitleAutocomplete({
   function selectSuggestion(s: Suggestion) {
     void fetch(`/api/library/${s.id}/use`, { method: 'PATCH' })
     setOpen(false)
-    onCommit(s.intitule, s.unite ?? undefined)
+    onCommit(s.intitule, s.unite ?? undefined, true)
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -383,7 +383,7 @@ function TitleAutocomplete({
         selectSuggestion(suggestions[activeIdx])
       } else {
         setOpen(false)
-        onCommit(value)
+        onCommit(value, undefined, true)
       }
     } else if (e.key === 'Escape') {
       setOpen(false)
@@ -482,7 +482,7 @@ function PostRow({ post, sublot, lotName, isReadOnly, onUpdate, onDelete, onSave
       ? localPost.qtyArchi * localPost.unitPriceArchi
       : null
 
-  async function commitEdit(field: string, raw: string) {
+  async function commitEdit(field: string, raw: string, nextField: string | null = null) {
     let parsed: {
       title?: string
       unit?: string
@@ -502,7 +502,7 @@ function PostRow({ post, sublot, lotName, isReadOnly, onUpdate, onDelete, onSave
       parsed = { unitPriceArchi: isNaN(n) ? null : n }
     }
     setLocalPost((p) => ({ ...p, ...parsed }))
-    setEditField(null)
+    setEditField(nextField)
     try {
       await onUpdate(parsed)
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
@@ -574,11 +574,11 @@ function PostRow({ post, sublot, lotName, isReadOnly, onUpdate, onDelete, onSave
             <TitleAutocomplete
               defaultValue={localPost.title}
               lotName={lotName}
-              onCommit={(title, unite) => {
+              onCommit={(title, unite, fromEnter) => {
                 const updates: { title: string; unit?: string } = { title }
                 if (unite) updates.unit = unite
                 setLocalPost((p) => ({ ...p, ...updates }))
-                setEditField(null)
+                setEditField(fromEnter ? 'qtyArchi' : null)
                 void onUpdate(updates).then(() => {
                   if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
                   setSaved(true)
@@ -635,6 +635,7 @@ function PostRow({ post, sublot, lotName, isReadOnly, onUpdate, onDelete, onSave
             }}
             onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--green-mid)'; e.currentTarget.style.boxShadow = '0 0 0 2px rgba(45,122,80,0.1)' }}
             onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
+            onKeyDown={(e) => { if (e.key === 'Enter') setEditField('qtyArchi') }}
           >
             {!UNITS.includes(localPost.unit) && <option value="">{localPost.unit}</option>}
             {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
@@ -658,7 +659,7 @@ function PostRow({ post, sublot, lotName, isReadOnly, onUpdate, onDelete, onSave
             defaultValue={localPost.qtyArchi?.toString() ?? ''}
             onBlur={(e) => commitEdit('qtyArchi', e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') commitEdit('qtyArchi', e.currentTarget.value)
+              if (e.key === 'Enter') commitEdit('qtyArchi', e.currentTarget.value, 'unitPriceArchi')
               if (e.key === 'Escape') setEditField(null)
             }}
           />
@@ -916,6 +917,14 @@ function AddPostRow({ lot, sublot, onAdd }: AddPostRowProps) {
             padding: '4px 6px',
             color: 'var(--text)',
             background: 'var(--surface)',
+          }}
+          onKeyDown={async (e) => {
+            if (e.key === 'Enter' && title.trim()) {
+              await onAdd(lot.id, { title: title.trim(), unit, sublotId: sublot?.id ?? null })
+              setTitle('')
+              setAdding(false)
+            }
+            if (e.key === 'Escape') { setTitle(''); setAdding(false) }
           }}
         >
           {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
