@@ -463,13 +463,15 @@ function PostRow({ post, sublot, lotName, isReadOnly, onUpdate, onDelete, onSave
   const [saved, setSaved] = useState(false)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Sync from server when post data changes and we're not actively editing
+  // Sync from server for external changes (e.g. library insert, move operations)
+  // Only when not actively editing to avoid overwriting in-progress input
   useEffect(() => {
     if (editField === null) {
       setLocalPost(post)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [post.title, post.unit, post.qtyArchi, post.unitPriceArchi, post.isOptional, post.ref])
+  // post.ref changes when a post is moved (ref recomputed server-side)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post.ref, post.isOptional])
 
   useEffect(() => {
     return () => {

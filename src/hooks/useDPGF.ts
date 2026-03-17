@@ -103,20 +103,22 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
 
   const updateLot = useCallback(
     async (lotId: string, data: { name?: string; position?: number }) => {
-      const res = await fetch(`/api/dpgf/${dpgfId}/lots/${lotId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error('Erreur lors de la mise à jour du lot')
-      const updated = await res.json() as LotWithChildren
+      // Optimistic: update cache immediately
       void mutate(
-        (prev) =>
-          prev
-            ? { ...prev, lots: prev.lots.map((l) => (l.id === lotId ? { ...l, ...updated } : l)) }
-            : prev,
+        (prev) => prev ? { ...prev, lots: prev.lots.map((l) => (l.id === lotId ? { ...l, ...data } : l)) } : prev,
         { revalidate: false }
       )
+      try {
+        const res = await fetch(`/api/dpgf/${dpgfId}/lots/${lotId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        })
+        if (!res.ok) throw new Error('Erreur lors de la mise à jour du lot')
+      } catch (err) {
+        await mutate() // revert on error
+        throw err
+      }
     },
     [dpgfId, mutate]
   )
@@ -264,16 +266,24 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
         position?: number
       }
     ) => {
-      const res = await fetch(`/api/dpgf/${dpgfId}/lots/${lotId}/posts/${postId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error('Erreur lors de la mise à jour du poste')
-      const updated = await res.json() as Post
-      applyPostUpdate(postId, updated)
+      // Optimistic: apply to cache immediately so UI reflects change with zero delay
+      applyPostUpdate(postId, data as Post)
+      try {
+        const res = await fetch(`/api/dpgf/${dpgfId}/lots/${lotId}/posts/${postId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        })
+        if (!res.ok) throw new Error('Erreur lors de la mise à jour du poste')
+        const confirmed = await res.json() as Post
+        // Confirm with server values (e.g. computed ref)
+        applyPostUpdate(postId, confirmed)
+      } catch (err) {
+        await mutate() // revert on error
+        throw err
+      }
     },
-    [dpgfId, applyPostUpdate]
+    [dpgfId, mutate, applyPostUpdate]
   )
 
   const deletePost = useCallback(
