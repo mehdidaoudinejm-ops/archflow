@@ -14,17 +14,15 @@ export class AuthError extends Error {
 
 export async function getSession() {
   const supabase = await createServerClient()
-  // getSession() lit le JWT depuis le cookie localement — pas d'appel réseau.
-  // getUser() ferait un aller-retour HTTP vers Supabase Auth (~100-300ms en dev,
-  // ~5ms en prod même région). La sécurité est garantie par : signature JWT +
-  // vérification user.suspended en DB ci-dessous.
+  // getUser() vérifie le JWT côté serveur et gère le refresh du token.
+  // Plus fiable que getSession() en SSR (évite les tokens expirés non rafraîchis).
   const {
-    data: { session },
+    data: { user },
     error,
-  } = await supabase.auth.getSession()
+  } = await supabase.auth.getUser()
 
-  if (error || !session?.user?.email) return null
-  return { user: { email: session.user.email, id: session.user.id } }
+  if (error || !user || !user.email) return null
+  return { user: { email: user.email, id: user.id } }
 }
 
 export async function requireRole(allowedRoles: Role[]) {
