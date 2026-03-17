@@ -39,7 +39,7 @@ import type { LotWithChildren, SubLotWithPosts, CreatePostInput } from '@/types'
 import type { Post } from '@prisma/client'
 
 // ── Column layout ──────────────────────────────────────────────────────────────
-const COLS = '128px 1fr 96px 96px 116px 116px 44px'
+const COLS = '28px 100px 1fr 96px 96px 116px 116px 44px'
 
 // ── Unit options ───────────────────────────────────────────────────────────────
 const UNITS = ['m²', 'm³', 'ml', 'u', 'kg', 't', 'h', 'j', 'forfait', 'ens.', 'lot', 'pm']
@@ -84,6 +84,8 @@ interface DPGFTableProps {
   ) => Promise<void>
   onDeletePost: (lotId: string, postId: string) => Promise<void>
   onSaveToLibrary: (lotId: string, postId: string, data: { trade?: string | null }) => Promise<void>
+  onMovePost: (postId: string, targetLotId: string, targetSublotId: string | null) => Promise<void>
+  onMoveSublot: (sublotId: string, targetLotId: string) => Promise<void>
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -120,7 +122,7 @@ function LotRow({ lot, collapsed, onToggle, onRename, onDelete, isReadOnly }: Lo
         transform: CSS.Transform.toString(transform),
         transition,
         opacity: isDragging ? 0.4 : 1,
-        background: '#2B2B28',
+        background: 'var(--green)',
         color: '#FFFFFF',
       }}
       className="flex items-center gap-2 px-3 py-2.5 select-none"
@@ -199,10 +201,13 @@ interface SubLotRowProps {
 }
 
 function SubLotRow({ sublot, lot, collapsed, onToggle, onUpdate, onDelete, isReadOnly }: SubLotRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: sublot.id,
+  })
   const [editState, setEditState] = useState<{ number: string; name: string } | null>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const depth = (sublot.number.match(/\./g) ?? []).length
-  const paddingLeft = 20 + depth * 16
+  const paddingLeft = 36 + depth * 16
 
   async function commitEdit() {
     if (!editState) return
@@ -216,14 +221,28 @@ function SubLotRow({ sublot, lot, collapsed, onToggle, onUpdate, onDelete, isRea
 
   return (
     <div
+      ref={setNodeRef}
       className="flex items-center gap-2 pr-3 py-2 border-b"
       style={{
         paddingLeft: `${paddingLeft}px`,
         background: 'var(--surface2)',
         borderColor: 'var(--border)',
         color: 'var(--text)',
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.4 : 1,
       }}
     >
+      {!isReadOnly && (
+        <span
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing touch-none -ml-4 shrink-0"
+          style={{ color: 'var(--text3)', opacity: 0.5 }}
+        >
+          <GripVertical className="w-3.5 h-3.5" />
+        </span>
+      )}
       {editState !== null ? (
         <input
           autoFocus
@@ -389,22 +408,22 @@ function TitleAutocomplete({
       {open && (
         <div
           className="absolute left-0 top-full mt-0.5 rounded-lg overflow-hidden z-50 w-full"
-          style={{ background: '#fff', border: '1px solid #E8E8E3', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto', minWidth: 240 }}
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto', minWidth: 240 }}
         >
           {suggestions.map((s, idx) => (
             <div
               key={s.id}
               className="px-3 py-2 cursor-pointer text-sm"
               style={{
-                background: idx === activeIdx ? '#EAF3ED' : '#fff',
-                color: '#1A1A18',
-                borderBottom: idx < suggestions.length - 1 ? '1px solid #F3F3F0' : undefined,
+                background: idx === activeIdx ? 'var(--green-light)' : 'var(--surface)',
+                color: 'var(--text)',
+                borderBottom: idx < suggestions.length - 1 ? '1px solid var(--border)' : undefined,
               }}
               onMouseDown={(e) => { e.preventDefault(); selectSuggestion(s) }}
               onMouseEnter={() => setActiveIdx(idx)}
             >
               <span>{s.intitule}</span>
-              {s.unite && <span className="ml-2 text-xs font-mono" style={{ color: '#9B9B94' }}>{s.unite}</span>}
+              {s.unite && <span className="ml-2 text-xs font-mono" style={{ color: 'var(--text3)' }}>{s.unite}</span>}
             </div>
           ))}
         </div>
@@ -431,6 +450,9 @@ interface PostRowProps {
 }
 
 function PostRow({ post, sublot, lotName, isReadOnly, onUpdate, onDelete, onSaveToLibrary }: PostRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: post.id,
+  })
   const [localPost, setLocalPost] = useState(post)
   const [editField, setEditField] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -496,17 +518,36 @@ function PostRow({ post, sublot, lotName, isReadOnly, onUpdate, onDelete, onSave
     }
   }
 
-  const indentPx = sublot ? 40 : 24
-
   return (
     <div
+      ref={setNodeRef}
       className="grid items-center border-b bg-white hover:bg-neutral-50 transition-colors group"
-      style={{ gridTemplateColumns: COLS, borderColor: 'var(--border)' }}
+      style={{
+        gridTemplateColumns: COLS,
+        borderColor: 'var(--border)',
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.4 : 1,
+      }}
     >
+      {/* Grip */}
+      <div className="flex items-center justify-center py-2">
+        {!isReadOnly && (
+          <span
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing touch-none opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity"
+            style={{ color: 'var(--text3)' }}
+          >
+            <GripVertical className="w-3.5 h-3.5" />
+          </span>
+        )}
+      </div>
+
       {/* Réf */}
       <div
         className="flex items-center gap-1.5 py-2 text-xs font-mono"
-        style={{ paddingLeft: `${indentPx}px`, paddingRight: '8px', color: 'var(--text3)' }}
+        style={{ paddingLeft: sublot ? '16px' : '4px', paddingRight: '8px', color: 'var(--text3)' }}
       >
         {sublot && (
           <span
@@ -549,7 +590,7 @@ function PostRow({ post, sublot, lotName, isReadOnly, onUpdate, onDelete, onSave
         {localPost.isOptional && (
           <span
             className="text-xs px-1.5 py-0.5 rounded shrink-0 font-medium"
-            style={{ background: '#EDE9FE', color: '#6D28D9' }}
+            style={{ background: 'var(--amber-light)', color: 'var(--amber)' }}
           >
             OPT
           </span>
@@ -691,7 +732,7 @@ function PostActions({
           <DropdownMenuItem
             onClick={onToggleOptional}
             className="gap-2 cursor-pointer text-sm"
-            style={{ color: post.isOptional ? '#6D28D9' : 'var(--text)' }}
+            style={{ color: post.isOptional ? 'var(--amber)' : 'var(--text)' }}
           >
             <Tag className="w-3.5 h-3.5" />
             {post.isOptional ? "Retirer l'option" : 'Marquer comme optionnel'}
@@ -775,13 +816,13 @@ function AddPostRow({ lot, sublot, onAdd }: AddPostRowProps) {
   const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState('')
   const [unit, setUnit] = useState('u')
-  const indentPx = sublot ? 40 : 24
+  const indentPx = sublot ? 16 : 4
 
   if (!adding) {
     return (
       <div
         className="flex items-center gap-1.5 py-1.5 border-b cursor-pointer text-xs hover:bg-neutral-50 transition-colors"
-        style={{ paddingLeft: `${indentPx}px`, borderColor: 'var(--border)', color: 'var(--text3)' }}
+        style={{ paddingLeft: `${28 + indentPx}px`, borderColor: 'var(--border)', color: 'var(--text3)' }}
         onClick={() => setAdding(true)}
       >
         <Plus className="w-3 h-3" />
@@ -795,6 +836,7 @@ function AddPostRow({ lot, sublot, onAdd }: AddPostRowProps) {
       className="grid items-center border-b"
       style={{ gridTemplateColumns: COLS, borderColor: 'var(--border)', background: 'var(--green-light)' }}
     >
+      <div /> {/* grip column */}
       <div style={{ paddingLeft: `${indentPx}px` }} />
       <div className="px-2 py-1.5">
         <input
@@ -961,8 +1003,8 @@ function AddLotRow({ onAdd }: { onAdd: (name: string) => Promise<void> }) {
 
   if (isCustom) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: '#2B2B28' }}>
-        <span className="px-2 py-0.5 rounded text-xs font-bold text-white shrink-0" style={{ background: 'var(--green)', opacity: 0.5 }}>?</span>
+      <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: 'var(--green)' }}>
+        <span className="px-2 py-0.5 rounded text-xs font-bold text-white shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>?</span>
         <input
           autoFocus
           className="flex-1 text-sm font-medium bg-transparent outline-none border-b"
@@ -982,12 +1024,12 @@ function AddLotRow({ onAdd }: { onAdd: (name: string) => Promise<void> }) {
   }
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: '#2B2B28' }}>
-      <span className="px-2 py-0.5 rounded text-xs font-bold text-white shrink-0" style={{ background: 'var(--green)', opacity: 0.5 }}>+</span>
+    <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: 'var(--green)' }}>
+      <span className="px-2 py-0.5 rounded text-xs font-bold text-white shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>+</span>
       <select
         autoFocus
         className="flex-1 text-sm bg-transparent outline-none"
-        style={{ color: '#FFFFFF', background: '#2B2B28' }}
+        style={{ color: '#FFFFFF', background: 'var(--green)' }}
         defaultValue=""
         onChange={async (e) => {
           const val = e.target.value
@@ -996,11 +1038,11 @@ function AddLotRow({ onAdd }: { onAdd: (name: string) => Promise<void> }) {
         }}
         onBlur={(e) => { if (!e.target.value) reset() }}
       >
-        <option value="" disabled style={{ background: '#2B2B28' }}>Choisir un lot…</option>
+        <option value="" disabled style={{ background: '#1A5C3A' }}>Choisir un lot…</option>
         {STANDARD_LOTS_DPGF.map((l) => (
-          <option key={l} value={l} style={{ background: '#2B2B28' }}>{l}</option>
+          <option key={l} value={l} style={{ background: '#1A5C3A' }}>{l}</option>
         ))}
-        <option value="__custom__" style={{ background: '#2B2B28' }}>✏ Lot personnalisé…</option>
+        <option value="__custom__" style={{ background: '#1A5C3A' }}>✏ Lot personnalisé…</option>
       </select>
       <button onClick={reset} className="text-xs shrink-0" style={{ color: 'rgba(255,255,255,0.4)' }}>✕</button>
     </div>
@@ -1025,9 +1067,12 @@ export function DPGFTable({
   onUpdatePost,
   onDeletePost,
   onSaveToLibrary,
+  onMovePost,
+  onMoveSublot,
 }: DPGFTableProps) {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [activeDragType, setActiveDragType] = useState<'lot' | 'sublot' | 'post' | null>(null)
 
   const toggleCollapse = useCallback((id: string) => {
     setCollapsedIds((prev) => {
@@ -1041,6 +1086,34 @@ export function DPGFTable({
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
+
+  // Build drag type lookup map
+  const dragTypeMap = useMemo(() => {
+    const map = new Map<string, { type: 'lot' | 'sublot' | 'post'; lotId?: string; sublotId?: string }>()
+    for (const lot of lots) {
+      map.set(lot.id, { type: 'lot' })
+      for (const sl of lot.sublots) {
+        map.set(sl.id, { type: 'sublot', lotId: lot.id })
+        for (const p of sl.posts) {
+          map.set(p.id, { type: 'post', lotId: lot.id, sublotId: sl.id })
+        }
+      }
+      for (const p of lot.posts) {
+        map.set(p.id, { type: 'post', lotId: lot.id })
+      }
+    }
+    return map
+  }, [lots])
+
+  // All draggable IDs for SortableContext
+  const allDraggableIds = useMemo(() => {
+    return lots.flatMap((l) => [
+      l.id,
+      ...l.sublots.map((s) => s.id),
+      ...l.sublots.flatMap((s) => s.posts.map((p) => p.id)),
+      ...l.posts.map((p) => p.id),
+    ])
+  }, [lots])
 
   // ── Search filtering ──────────────────────────────────
   const filteredLots = useMemo(() => {
@@ -1103,22 +1176,80 @@ export function DPGFTable({
 
   // ── DnD ───────────────────────────────────────────────
   function handleDragStart(event: DragStartEvent) {
-    setActiveDragId(event.active.id as string)
+    const id = event.active.id as string
+    setActiveDragId(id)
+    setActiveDragType(dragTypeMap.get(id)?.type ?? null)
   }
 
   async function handleDragEnd(event: DragEndEvent) {
     setActiveDragId(null)
+    setActiveDragType(null)
     if (isReadOnly) return
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const oldIndex = lots.findIndex((l) => l.id === active.id)
-    const newIndex = lots.findIndex((l) => l.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
-    const reordered = arrayMove(lots, oldIndex, newIndex)
-    await onReorderLots(reordered.map((l, i) => ({ lotId: l.id, position: i })))
+
+    const activeInfo = dragTypeMap.get(active.id as string)
+    const overInfo = dragTypeMap.get(over.id as string)
+    if (!activeInfo || !overInfo) return
+
+    // Lot reorder
+    if (activeInfo.type === 'lot' && overInfo.type === 'lot') {
+      const oldIndex = lots.findIndex((l) => l.id === active.id)
+      const newIndex = lots.findIndex((l) => l.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return
+      const reordered = arrayMove(lots, oldIndex, newIndex)
+      await onReorderLots(reordered.map((l, i) => ({ lotId: l.id, position: i })))
+      return
+    }
+
+    // Post move
+    if (activeInfo.type === 'post') {
+      let targetLotId: string
+      let targetSublotId: string | null = null
+
+      if (overInfo.type === 'lot') {
+        targetLotId = over.id as string
+      } else if (overInfo.type === 'sublot') {
+        targetLotId = overInfo.lotId!
+        targetSublotId = over.id as string
+      } else if (overInfo.type === 'post') {
+        targetLotId = overInfo.lotId!
+        targetSublotId = overInfo.sublotId ?? null
+      } else {
+        return
+      }
+
+      // Skip if dropped in the same container
+      if (targetLotId === activeInfo.lotId && targetSublotId === (activeInfo.sublotId ?? null)) return
+      await onMovePost(active.id as string, targetLotId, targetSublotId)
+      return
+    }
+
+    // Sublot move
+    if (activeInfo.type === 'sublot') {
+      let targetLotId: string
+      if (overInfo.type === 'lot') {
+        targetLotId = over.id as string
+      } else if (overInfo.type === 'sublot') {
+        targetLotId = overInfo.lotId!
+      } else if (overInfo.type === 'post') {
+        targetLotId = overInfo.lotId!
+      } else {
+        return
+      }
+      if (targetLotId === activeInfo.lotId) return
+      await onMoveSublot(active.id as string, targetLotId)
+    }
   }
 
-  const activeLot = activeDragId ? lots.find((l) => l.id === activeDragId) : null
+  // Active drag preview data
+  const activeLot = activeDragType === 'lot' && activeDragId ? lots.find((l) => l.id === activeDragId) : null
+  const activeSublot = activeDragType === 'sublot' && activeDragId
+    ? lots.flatMap((l) => l.sublots).find((s) => s.id === activeDragId)
+    : null
+  const activePost = activeDragType === 'post' && activeDragId
+    ? lots.flatMap((l) => [...l.posts, ...l.sublots.flatMap((s) => s.posts)]).find((p) => p.id === activeDragId)
+    : null
 
   // ── Loading / Error ───────────────────────────────────
   if (isLoading) {
@@ -1159,6 +1290,7 @@ export function DPGFTable({
           color: 'var(--text2)',
         }}
       >
+        <div /> {/* grip column */}
         <div className="px-3 py-2.5">Réf</div>
         <div className="px-2 py-2.5">Désignation</div>
         <div className="px-2 py-2.5 text-right">Unité</div>
@@ -1175,7 +1307,7 @@ export function DPGFTable({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <SortableContext items={lots.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={allDraggableIds} strategy={verticalListSortingStrategy}>
           {flatRows.map((row) => {
             if (row.kind === 'lot') {
               return (
@@ -1246,16 +1378,38 @@ export function DPGFTable({
           {activeLot && (
             <div
               className="flex items-center gap-2 px-3 py-2.5 rounded shadow-lg"
-              style={{ background: '#2B2B28', color: '#FFFFFF', opacity: 0.9 }}
+              style={{ background: 'var(--green)', color: '#FFFFFF', opacity: 0.95 }}
             >
               <GripVertical className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.4)' }} />
               <span
                 className="px-2 py-0.5 rounded text-xs font-bold text-white"
-                style={{ background: 'var(--green)' }}
+                style={{ background: 'rgba(255,255,255,0.2)' }}
               >
                 {activeLot.number}
               </span>
               <span className="text-sm font-medium">{activeLot.name}</span>
+            </div>
+          )}
+          {activeSublot && (
+            <div
+              className="flex items-center gap-2 px-4 py-2 rounded shadow-lg"
+              style={{ background: 'var(--surface2)', border: '1px solid var(--border)', opacity: 0.95 }}
+            >
+              <GripVertical className="w-3.5 h-3.5" style={{ color: 'var(--text3)' }} />
+              <span className="text-sm font-semibold" style={{ color: 'var(--green-mid)' }}>
+                {activeSublot.number}
+              </span>
+              <span className="text-sm" style={{ color: 'var(--text)' }}>{activeSublot.name}</span>
+            </div>
+          )}
+          {activePost && (
+            <div
+              className="flex items-center gap-2 px-3 py-2 rounded shadow-lg bg-white"
+              style={{ border: '1px solid var(--border)', opacity: 0.95 }}
+            >
+              <GripVertical className="w-3.5 h-3.5" style={{ color: 'var(--text3)' }} />
+              <span className="text-xs font-mono" style={{ color: 'var(--text3)' }}>{activePost.ref}</span>
+              <span className="text-sm truncate" style={{ color: 'var(--text)' }}>{activePost.title || '—'}</span>
             </div>
           )}
         </DragOverlay>

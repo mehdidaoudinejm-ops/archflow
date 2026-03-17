@@ -253,6 +253,33 @@ export function useDPGF(dpgfId: string) {
     [dpgfId, applyPostRemove]
   )
 
+  const movePost = useCallback(
+    async (postId: string, targetLotId: string, targetSublotId: string | null) => {
+      const res = await fetch(`/api/dpgf/${dpgfId}/posts/${postId}/move`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetLotId, targetSublotId }),
+      })
+      if (!res.ok) throw new Error('Erreur lors du déplacement du poste')
+      // Refetch to get updated structure + refs
+      await fetchDPGF()
+    },
+    [dpgfId, fetchDPGF]
+  )
+
+  const moveSublot = useCallback(
+    async (sublotId: string, targetLotId: string) => {
+      const res = await fetch(`/api/dpgf/${dpgfId}/sublots/${sublotId}/move`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetLotId }),
+      })
+      if (!res.ok) throw new Error('Erreur lors du déplacement du sous-lot')
+      await fetchDPGF()
+    },
+    [dpgfId, fetchDPGF]
+  )
+
   return {
     dpgf,
     isLoading,
@@ -268,5 +295,7 @@ export function useDPGF(dpgfId: string) {
     addPost,
     updatePost,
     deletePost,
+    movePost,
+    moveSublot,
   }
 }
