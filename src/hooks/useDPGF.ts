@@ -275,9 +275,7 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
           body: JSON.stringify(data),
         })
         if (!res.ok) throw new Error('Erreur lors de la mise à jour du poste')
-        const confirmed = await res.json() as Post
-        // Confirm with server values (e.g. computed ref)
-        applyPostUpdate(postId, confirmed)
+        // 204 No Content — optimistic cache already correct, nothing to confirm
       } catch (err) {
         await mutate() // revert on error
         throw err

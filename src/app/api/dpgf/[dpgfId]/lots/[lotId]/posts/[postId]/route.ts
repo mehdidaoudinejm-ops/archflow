@@ -5,49 +5,12 @@ import { updatePostSchema } from '@/lib/validations/dpgf'
 
 export const dynamic = 'force-dynamic'
 
-async function checkPostAccess(
-  dpgfId: string,
-  lotId: string,
-  postId: string,
-  agencyId: string
-) {
-  const post = await prisma.post.findUnique({
-    where: { id: postId },
-    include: {
-      lot: {
-        include: {
-          dpgf: { include: { project: { select: { agencyId: true } } } },
-        },
-      },
-    },
-  })
-  if (
-    !post ||
-    post.lotId !== lotId ||
-    post.lot.dpgfId !== dpgfId ||
-    post.lot.dpgf.project.agencyId !== agencyId
-  ) {
-    return null
-  }
-  return post
-}
-
 export async function PATCH(
   req: Request,
   { params }: { params: { dpgfId: string; lotId: string; postId: string } }
 ) {
   try {
     const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
-
-    const post = await checkPostAccess(
-      params.dpgfId,
-      params.lotId,
-      params.postId,
-      user.agencyId!
-    )
-    if (!post) {
-      return NextResponse.json({ error: 'Poste introuvable' }, { status: 404 })
-    }
 
     const body: unknown = await req.json()
     const parsed = updatePostSchema.safeParse(body)
@@ -58,12 +21,24 @@ export async function PATCH(
       )
     }
 
-    const updated = await prisma.post.update({
-      where: { id: params.postId },
+    // Ownership check + update in a single query — no separate checkPostAccess round-trip
+    const { count } = await prisma.post.updateMany({
+      where: {
+        id: params.postId,
+        lotId: params.lotId,
+        lot: {
+          dpgfId: params.dpgfId,
+          dpgf: { project: { agencyId: user.agencyId! } },
+        },
+      },
       data: parsed.data,
     })
 
-    return NextResponse.json(updated, { status: 200 })
+    if (count === 0) {
+      return NextResponse.json({ error: 'Poste introuvable' }, { status: 404 })
+    }
+
+    return new Response(null, { status: 204 })
   } catch (error) {
     console.error('[PATCH /api/dpgf/[dpgfId]/lots/[lotId]/posts/[postId]]', error)
     if (error instanceof Error && error.name === 'AuthError') {
@@ -80,17 +55,23 @@ export async function DELETE(
   try {
     const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
 
-    const post = await checkPostAccess(
-      params.dpgfId,
-      params.lotId,
-      params.postId,
-      user.agencyId!
-    )
+    // Verify ownership with a single lightweight query
+    const post = await prisma.post.findFirst({
+      where: {
+        id: params.postId,
+        lotId: params.lotId,
+        lot: {
+          dpgfId: params.dpgfId,
+          dpgf: { project: { agencyId: user.agencyId! } },
+        },
+      },
+      select: { id: true },
+    })
     if (!post) {
       return NextResponse.json({ error: 'Poste introuvable' }, { status: 404 })
     }
 
-    // Bloquer la suppression si des offres existent
+    // Block deletion if offers exist
     const offersCount = await prisma.offerPost.count({
       where: { postId: params.postId },
     })

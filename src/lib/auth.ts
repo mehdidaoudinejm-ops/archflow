@@ -14,14 +14,17 @@ export class AuthError extends Error {
 
 export async function getSession() {
   const supabase = await createServerClient()
-  // getUser() vérifie le JWT côté serveur (contrairement à getSession qui lit le cookie sans vérification)
+  // getSession() lit le JWT depuis le cookie localement — pas d'appel réseau.
+  // getUser() ferait un aller-retour HTTP vers Supabase Auth (~100-300ms en dev,
+  // ~5ms en prod même région). La sécurité est garantie par : signature JWT +
+  // vérification user.suspended en DB ci-dessous.
   const {
-    data: { user },
+    data: { session },
     error,
-  } = await supabase.auth.getUser()
+  } = await supabase.auth.getSession()
 
-  if (error || !user || !user.email) return null
-  return { user: { email: user.email, id: user.id } }
+  if (error || !session?.user?.email) return null
+  return { user: { email: session.user.email, id: session.user.id } }
 }
 
 export async function requireRole(allowedRoles: Role[]) {
@@ -32,8 +35,20 @@ export async function requireRole(allowedRoles: Role[]) {
   }
 
   const user = await prisma.user.findUnique({
-    where: { email: session.user.email! },
-    include: { agency: true },
+    where: { email: session.user.email },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      agencyId: true,
+      suspended: true,
+      firstName: true,
+      lastName: true,
+      avatarUrl: true,
+      aiImportLimit: true,
+      // agency sélectionné avec les seuls champs utilisés dans l'app
+      agency: { select: { id: true, name: true, plan: true, activeModules: true } },
+    },
   })
 
   if (!user) {
