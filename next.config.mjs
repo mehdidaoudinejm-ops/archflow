@@ -8,6 +8,22 @@ const securityHeaders = [
 ]
 
 const nextConfig = {
+  compress: true,
+  poweredByHeader: false,
+  images: {
+    formats: ['image/avif', 'image/webp'],
+  },
+  experimental: {
+    optimizePackageImports: [
+      'lucide-react',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-select',
+      '@radix-ui/react-tabs',
+      '@radix-ui/react-tooltip',
+      'recharts',
+    ],
+  },
   async headers() {
     return [
       {
@@ -18,4 +34,4 @@ const nextConfig = {
   },
 }
 
-export default nextConfig;
+export default nextConfig

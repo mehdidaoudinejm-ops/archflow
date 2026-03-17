@@ -1,37 +1,35 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback } from 'react'
+import useSWR from 'swr'
 import type { DPGFWithLots, LotWithChildren, CreatePostInput } from '@/types'
 import type { Post } from '@prisma/client'
 
+const jsonFetcher = (url: string) =>
+  fetch(url).then((r) => {
+    if (!r.ok) throw new Error('Erreur lors du chargement')
+    return r.json()
+  })
+
 export function useDPGF(dpgfId: string) {
-  const [dpgf, setDpgf] = useState<DPGFWithLots | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchDPGF = useCallback(async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
-      const res = await fetch(`/api/dpgf/${dpgfId}`)
-      if (!res.ok) throw new Error('Erreur lors du chargement de la DPGF')
-      const data: DPGFWithLots = await res.json() as DPGFWithLots
-      setDpgf(data)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erreur inconnue')
-    } finally {
-      setIsLoading(false)
+  const { data: dpgf, error: swrError, isLoading, mutate } = useSWR<DPGFWithLots>(
+    `/api/dpgf/${dpgfId}`,
+    jsonFetcher,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      dedupingInterval: 5000, // deduplicate identical requests within 5s
     }
-  }, [dpgfId])
+  )
 
-  useEffect(() => {
-    fetchDPGF()
-  }, [fetchDPGF])
+  const error = swrError
+    ? swrError instanceof Error ? swrError.message : 'Erreur inconnue'
+    : null
 
-  // ── Helpers d'update local ───────────────────────────
+  // ── Helpers d'update local (optimistic) ─────────────
 
   const applyPostUpdate = useCallback((postId: string, updated: Post) => {
-    setDpgf((prev) => {
+    void mutate((prev) => {
       if (!prev) return prev
       return {
         ...prev,
@@ -44,11 +42,11 @@ export function useDPGF(dpgfId: string) {
           posts: lot.posts.map((p) => (p.id === postId ? { ...p, ...updated } : p)),
         })),
       }
-    })
-  }, [])
+    }, { revalidate: false })
+  }, [mutate])
 
   const applyPostAdd = useCallback((lotId: string, newPost: Post) => {
-    setDpgf((prev) => {
+    void mutate((prev) => {
       if (!prev) return prev
       return {
         ...prev,
@@ -65,11 +63,11 @@ export function useDPGF(dpgfId: string) {
           return { ...lot, posts: [...lot.posts, newPost] }
         }),
       }
-    })
-  }, [])
+    }, { revalidate: false })
+  }, [mutate])
 
   const applyPostRemove = useCallback((postId: string) => {
-    setDpgf((prev) => {
+    void mutate((prev) => {
       if (!prev) return prev
       return {
         ...prev,
@@ -79,8 +77,8 @@ export function useDPGF(dpgfId: string) {
           posts: lot.posts.filter((p) => p.id !== postId),
         })),
       }
-    })
-  }, [])
+    }, { revalidate: false })
+  }, [mutate])
 
   // ── Mutations lots ───────────────────────────────────
 
@@ -93,11 +91,12 @@ export function useDPGF(dpgfId: string) {
       })
       if (!res.ok) throw new Error('Erreur lors de la création du lot')
       const newLot = await res.json() as LotWithChildren
-      setDpgf((prev) =>
-        prev ? { ...prev, lots: [...prev.lots, { ...newLot, sublots: [], posts: [] }] } : prev
+      void mutate((prev) =>
+        prev ? { ...prev, lots: [...prev.lots, { ...newLot, sublots: [], posts: [] }] } : prev,
+        { revalidate: false }
       )
     },
-    [dpgfId]
+    [dpgfId, mutate]
   )
 
   const updateLot = useCallback(
@@ -109,29 +108,30 @@ export function useDPGF(dpgfId: string) {
       })
       if (!res.ok) throw new Error('Erreur lors de la mise à jour du lot')
       const updated = await res.json() as LotWithChildren
-      setDpgf((prev) =>
-        prev
-          ? { ...prev, lots: prev.lots.map((l) => (l.id === lotId ? { ...l, ...updated } : l)) }
-          : prev
+      void mutate(
+        (prev) =>
+          prev
+            ? { ...prev, lots: prev.lots.map((l) => (l.id === lotId ? { ...l, ...updated } : l)) }
+            : prev,
+        { revalidate: false }
       )
     },
-    [dpgfId]
+    [dpgfId, mutate]
   )
 
   const deleteLot = useCallback(
     async (lotId: string) => {
-      const res = await fetch(`/api/dpgf/${dpgfId}/lots/${lotId}`, {
-        method: 'DELETE',
-      })
+      const res = await fetch(`/api/dpgf/${dpgfId}/lots/${lotId}`, { method: 'DELETE' })
       if (!res.ok) {
         const data = await res.json() as { error?: string }
         throw new Error(data.error ?? 'Erreur lors de la suppression du lot')
       }
-      setDpgf((prev) =>
-        prev ? { ...prev, lots: prev.lots.filter((l) => l.id !== lotId) } : prev
+      void mutate(
+        (prev) => prev ? { ...prev, lots: prev.lots.filter((l) => l.id !== lotId) } : prev,
+        { revalidate: false }
       )
     },
-    [dpgfId]
+    [dpgfId, mutate]
   )
 
   const reorderLots = useCallback(
@@ -142,16 +142,16 @@ export function useDPGF(dpgfId: string) {
         body: JSON.stringify(items),
       })
       if (!res.ok) throw new Error('Erreur lors du réordonnancement des lots')
-      setDpgf((prev) => {
+      void mutate((prev) => {
         if (!prev) return prev
         const posMap = new Map(items.map(({ lotId, position }) => [lotId, position]))
         const reordered = prev.lots
           .map((l) => ({ ...l, position: posMap.get(l.id) ?? l.position }))
           .sort((a, b) => a.position - b.position)
         return { ...prev, lots: reordered }
-      })
+      }, { revalidate: false })
     },
-    [dpgfId]
+    [dpgfId, mutate]
   )
 
   // ── Mutations sous-lots ──────────────────────────────
@@ -164,10 +164,21 @@ export function useDPGF(dpgfId: string) {
         body: JSON.stringify(data),
       })
       if (!res.ok) throw new Error('Erreur lors de la création du sous-lot')
-      // Structure change — refetch pour cohérence
-      await fetchDPGF()
+      const newSublot = await res.json() as { id: string; lotId: string; number: string; name: string; position: number }
+      void mutate((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          lots: prev.lots.map((lot) =>
+            lot.id !== lotId ? lot : {
+              ...lot,
+              sublots: [...lot.sublots, { ...newSublot, posts: [] }],
+            }
+          ),
+        }
+      }, { revalidate: false })
     },
-    [dpgfId, fetchDPGF]
+    [dpgfId, mutate]
   )
 
   const updateSubLot = useCallback(
@@ -178,9 +189,9 @@ export function useDPGF(dpgfId: string) {
         body: JSON.stringify(data),
       })
       if (!res.ok) throw new Error('Erreur lors de la mise à jour du sous-lot')
-      await fetchDPGF()
+      await mutate()
     },
-    [dpgfId, fetchDPGF]
+    [dpgfId, mutate]
   )
 
   const deleteSubLot = useCallback(
@@ -192,9 +203,9 @@ export function useDPGF(dpgfId: string) {
         const data = await res.json() as { error?: string }
         throw new Error(data.error ?? 'Erreur lors de la suppression du sous-lot')
       }
-      await fetchDPGF()
+      await mutate()
     },
-    [dpgfId, fetchDPGF]
+    [dpgfId, mutate]
   )
 
   // ── Mutations postes ─────────────────────────────────
@@ -261,10 +272,9 @@ export function useDPGF(dpgfId: string) {
         body: JSON.stringify({ targetLotId, targetSublotId }),
       })
       if (!res.ok) throw new Error('Erreur lors du déplacement du poste')
-      // Refetch to get updated structure + refs
-      await fetchDPGF()
+      await mutate()
     },
-    [dpgfId, fetchDPGF]
+    [dpgfId, mutate]
   )
 
   const moveSublot = useCallback(
@@ -275,16 +285,16 @@ export function useDPGF(dpgfId: string) {
         body: JSON.stringify({ targetLotId }),
       })
       if (!res.ok) throw new Error('Erreur lors du déplacement du sous-lot')
-      await fetchDPGF()
+      await mutate()
     },
-    [dpgfId, fetchDPGF]
+    [dpgfId, mutate]
   )
 
   return {
-    dpgf,
+    dpgf: dpgf ?? null,
     isLoading,
     error,
-    refresh: fetchDPGF,
+    refresh: mutate,
     addLot,
     updateLot,
     deleteLot,

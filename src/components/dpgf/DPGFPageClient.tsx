@@ -56,13 +56,13 @@ export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo }: DP
     }
   }
 
-  // Fetch library count (no filter → total)
+  // Fetch library count via lightweight endpoint
   const refreshLibraryCount = useCallback(async () => {
     try {
-      const res = await fetch('/api/library')
+      const res = await fetch('/api/library/count')
       if (res.ok) {
-        const data = await res.json() as unknown[]
-        setLibraryCount(Array.isArray(data) ? data.length : 0)
+        const data = await res.json() as { count: number }
+        setLibraryCount(data.count)
       }
     } catch {
       // ignore

@@ -1,8 +1,36 @@
 import { redirect } from 'next/navigation'
+import { unstable_cache } from 'next/cache'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { AnalysisPageClient } from '@/components/dpgf/AnalysisPageClient'
 import { DEFAULT_WEIGHTS } from '@/lib/scoring'
+
+// Cache director name verification for 24h per SIREN+lastName
+const checkDirectorMatch = unstable_cache(
+  async (siren: string, lastName: string): Promise<boolean | null> => {
+    try {
+      const res = await fetch(
+        `https://recherche-entreprises.api.gouv.fr/search?q=${siren}&per_page=1`,
+        { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(3000) }
+      )
+      if (!res.ok) return null
+      const govData = await res.json() as {
+        results?: Array<{ dirigeants?: Array<{ nom?: string }> }>
+      }
+      const firstDirigeant = govData.results?.[0]?.dirigeants?.[0]
+      if (!firstDirigeant?.nom) return null
+      const normalize = (s: string) =>
+        s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+      const govLast = normalize(firstDirigeant.nom)
+      const registeredLast = normalize(lastName)
+      return govLast.length > 0 && registeredLast.length > 0 ? govLast === registeredLast : null
+    } catch {
+      return null
+    }
+  },
+  ['gov-director-match'],
+  { revalidate: 86400 } // 24h
+)
 
 interface Props {
   params: { projectId: string }
@@ -107,34 +135,16 @@ export default async function AnalysePage({ params }: Props) {
 
   const userMap = new Map(companyUsers.map((u) => [u.id, u]))
 
-  // Fetch director names from data.gouv.fr in parallel for reliability scoring
-  const normalize = (s: string) =>
-    s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
-
+  // Check director names via data.gouv.fr — results cached 24h per SIREN
   const directorMatchMap = new Map<string, boolean | null>()
   await Promise.allSettled(
     companyUsers.map(async (u) => {
       const siret = (u.agency as { siret?: string | null } | null)?.siret ?? null
-      if (!siret || siret.length < 9) return
+      const lastName = u.lastName ?? ''
+      if (!siret || siret.length < 9 || !lastName) return
       const siren = siret.slice(0, 9)
-      try {
-        const res = await fetch(
-          `https://recherche-entreprises.api.gouv.fr/search?q=${siren}&per_page=1`,
-          { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) }
-        )
-        if (!res.ok) return
-        const govData = await res.json() as {
-          results?: Array<{ dirigeants?: Array<{ nom?: string; prenoms?: string }> }>
-        }
-        const firstDirigeant = govData.results?.[0]?.dirigeants?.[0]
-        if (!firstDirigeant?.nom) return
-        const govLast = normalize(firstDirigeant.nom)
-        const registeredLast = normalize(u.lastName ?? '')
-        const match = govLast.length > 0 && registeredLast.length > 0
-          ? govLast === registeredLast
-          : null
-        directorMatchMap.set(u.id, match)
-      } catch { /* API unavailable — ignore */ }
+      const match = await checkDirectorMatch(siren, lastName)
+      directorMatchMap.set(u.id, match)
     })
   )
 
