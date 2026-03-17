@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { AlertCircle } from 'lucide-react'
 import { useDPGF } from '@/hooks/useDPGF'
+import type { DPGFWithLots } from '@/types'
 import { StatsBar } from './StatsBar'
 import { DPGFToolbar } from './DPGFToolbar'
 import { DPGFTable } from './DPGFTable'
@@ -24,11 +25,12 @@ interface DPGFPageClientProps {
   projectId: string
   projectName: string
   initialAo: { id: string; status: string } | null
+  initialDpgf: DPGFWithLots | null
 }
 
-export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo }: DPGFPageClientProps) {
+export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo, initialDpgf }: DPGFPageClientProps) {
   const router = useRouter()
-  const dpgfState = useDPGF(dpgfId)
+  const dpgfState = useDPGF(dpgfId, initialDpgf ?? undefined)
   const [search, setSearch]             = useState('')
   const [libraryOpen, setLibraryOpen]   = useState(false)
   const [libraryCount, setLibraryCount] = useState<number | undefined>(undefined)

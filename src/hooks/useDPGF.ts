@@ -11,14 +11,16 @@ const jsonFetcher = (url: string) =>
     return r.json()
   })
 
-export function useDPGF(dpgfId: string) {
+export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
   const { data: dpgf, error: swrError, isLoading, mutate } = useSWR<DPGFWithLots>(
     `/api/dpgf/${dpgfId}`,
     jsonFetcher,
     {
+      fallbackData,           // use server-side data on first render — no client fetch needed
+      revalidateOnMount: !fallbackData, // skip refetch if server already provided data
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
-      dedupingInterval: 5000, // deduplicate identical requests within 5s
+      dedupingInterval: 60000, // 1 min — avoid re-fetching on quick back-navigations
     }
   )
 
@@ -189,7 +191,20 @@ export function useDPGF(dpgfId: string) {
         body: JSON.stringify(data),
       })
       if (!res.ok) throw new Error('Erreur lors de la mise à jour du sous-lot')
-      await mutate()
+      void mutate((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          lots: prev.lots.map((lot) =>
+            lot.id !== lotId ? lot : {
+              ...lot,
+              sublots: lot.sublots.map((sl) =>
+                sl.id !== sublotId ? sl : { ...sl, ...data }
+              ),
+            }
+          ),
+        }
+      }, { revalidate: false })
     },
     [dpgfId, mutate]
   )
@@ -200,10 +215,21 @@ export function useDPGF(dpgfId: string) {
         method: 'DELETE',
       })
       if (!res.ok) {
-        const data = await res.json() as { error?: string }
-        throw new Error(data.error ?? 'Erreur lors de la suppression du sous-lot')
+        const body = await res.json() as { error?: string }
+        throw new Error(body.error ?? 'Erreur lors de la suppression du sous-lot')
       }
-      await mutate()
+      void mutate((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          lots: prev.lots.map((lot) =>
+            lot.id !== lotId ? lot : {
+              ...lot,
+              sublots: lot.sublots.filter((sl) => sl.id !== sublotId),
+            }
+          ),
+        }
+      }, { revalidate: false })
     },
     [dpgfId, mutate]
   )
