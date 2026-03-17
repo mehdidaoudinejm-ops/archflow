@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import useSWR from 'swr'
 import type { DPGFWithLots, LotWithChildren, SubLotWithPosts, CreatePostInput } from '@/types'
 import type { Post } from '@prisma/client'
@@ -22,13 +22,20 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
     `/api/dpgf/${dpgfId}`,
     jsonFetcher,
     {
-      fallbackData,           // use server-side data on first render — no client fetch needed
-      revalidateOnMount: !fallbackData, // skip refetch if server already provided data
+      fallbackData,
+      revalidateOnMount: !fallbackData,
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
-      dedupingInterval: 60000, // 1 min — avoid re-fetching on quick back-navigations
+      dedupingInterval: 60000,
     }
   )
+
+  // KEY FIX: SWR's mutate(updater) passes prev = undefined when the cache has never
+  // been populated by a fetch (i.e. fallbackData was used with revalidateOnMount:false).
+  // All updaters use `prev ?? dpgfRef.current` so the first mutation seeds the cache
+  // from the server-provided data and all subsequent mutations work correctly.
+  const dpgfRef = useRef(dpgf ?? fallbackData)
+  dpgfRef.current = dpgf ?? fallbackData
 
   const error = swrError
     ? swrError instanceof Error ? swrError.message : 'Erreur inconnue'
@@ -38,10 +45,11 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
 
   const applyPostUpdate = useCallback((postId: string, updated: Post) => {
     void mutate((prev) => {
-      if (!prev) return prev
+      const d = prev ?? dpgfRef.current
+      if (!d) return d
       return {
-        ...prev,
-        lots: prev.lots.map((lot) => ({
+        ...d,
+        lots: d.lots.map((lot) => ({
           ...lot,
           sublots: lot.sublots.map((sl) => ({
             ...sl,
@@ -55,10 +63,11 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
 
   const applyPostAdd = useCallback((lotId: string, newPost: Post) => {
     void mutate((prev) => {
-      if (!prev) return prev
+      const d = prev ?? dpgfRef.current
+      if (!d) return d
       return {
-        ...prev,
-        lots: prev.lots.map((lot) => {
+        ...d,
+        lots: d.lots.map((lot) => {
           if (lot.id !== lotId) return lot
           if (newPost.sublotId) {
             return {
@@ -76,10 +85,11 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
 
   const applyPostRemove = useCallback((postId: string) => {
     void mutate((prev) => {
-      if (!prev) return prev
+      const d = prev ?? dpgfRef.current
+      if (!d) return d
       return {
-        ...prev,
-        lots: prev.lots.map((lot) => ({
+        ...d,
+        lots: d.lots.map((lot) => ({
           ...lot,
           sublots: lot.sublots.map((sl) => ({ ...sl, posts: sl.posts.filter((p) => p.id !== postId) })),
           posts: lot.posts.filter((p) => p.id !== postId),
@@ -93,14 +103,14 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
   const addLot = useCallback(
     async (name: string) => {
       const tempId = `temp_lot_${Date.now()}`
-      // 1. Add temp lot immediately
       void mutate((prev) => {
-        if (!prev) return prev
-        const nextNumber = prev.lots.length > 0
-          ? Math.max(...prev.lots.map((l) => l.number)) + 1
+        const d = prev ?? dpgfRef.current
+        if (!d) return d
+        const nextNumber = d.lots.length > 0
+          ? Math.max(...d.lots.map((l) => l.number)) + 1
           : 1
-        const nextPosition = prev.lots.length > 0
-          ? Math.max(...prev.lots.map((l) => l.position)) + 1
+        const nextPosition = d.lots.length > 0
+          ? Math.max(...d.lots.map((l) => l.position)) + 1
           : 0
         const tempLot: LotWithChildren = {
           id: tempId,
@@ -111,9 +121,8 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
           sublots: [],
           posts: [],
         }
-        return { ...prev, lots: [...prev.lots, tempLot] }
+        return { ...d, lots: [...d.lots, tempLot] }
       }, { revalidate: false })
-      // 2. Fire API, replace temp with real
       try {
         const res = await fetch(`/api/dpgf/${dpgfId}/lots`, {
           method: 'POST',
@@ -123,19 +132,21 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
         if (!res.ok) throw new Error('Erreur lors de la création du lot')
         const newLot = await res.json() as LotWithChildren
         void mutate((prev) => {
-          if (!prev) return prev
+          const d = prev ?? dpgfRef.current
+          if (!d) return d
           return {
-            ...prev,
-            lots: prev.lots.map((l) =>
+            ...d,
+            lots: d.lots.map((l) =>
               l.id === tempId ? { ...newLot, sublots: [], posts: [] } : l
             ),
           }
         }, { revalidate: false })
       } catch (err) {
-        void mutate((prev) =>
-          prev ? { ...prev, lots: prev.lots.filter((l) => l.id !== tempId) } : prev,
-          { revalidate: false }
-        )
+        void mutate((prev) => {
+          const d = prev ?? dpgfRef.current
+          if (!d) return d
+          return { ...d, lots: d.lots.filter((l) => l.id !== tempId) }
+        }, { revalidate: false })
         throw err
       }
     },
@@ -144,9 +155,12 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
 
   const updateLot = useCallback(
     async (lotId: string, data: { name?: string; position?: number }) => {
-      // Optimistic: update cache immediately
       void mutate(
-        (prev) => prev ? { ...prev, lots: prev.lots.map((l) => (l.id === lotId ? { ...l, ...data } : l)) } : prev,
+        (prev) => {
+          const d = prev ?? dpgfRef.current
+          if (!d) return d
+          return { ...d, lots: d.lots.map((l) => (l.id === lotId ? { ...l, ...data } : l)) }
+        },
         { revalidate: false }
       )
       try {
@@ -157,7 +171,7 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
         })
         if (!res.ok) throw new Error('Erreur lors de la mise à jour du lot')
       } catch (err) {
-        await mutate() // revert on error
+        await mutate()
         throw err
       }
     },
@@ -172,7 +186,11 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
         throw new Error(data.error ?? 'Erreur lors de la suppression du lot')
       }
       void mutate(
-        (prev) => prev ? { ...prev, lots: prev.lots.filter((l) => l.id !== lotId) } : prev,
+        (prev) => {
+          const d = prev ?? dpgfRef.current
+          if (!d) return d
+          return { ...d, lots: d.lots.filter((l) => l.id !== lotId) }
+        },
         { revalidate: false }
       )
     },
@@ -188,12 +206,13 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
       })
       if (!res.ok) throw new Error('Erreur lors du réordonnancement des lots')
       void mutate((prev) => {
-        if (!prev) return prev
+        const d = prev ?? dpgfRef.current
+        if (!d) return d
         const posMap = new Map(items.map(({ lotId, position }) => [lotId, position]))
-        const reordered = prev.lots
+        const reordered = d.lots
           .map((l) => ({ ...l, position: posMap.get(l.id) ?? l.position }))
           .sort((a, b) => a.position - b.position)
-        return { ...prev, lots: reordered }
+        return { ...d, lots: reordered }
       }, { revalidate: false })
     },
     [dpgfId, mutate]
@@ -204,12 +223,12 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
   const addSubLot = useCallback(
     async (lotId: string, data: { number: string; name: string }) => {
       const tempId = `temp_sublot_${Date.now()}`
-      // 1. Add temp sublot immediately
       void mutate((prev) => {
-        if (!prev) return prev
+        const d = prev ?? dpgfRef.current
+        if (!d) return d
         return {
-          ...prev,
-          lots: prev.lots.map((lot) => {
+          ...d,
+          lots: d.lots.map((lot) => {
             if (lot.id !== lotId) return lot
             const nextPosition = lot.sublots.length > 0
               ? Math.max(...lot.sublots.map((s) => s.position)) + 1
@@ -226,7 +245,6 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
           }),
         }
       }, { revalidate: false })
-      // 2. Fire API, replace temp with real
       try {
         const res = await fetch(`/api/dpgf/${dpgfId}/lots/${lotId}/sublots`, {
           method: 'POST',
@@ -236,10 +254,11 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
         if (!res.ok) throw new Error('Erreur lors de la création du sous-lot')
         const newSublot = await res.json() as { id: string; lotId: string; number: string; name: string; position: number }
         void mutate((prev) => {
-          if (!prev) return prev
+          const d = prev ?? dpgfRef.current
+          if (!d) return d
           return {
-            ...prev,
-            lots: prev.lots.map((lot) =>
+            ...d,
+            lots: d.lots.map((lot) =>
               lot.id !== lotId ? lot : {
                 ...lot,
                 sublots: lot.sublots.map((sl) =>
@@ -251,10 +270,11 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
         }, { revalidate: false })
       } catch (err) {
         void mutate((prev) => {
-          if (!prev) return prev
+          const d = prev ?? dpgfRef.current
+          if (!d) return d
           return {
-            ...prev,
-            lots: prev.lots.map((lot) =>
+            ...d,
+            lots: d.lots.map((lot) =>
               lot.id !== lotId ? lot : {
                 ...lot,
                 sublots: lot.sublots.filter((sl) => sl.id !== tempId),
@@ -277,10 +297,11 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
       })
       if (!res.ok) throw new Error('Erreur lors de la mise à jour du sous-lot')
       void mutate((prev) => {
-        if (!prev) return prev
+        const d = prev ?? dpgfRef.current
+        if (!d) return d
         return {
-          ...prev,
-          lots: prev.lots.map((lot) =>
+          ...d,
+          lots: d.lots.map((lot) =>
             lot.id !== lotId ? lot : {
               ...lot,
               sublots: lot.sublots.map((sl) =>
@@ -304,10 +325,11 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
         throw new Error(body.error ?? 'Erreur lors de la suppression du sous-lot')
       }
       void mutate((prev) => {
-        if (!prev) return prev
+        const d = prev ?? dpgfRef.current
+        if (!d) return d
         return {
-          ...prev,
-          lots: prev.lots.map((lot) =>
+          ...d,
+          lots: d.lots.map((lot) =>
             lot.id !== lotId ? lot : {
               ...lot,
               sublots: lot.sublots.filter((sl) => sl.id !== sublotId),
@@ -324,11 +346,11 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
   const addPost = useCallback(
     async (lotId: string, data: CreatePostInput) => {
       const tempId = `temp_${Date.now()}`
-      // 1. Add temp post immediately so UI reflects change with zero delay
       void mutate((prev) => {
-        if (!prev) return prev
-        const lot = prev.lots.find((l) => l.id === lotId)
-        if (!lot) return prev
+        const d = prev ?? dpgfRef.current
+        if (!d) return d
+        const lot = d.lots.find((l) => l.id === lotId)
+        if (!lot) return d
         const targetPosts = data.sublotId
           ? (lot.sublots.find((s) => s.id === data.sublotId)?.posts ?? [])
           : lot.posts
@@ -353,8 +375,8 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
           position: nextPosition,
         }
         return {
-          ...prev,
-          lots: prev.lots.map((l) => {
+          ...d,
+          lots: d.lots.map((l) => {
             if (l.id !== lotId) return l
             if (data.sublotId) {
               return {
@@ -368,7 +390,6 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
           }),
         }
       }, { revalidate: false })
-      // 2. Fire API, then replace temp with real server data
       try {
         const res = await fetch(`/api/dpgf/${dpgfId}/lots/${lotId}/posts`, {
           method: 'POST',
@@ -378,11 +399,12 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
         if (!res.ok) throw new Error('Erreur lors de la création du poste')
         const newPost = await res.json() as Post
         void mutate((prev) => {
-          if (!prev) return prev
+          const d = prev ?? dpgfRef.current
+          if (!d) return d
           const replace = (p: Post) => p.id === tempId ? newPost : p
           return {
-            ...prev,
-            lots: prev.lots.map((l) => ({
+            ...d,
+            lots: d.lots.map((l) => ({
               ...l,
               sublots: l.sublots.map((sl) => ({ ...sl, posts: sl.posts.map(replace) })),
               posts: l.posts.map(replace),
@@ -411,7 +433,6 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
         position?: number
       }
     ) => {
-      // Optimistic: apply to cache immediately so UI reflects change with zero delay
       applyPostUpdate(postId, data as Post)
       try {
         const res = await fetch(`/api/dpgf/${dpgfId}/lots/${lotId}/posts/${postId}`, {
@@ -420,9 +441,8 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
           body: JSON.stringify(data),
         })
         if (!res.ok) throw new Error('Erreur lors de la mise à jour du poste')
-        // 204 No Content — optimistic cache already correct, nothing to confirm
       } catch (err) {
-        await mutate() // revert on error
+        await mutate()
         throw err
       }
     },
