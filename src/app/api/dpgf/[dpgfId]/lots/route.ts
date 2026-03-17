@@ -51,11 +51,6 @@ export async function POST(
   try {
     const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
 
-    const access = await checkDPGFAccess(params.dpgfId, user.agencyId!)
-    if (!access) {
-      return NextResponse.json({ error: 'DPGF introuvable' }, { status: 404 })
-    }
-
     const body: unknown = await req.json()
     const parsed = createLotSchema.safeParse(body)
     if (!parsed.success) {
@@ -65,12 +60,19 @@ export async function POST(
       )
     }
 
-    // Calculer le prochain numéro et la prochaine position
-    const existingLots = await prisma.lot.findMany({
-      where: { dpgfId: params.dpgfId },
-      select: { number: true, position: true },
-      orderBy: { position: 'desc' },
-    })
+    // Run ownership check and existing lots query in parallel
+    const [access, existingLots] = await Promise.all([
+      checkDPGFAccess(params.dpgfId, user.agencyId!),
+      prisma.lot.findMany({
+        where: { dpgfId: params.dpgfId },
+        select: { number: true, position: true },
+        orderBy: { position: 'desc' },
+      }),
+    ])
+
+    if (!access) {
+      return NextResponse.json({ error: 'DPGF introuvable' }, { status: 404 })
+    }
 
     const nextNumber = parsed.data.number ?? (existingLots.length > 0
       ? Math.max(...existingLots.map((l) => l.number)) + 1

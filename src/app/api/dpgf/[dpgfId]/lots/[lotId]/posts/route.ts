@@ -63,11 +63,6 @@ export async function POST(
   try {
     const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
 
-    const lot = await checkLotAccess(params.dpgfId, params.lotId, user.agencyId!)
-    if (!lot) {
-      return NextResponse.json({ error: 'Lot introuvable' }, { status: 404 })
-    }
-
     const body: unknown = await req.json()
     const parsed = createPostSchema.safeParse(body)
     if (!parsed.success) {
@@ -77,28 +72,29 @@ export async function POST(
       )
     }
 
-    // Calculer la prochaine position dans ce lot (ou sous-lot)
     const whereClause = parsed.data.sublotId
       ? { lotId: params.lotId, sublotId: parsed.data.sublotId }
       : { lotId: params.lotId, sublotId: null }
 
-    const lastPost = await prisma.post.findFirst({
-      where: whereClause,
-      orderBy: { position: 'desc' },
-      select: { position: true },
-    })
-    const nextPosition = lastPost ? lastPost.position + 1 : 1
+    // Run ownership check, position query, and sublot query in parallel
+    const [lot, lastPost, sublot] = await Promise.all([
+      checkLotAccess(params.dpgfId, params.lotId, user.agencyId!),
+      prisma.post.findFirst({
+        where: whereClause,
+        orderBy: { position: 'desc' },
+        select: { position: true },
+      }),
+      parsed.data.sublotId
+        ? prisma.subLot.findUnique({ where: { id: parsed.data.sublotId }, select: { number: true } })
+        : Promise.resolve(null),
+    ])
 
-    // Récupérer le numéro du sous-lot si applicable
-    let sublotNumber: string | undefined
-    if (parsed.data.sublotId) {
-      const sublot = await prisma.subLot.findUnique({
-        where: { id: parsed.data.sublotId },
-        select: { number: true },
-      })
-      sublotNumber = sublot?.number
+    if (!lot) {
+      return NextResponse.json({ error: 'Lot introuvable' }, { status: 404 })
     }
 
+    const nextPosition = lastPost ? lastPost.position + 1 : 1
+    const sublotNumber = sublot?.number
     const ref = computeRef(lot.number, nextPosition, sublotNumber)
 
     const post = await prisma.post.create({

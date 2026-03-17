@@ -2,8 +2,14 @@
 
 import { useCallback } from 'react'
 import useSWR from 'swr'
-import type { DPGFWithLots, LotWithChildren, CreatePostInput } from '@/types'
+import type { DPGFWithLots, LotWithChildren, SubLotWithPosts, CreatePostInput } from '@/types'
 import type { Post } from '@prisma/client'
+
+function computeRef(lotNumber: number, position: number, sublotNumber?: string): string {
+  const ln = lotNumber.toString().padStart(2, '0')
+  const pn = position.toString().padStart(2, '0')
+  return sublotNumber ? `${ln}.${sublotNumber}.${pn}` : `${ln}.${pn}`
+}
 
 const jsonFetcher = (url: string) =>
   fetch(url).then((r) => {
@@ -86,17 +92,52 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
 
   const addLot = useCallback(
     async (name: string) => {
-      const res = await fetch(`/api/dpgf/${dpgfId}/lots`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      })
-      if (!res.ok) throw new Error('Erreur lors de la création du lot')
-      const newLot = await res.json() as LotWithChildren
-      void mutate((prev) =>
-        prev ? { ...prev, lots: [...prev.lots, { ...newLot, sublots: [], posts: [] }] } : prev,
-        { revalidate: false }
-      )
+      const tempId = `temp_lot_${Date.now()}`
+      // 1. Add temp lot immediately
+      void mutate((prev) => {
+        if (!prev) return prev
+        const nextNumber = prev.lots.length > 0
+          ? Math.max(...prev.lots.map((l) => l.number)) + 1
+          : 1
+        const nextPosition = prev.lots.length > 0
+          ? Math.max(...prev.lots.map((l) => l.position)) + 1
+          : 0
+        const tempLot: LotWithChildren = {
+          id: tempId,
+          dpgfId,
+          number: nextNumber,
+          name,
+          position: nextPosition,
+          sublots: [],
+          posts: [],
+        }
+        return { ...prev, lots: [...prev.lots, tempLot] }
+      }, { revalidate: false })
+      // 2. Fire API, replace temp with real
+      try {
+        const res = await fetch(`/api/dpgf/${dpgfId}/lots`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        })
+        if (!res.ok) throw new Error('Erreur lors de la création du lot')
+        const newLot = await res.json() as LotWithChildren
+        void mutate((prev) => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            lots: prev.lots.map((l) =>
+              l.id === tempId ? { ...newLot, sublots: [], posts: [] } : l
+            ),
+          }
+        }, { revalidate: false })
+      } catch (err) {
+        void mutate((prev) =>
+          prev ? { ...prev, lots: prev.lots.filter((l) => l.id !== tempId) } : prev,
+          { revalidate: false }
+        )
+        throw err
+      }
     },
     [dpgfId, mutate]
   )
@@ -162,25 +203,67 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
 
   const addSubLot = useCallback(
     async (lotId: string, data: { number: string; name: string }) => {
-      const res = await fetch(`/api/dpgf/${dpgfId}/lots/${lotId}/sublots`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error('Erreur lors de la création du sous-lot')
-      const newSublot = await res.json() as { id: string; lotId: string; number: string; name: string; position: number }
+      const tempId = `temp_sublot_${Date.now()}`
+      // 1. Add temp sublot immediately
       void mutate((prev) => {
         if (!prev) return prev
         return {
           ...prev,
-          lots: prev.lots.map((lot) =>
-            lot.id !== lotId ? lot : {
-              ...lot,
-              sublots: [...lot.sublots, { ...newSublot, posts: [] }],
+          lots: prev.lots.map((lot) => {
+            if (lot.id !== lotId) return lot
+            const nextPosition = lot.sublots.length > 0
+              ? Math.max(...lot.sublots.map((s) => s.position)) + 1
+              : 0
+            const tempSublot: SubLotWithPosts = {
+              id: tempId,
+              lotId,
+              number: data.number,
+              name: data.name,
+              position: nextPosition,
+              posts: [],
             }
-          ),
+            return { ...lot, sublots: [...lot.sublots, tempSublot] }
+          }),
         }
       }, { revalidate: false })
+      // 2. Fire API, replace temp with real
+      try {
+        const res = await fetch(`/api/dpgf/${dpgfId}/lots/${lotId}/sublots`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        })
+        if (!res.ok) throw new Error('Erreur lors de la création du sous-lot')
+        const newSublot = await res.json() as { id: string; lotId: string; number: string; name: string; position: number }
+        void mutate((prev) => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            lots: prev.lots.map((lot) =>
+              lot.id !== lotId ? lot : {
+                ...lot,
+                sublots: lot.sublots.map((sl) =>
+                  sl.id === tempId ? { ...newSublot, posts: [] } : sl
+                ),
+              }
+            ),
+          }
+        }, { revalidate: false })
+      } catch (err) {
+        void mutate((prev) => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            lots: prev.lots.map((lot) =>
+              lot.id !== lotId ? lot : {
+                ...lot,
+                sublots: lot.sublots.filter((sl) => sl.id !== tempId),
+              }
+            ),
+          }
+        }, { revalidate: false })
+        throw err
+      }
     },
     [dpgfId, mutate]
   )
@@ -240,16 +323,78 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
 
   const addPost = useCallback(
     async (lotId: string, data: CreatePostInput) => {
-      const res = await fetch(`/api/dpgf/${dpgfId}/lots/${lotId}/posts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error('Erreur lors de la création du poste')
-      const newPost = await res.json() as Post
-      applyPostAdd(lotId, newPost)
+      const tempId = `temp_${Date.now()}`
+      // 1. Add temp post immediately so UI reflects change with zero delay
+      void mutate((prev) => {
+        if (!prev) return prev
+        const lot = prev.lots.find((l) => l.id === lotId)
+        if (!lot) return prev
+        const targetPosts = data.sublotId
+          ? (lot.sublots.find((s) => s.id === data.sublotId)?.posts ?? [])
+          : lot.posts
+        const nextPosition = targetPosts.length > 0
+          ? Math.max(...targetPosts.map((p) => p.position)) + 1
+          : 1
+        const sublotNumber = data.sublotId
+          ? lot.sublots.find((s) => s.id === data.sublotId)?.number
+          : undefined
+        const tempPost: Post = {
+          id: tempId,
+          lotId,
+          sublotId: data.sublotId ?? null,
+          ref: computeRef(lot.number, nextPosition, sublotNumber),
+          title: data.title,
+          unit: data.unit ?? 'u',
+          qtyArchi: data.qtyArchi ?? null,
+          unitPriceArchi: data.unitPriceArchi ?? null,
+          isOptional: data.isOptional ?? false,
+          commentArchi: data.commentArchi ?? null,
+          libraryRefId: data.libraryRefId ?? null,
+          position: nextPosition,
+        }
+        return {
+          ...prev,
+          lots: prev.lots.map((l) => {
+            if (l.id !== lotId) return l
+            if (data.sublotId) {
+              return {
+                ...l,
+                sublots: l.sublots.map((sl) =>
+                  sl.id !== data.sublotId ? sl : { ...sl, posts: [...sl.posts, tempPost] }
+                ),
+              }
+            }
+            return { ...l, posts: [...l.posts, tempPost] }
+          }),
+        }
+      }, { revalidate: false })
+      // 2. Fire API, then replace temp with real server data
+      try {
+        const res = await fetch(`/api/dpgf/${dpgfId}/lots/${lotId}/posts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        })
+        if (!res.ok) throw new Error('Erreur lors de la création du poste')
+        const newPost = await res.json() as Post
+        void mutate((prev) => {
+          if (!prev) return prev
+          const replace = (p: Post) => p.id === tempId ? newPost : p
+          return {
+            ...prev,
+            lots: prev.lots.map((l) => ({
+              ...l,
+              sublots: l.sublots.map((sl) => ({ ...sl, posts: sl.posts.map(replace) })),
+              posts: l.posts.map(replace),
+            })),
+          }
+        }, { revalidate: false })
+      } catch (err) {
+        applyPostRemove(tempId)
+        throw err
+      }
     },
-    [dpgfId, applyPostAdd]
+    [dpgfId, mutate, applyPostRemove]
   )
 
   const updatePost = useCallback(
