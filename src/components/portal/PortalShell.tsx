@@ -102,12 +102,12 @@ export function PortalShell({
         {/* Lien retour dashboard */}
         <div className="px-3 pt-3 pb-1 border-b" style={{ borderColor: 'rgba(0,0,0,0.08)' }}>
           <Link
-            href="/mes-appels-doffres"
+            href="/settings"
             className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius)] text-xs transition-colors"
             style={{ color: '#fff', opacity: 0.65 }}
           >
             <ChevronLeft size={14} />
-            Mes appels d&apos;offres
+            Mon entreprise
           </Link>
         </div>
 

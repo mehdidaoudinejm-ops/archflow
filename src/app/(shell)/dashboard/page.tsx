@@ -10,7 +10,7 @@ export default async function DashboardPage() {
   const user = await getUserWithProfile()
 
   if (!user) redirect('/login')
-  if (user.role === 'COMPANY') redirect('/mes-appels-doffres')
+  if (user.role === 'COMPANY') redirect('/settings')
 
   if (!user.agencyId) {
     return (
