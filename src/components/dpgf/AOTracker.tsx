@@ -365,6 +365,47 @@ function CompanySheet({
               )}
             </section>
 
+            {/* Fiabilité */}
+            <section>
+              <h3 className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--text3)' }}>
+                Fiabilité
+              </h3>
+              {(() => {
+                const checks = [
+                  { label: 'Profil renseigné (nom, téléphone, métier)', ok: !!(agency?.trade && agency?.phone && agency?.name) },
+                  { label: 'Adresse complète', ok: !!(agency?.companyAddress && agency?.city) },
+                  { label: 'SIRET renseigné', ok: !!(agency?.siret) },
+                  { label: 'SIRET vérifié', ok: !!(agency?.siretVerified) },
+                  { label: 'Dirigeant correspond au signataire', ok: detail.dirigeantNameMatch === true },
+                  { label: 'Documents admin déposés', ok: detail.adminDocs.filter((d) => d.status === 'VALID').length >= 2 },
+                  { label: 'Offre soumise sur cet AO', ok: !!(detail.offer?.submittedAt) },
+                ]
+                const done = checks.filter((c) => c.ok).length
+                const pct = Math.round((done / checks.length) * 100)
+                const color = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--amber)' : 'var(--red)'
+                return (
+                  <div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="flex-1 h-2 rounded-full" style={{ background: 'var(--surface2)' }}>
+                        <div className="h-2 rounded-full" style={{ width: `${pct}%`, background: color }} />
+                      </div>
+                      <span className="text-sm font-semibold w-10 text-right" style={{ color }}>{pct}%</span>
+                    </div>
+                    <div className="space-y-1.5 mt-3">
+                      {checks.map((c) => (
+                        <div key={c.label} className="flex items-center gap-2">
+                          {c.ok
+                            ? <ShieldCheck size={13} style={{ color: 'var(--green)', flexShrink: 0 }} />
+                            : <ShieldOff size={13} style={{ color: 'var(--text3)', flexShrink: 0 }} />}
+                          <span className="text-xs" style={{ color: c.ok ? 'var(--text)' : 'var(--text3)' }}>{c.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+            </section>
+
             {/* Statut AO */}
             <section>
               <h3 className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--text3)' }}>

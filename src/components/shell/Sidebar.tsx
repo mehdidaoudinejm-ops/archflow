@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutGrid, Settings, FolderOpen, CreditCard, BookUser, ClipboardList } from 'lucide-react'
+import { LayoutGrid, Settings, FolderOpen, CreditCard, BookUser, Building2 } from 'lucide-react'
 import type { Role } from '@prisma/client'
 
 interface NavItem {
@@ -19,8 +19,7 @@ const architectNav: NavItem[] = [
 ]
 
 const companyNav: NavItem[] = [
-  { href: '/mes-appels-doffres', label: "Mes appels d'offres", icon: <ClipboardList size={18} /> },
-  { href: '/settings', label: 'Paramètres', icon: <Settings size={18} /> },
+  { href: '/settings', label: 'Mon entreprise', icon: <Building2 size={18} /> },
 ]
 
 export function Sidebar({ role }: { role?: Role }) {
@@ -39,7 +38,7 @@ export function Sidebar({ role }: { role?: Role }) {
     >
       {/* Logo */}
       <div className="px-5 mb-8">
-        <Link href={role === 'COMPANY' ? '/mes-appels-doffres' : '/dashboard'}>
+        <Link href={role === 'COMPANY' ? '/settings' : '/dashboard'}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <span
               className="text-2xl leading-none"
