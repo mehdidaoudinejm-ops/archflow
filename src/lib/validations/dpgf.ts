@@ -42,6 +42,14 @@ export const reorderLotsSchema = z.array(
   })
 )
 
+export const reorderPostsSchema = z.object({
+  items: z.array(z.object({
+    postId: z.string(),
+    position: z.number().int().min(1),
+  })),
+  sublotId: z.string().nullable().optional(),
+})
+
 export const createSubLotSchema = z.object({
   number: z.string().min(1, 'Numéro requis').max(20),
   name:   z.string().min(1, 'Nom requis').max(200),

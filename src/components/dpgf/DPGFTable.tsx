@@ -84,6 +84,7 @@ interface DPGFTableProps {
   ) => Promise<void>
   onDeletePost: (lotId: string, postId: string) => Promise<void>
   onSaveToLibrary: (lotId: string, postId: string, data: { trade?: string | null }) => Promise<void>
+  onReorderPosts: (lotId: string, sublotId: string | null, orderedPostIds: string[]) => Promise<void>
   onMovePost: (postId: string, targetLotId: string, targetSublotId: string | null) => Promise<void>
   onMoveSublot: (sublotId: string, targetLotId: string) => Promise<void>
 }
@@ -1132,6 +1133,7 @@ export function DPGFTable({
   onUpdatePost,
   onDeletePost,
   onSaveToLibrary,
+  onReorderPosts,
   onMovePost,
   onMoveSublot,
 }: DPGFTableProps) {
@@ -1267,7 +1269,7 @@ export function DPGFTable({
       return
     }
 
-    // Post move
+    // Post drag
     if (activeInfo.type === 'post') {
       let targetLotId: string
       let targetSublotId: string | null = null
@@ -1284,9 +1286,23 @@ export function DPGFTable({
         return
       }
 
-      // Skip if dropped in the same container
-      if (targetLotId === activeInfo.lotId && targetSublotId === (activeInfo.sublotId ?? null)) return
-      await onMovePost(active.id as string, targetLotId, targetSublotId)
+      const sameContainer = targetLotId === activeInfo.lotId && targetSublotId === (activeInfo.sublotId ?? null)
+
+      if (sameContainer) {
+        // Reorder within the same container
+        const lot = lots.find((l) => l.id === targetLotId)
+        if (!lot) return
+        const containerPosts = targetSublotId
+          ? lot.sublots.find((sl) => sl.id === targetSublotId)?.posts ?? []
+          : lot.posts
+        const oldIndex = containerPosts.findIndex((p) => p.id === active.id)
+        const newIndex = containerPosts.findIndex((p) => p.id === over.id)
+        if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return
+        const reordered = arrayMove(containerPosts, oldIndex, newIndex)
+        await onReorderPosts(targetLotId, targetSublotId, reordered.map((p) => p.id))
+      } else {
+        await onMovePost(active.id as string, targetLotId, targetSublotId)
+      }
       return
     }
 

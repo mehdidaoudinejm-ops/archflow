@@ -200,6 +200,7 @@ export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo, init
         onUpdatePost={dpgfState.updatePost}
         onDeletePost={dpgfState.deletePost}
         onSaveToLibrary={saveToLibrary}
+        onReorderPosts={dpgfState.reorderPosts}
         onMovePost={dpgfState.movePost}
         onMoveSublot={dpgfState.moveSublot}
       />

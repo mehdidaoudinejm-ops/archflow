@@ -463,6 +463,54 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
     [dpgfId, applyPostRemove]
   )
 
+  const reorderPosts = useCallback(
+    async (lotId: string, sublotId: string | null, orderedPostIds: string[]) => {
+      // Optimistic: reorder immediately with updated positions and refs
+      void mutate((prev) => {
+        const d = prev ?? dpgfRef.current
+        if (!d) return d
+        return {
+          ...d,
+          lots: d.lots.map((lot) => {
+            if (lot.id !== lotId) return lot
+            if (sublotId) {
+              return {
+                ...lot,
+                sublots: lot.sublots.map((sl) => {
+                  if (sl.id !== sublotId) return sl
+                  const reordered = orderedPostIds.map((id, i) => {
+                    const post = sl.posts.find((p) => p.id === id)!
+                    return { ...post, position: i + 1, ref: computeRef(lot.number, i + 1, sl.number) }
+                  })
+                  return { ...sl, posts: reordered }
+                }),
+              }
+            }
+            const reordered = orderedPostIds.map((id, i) => {
+              const post = lot.posts.find((p) => p.id === id)!
+              return { ...post, position: i + 1, ref: computeRef(lot.number, i + 1) }
+            })
+            return { ...lot, posts: reordered }
+          }),
+        }
+      }, { revalidate: false })
+
+      const items = orderedPostIds.map((postId, i) => ({ postId, position: i + 1 }))
+      try {
+        const res = await fetch(`/api/dpgf/${dpgfId}/lots/${lotId}/posts/reorder`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items, sublotId }),
+        })
+        if (!res.ok) throw new Error('Erreur lors du réordonnancement')
+      } catch (err) {
+        await mutate()
+        throw err
+      }
+    },
+    [dpgfId, mutate]
+  )
+
   const movePost = useCallback(
     async (postId: string, targetLotId: string, targetSublotId: string | null) => {
       const res = await fetch(`/api/dpgf/${dpgfId}/posts/${postId}/move`, {
@@ -504,6 +552,7 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
     addPost,
     updatePost,
     deletePost,
+    reorderPosts,
     movePost,
     moveSublot,
   }
