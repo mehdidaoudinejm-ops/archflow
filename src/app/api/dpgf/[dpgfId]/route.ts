@@ -25,7 +25,17 @@ export async function GET(
     const dpgf = await prisma.dPGF.findUnique({
       where: { id: params.dpgfId },
       include: {
-        project: { select: { id: true, agencyId: true } },
+        project: {
+          select: {
+            id: true,
+            agencyId: true,
+            // Fetch this user's dpgf permission in the same query — no extra round-trip
+            permissions: {
+              where: { userId: user.id, module: 'dpgf' },
+              select: { permissions: true },
+            },
+          },
+        },
         lots: {
           orderBy: { position: 'asc' },
           include: {
@@ -48,7 +58,8 @@ export async function GET(
       return NextResponse.json({ error: 'DPGF introuvable' }, { status: 404 })
     }
 
-    const seeEstimate = await canSeeEstimate(dpgf.project.id, user.id, user.role)
+    // Permission resolved inline — no extra DB query
+    const seeEstimate = await canSeeEstimate(dpgf.project.id, user.id, user.role, dpgf.project.permissions[0])
 
     if (!seeEstimate) {
       const sanitized = {

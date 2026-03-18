@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase-server'
 import { prisma } from '@/lib/prisma'
 import type { Role } from '@prisma/client'
+import { jwtVerify } from 'jose'
 
 export class AuthError extends Error {
   constructor(
@@ -12,10 +13,30 @@ export class AuthError extends Error {
   }
 }
 
+/**
+ * Fast path: verify the Supabase JWT locally (no HTTP call, ~1ms).
+ * Falls back to supabase.auth.getUser() when the token is expired or missing,
+ * which makes the network call and handles token refresh.
+ */
 export async function getSession() {
   const supabase = await createServerClient()
-  // getUser() vérifie le JWT côté serveur et gère le refresh du token.
-  // Plus fiable que getSession() en SSR (évite les tokens expirés non rafraîchis).
+
+  // Try to read the session from the cookie — no network
+  const { data: { session } } = await supabase.auth.getSession()
+
+  if (session?.access_token && process.env.SUPABASE_JWT_SECRET) {
+    try {
+      const secret = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET)
+      const { payload } = await jwtVerify(session.access_token, secret)
+      const email = payload.email as string | undefined
+      const id = payload.sub
+      if (email && id) return { user: { email, id } }
+    } catch {
+      // Expired or tampered — fall through to the authoritative check
+    }
+  }
+
+  // Slow path: validates with Supabase server and refreshes if needed
   const {
     data: { user },
     error,
