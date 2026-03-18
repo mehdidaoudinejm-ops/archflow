@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { FileText, FolderOpen, MessageSquare, Shield, Clock, CheckCircle2, Save, Settings, ChevronLeft } from 'lucide-react'
+import { FileText, FolderOpen, MessageSquare, Shield, Clock, CheckCircle2, Save, Building2, ChevronLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface PortalShellProps {
@@ -10,7 +10,7 @@ interface PortalShellProps {
   aoName: string
   deadline: string
   companyName: string
-  activeSection: 'offer' | 'documents' | 'plans' | 'questions' | 'settings'
+  activeSection: 'offer' | 'documents' | 'plans' | 'questions' | 'settings' | 'entreprise'
   progress: number
   saveStatus: 'saved' | 'saving' | 'unsaved'
   isSubmitted: boolean
@@ -99,17 +99,6 @@ export function PortalShell({
           </p>
         </div>
 
-        {/* Lien retour dashboard */}
-        <div className="px-3 pt-3 pb-1 border-b" style={{ borderColor: 'rgba(0,0,0,0.08)' }}>
-          <Link
-            href="/settings"
-            className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius)] text-xs transition-colors"
-            style={{ color: '#fff', opacity: 0.65 }}
-          >
-            <ChevronLeft size={14} />
-            Mon entreprise
-          </Link>
-        </div>
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-0.5">
@@ -131,18 +120,18 @@ export function PortalShell({
               </Link>
             )
           })}
-          {/* Paramètres */}
+          {/* Mon entreprise */}
           <Link
-            href={`/settings${tokenSuffix}`}
+            href={`/portal/${aoId}/entreprise${tokenSuffix}`}
             className="flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius)] text-sm transition-colors"
             style={{
-              background: activeSection === 'settings' ? 'rgba(255,255,255,0.3)' : 'transparent',
+              background: activeSection === 'entreprise' ? 'rgba(255,255,255,0.3)' : 'transparent',
               color: '#fff',
-              fontWeight: 400,
+              fontWeight: activeSection === 'entreprise' ? 600 : 400,
             }}
           >
-            <Settings size={16} />
-            Paramètres
+            <Building2 size={16} />
+            Mon entreprise
           </Link>
         </nav>
 
