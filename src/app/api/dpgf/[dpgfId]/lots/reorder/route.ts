@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { reorderLotsSchema } from '@/lib/validations/dpgf'
+import { renumberLotAllPosts } from '@/lib/dpgf-numbering'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,15 +36,28 @@ export async function PATCH(
       )
     }
 
-    // Mise à jour des positions et numéros en transaction
-    await prisma.$transaction(
-      parsed.data.map(({ lotId, position }) =>
-        prisma.lot.update({
+    // Fetch current lot numbers to detect which lots actually change
+    const currentLots = await prisma.lot.findMany({
+      where: { dpgfId: params.dpgfId },
+      select: { id: true, number: true },
+    })
+    const currentNumberMap = new Map(currentLots.map((l) => [l.id, l.number]))
+
+    // Update positions/numbers and renumber post refs for changed lots
+    await prisma.$transaction(async (tx) => {
+      for (const { lotId, position } of parsed.data) {
+        await tx.lot.update({
           where: { id: lotId, dpgfId: params.dpgfId },
           data: { position, number: position + 1 },
         })
-      )
-    )
+      }
+      for (const { lotId, position } of parsed.data) {
+        const newNumber = position + 1
+        if (currentNumberMap.get(lotId) !== newNumber) {
+          await renumberLotAllPosts(tx, lotId, newNumber)
+        }
+      }
+    })
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {

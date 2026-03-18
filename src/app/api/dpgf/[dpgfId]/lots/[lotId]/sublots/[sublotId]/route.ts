@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { updateSubLotSchema } from '@/lib/validations/dpgf'
+import { renumberLotSublots } from '@/lib/dpgf-numbering'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,10 +92,11 @@ export async function DELETE(
       )
     }
 
-    await prisma.$transaction([
-      prisma.post.deleteMany({ where: { sublotId: params.sublotId } }),
-      prisma.subLot.delete({ where: { id: params.sublotId } }),
-    ])
+    await prisma.$transaction(async (tx) => {
+      await tx.post.deleteMany({ where: { sublotId: params.sublotId } })
+      await tx.subLot.delete({ where: { id: params.sublotId } })
+      await renumberLotSublots(tx, sublot.lotId, sublot.lot.number)
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { updatePostSchema } from '@/lib/validations/dpgf'
+import { renumberContainerPosts } from '@/lib/dpgf-numbering'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,7 +56,7 @@ export async function DELETE(
   try {
     const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
 
-    // Verify ownership with a single lightweight query
+    // Verify ownership and fetch fields needed for renumbering
     const post = await prisma.post.findFirst({
       where: {
         id: params.postId,
@@ -65,7 +66,12 @@ export async function DELETE(
           dpgf: { project: { agencyId: user.agencyId! } },
         },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        sublotId: true,
+        lot: { select: { number: true } },
+        sublot: { select: { number: true } },
+      },
     })
     if (!post) {
       return NextResponse.json({ error: 'Poste introuvable' }, { status: 404 })
@@ -82,7 +88,16 @@ export async function DELETE(
       )
     }
 
-    await prisma.post.delete({ where: { id: params.postId } })
+    await prisma.$transaction(async (tx) => {
+      await tx.post.delete({ where: { id: params.postId } })
+      await renumberContainerPosts(
+        tx,
+        params.lotId,
+        post.sublotId,
+        post.lot.number,
+        post.sublot?.number
+      )
+    })
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {

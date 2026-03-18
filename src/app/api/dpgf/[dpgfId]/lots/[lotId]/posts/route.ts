@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createPostSchema } from '@/lib/validations/dpgf'
 import { canSeeEstimate } from '@/lib/dpgf-permissions'
+import { computeRef } from '@/lib/dpgf-numbering'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,15 +16,6 @@ async function checkLotAccess(dpgfId: string, lotId: string, agencyId: string) {
   })
   if (!lot || lot.dpgfId !== dpgfId || lot.dpgf.project.agencyId !== agencyId) return null
   return lot
-}
-
-function computeRef(lotNumber: number, position: number, sublotNumber?: string): string {
-  const ln = lotNumber.toString().padStart(2, '0')
-  const pn = position.toString().padStart(2, '0')
-  if (sublotNumber) {
-    return `${ln}.${sublotNumber}.${pn}`
-  }
-  return `${ln}.${pn}`
 }
 
 export async function GET(

@@ -1,15 +1,9 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { renumberContainerPosts } from '@/lib/dpgf-numbering'
 
 export const dynamic = 'force-dynamic'
-
-function computeRef(lotNumber: number, position: number, sublotNumber?: string): string {
-  const ln = lotNumber.toString().padStart(2, '0')
-  const pn = position.toString().padStart(2, '0')
-  if (sublotNumber) return `${ln}.${sublotNumber}.${pn}`
-  return `${ln}.${pn}`
-}
 
 export async function PATCH(
   req: Request,
@@ -25,10 +19,13 @@ export async function PATCH(
       return NextResponse.json({ error: 'targetLotId requis' }, { status: 422 })
     }
 
-    // Check post ownership
+    // Check post ownership — also fetch sublot.number for renumbering source container
     const post = await prisma.post.findUnique({
       where: { id: params.postId },
-      include: { lot: { include: { dpgf: { include: { project: true } } } } },
+      include: {
+        lot: { include: { dpgf: { include: { project: true } } } },
+        sublot: { select: { number: true } },
+      },
     })
     if (
       !post ||
@@ -54,26 +51,49 @@ export async function PATCH(
       sublotNumber = targetSublot.number
     }
 
-    // Compute new position (last in target container)
-    const lastPost = await prisma.post.findFirst({
-      where: { lotId: targetLotId, sublotId: targetSublotId ?? null },
-      orderBy: { position: 'desc' },
-      select: { position: true },
-    })
-    const newPosition = lastPost ? lastPost.position + 1 : 1
-    const newRef = computeRef(targetLot.number, newPosition, sublotNumber)
+    // Remember source container for renumbering after move
+    const sourceLotId = post.lotId
+    const sourceSublotId = post.sublotId
+    const sourceLotNumber = post.lot.number
+    const sourceSublotNumber = post.sublot?.number
 
-    const updated = await prisma.post.update({
-      where: { id: params.postId },
-      data: {
-        lotId: targetLotId,
-        sublotId: targetSublotId ?? null,
-        position: newPosition,
-        ref: newRef,
-      },
+    let updated
+    await prisma.$transaction(async (tx) => {
+      // Compute new position (last in target container, excluding the post itself)
+      const lastPost = await tx.post.findFirst({
+        where: {
+          lotId: targetLotId,
+          sublotId: targetSublotId ?? null,
+          id: { not: params.postId },
+        },
+        orderBy: { position: 'desc' },
+        select: { position: true },
+      })
+      const newPosition = lastPost ? lastPost.position + 1 : 1
+
+      updated = await tx.post.update({
+        where: { id: params.postId },
+        data: {
+          lotId: targetLotId,
+          sublotId: targetSublotId ?? null,
+          position: newPosition,
+          ref: '',
+        },
+      })
+
+      // Renumber source container (fills the gap left by the moved post)
+      await renumberContainerPosts(tx, sourceLotId, sourceSublotId, sourceLotNumber, sourceSublotNumber)
+
+      // Renumber target container (assigns correct sequential position/ref to the new post)
+      const isSameContainer = sourceLotId === targetLotId && sourceSublotId === (targetSublotId ?? null)
+      if (!isSameContainer) {
+        await renumberContainerPosts(tx, targetLotId, targetSublotId ?? null, targetLot.number, sublotNumber)
+      }
     })
 
-    return NextResponse.json(updated)
+    // Fetch the final state of the moved post
+    const final = await prisma.post.findUnique({ where: { id: params.postId } })
+    return NextResponse.json(final)
   } catch (error) {
     console.error('[PATCH /api/dpgf/[dpgfId]/posts/[postId]/move]', error)
     if (error instanceof Error && error.name === 'AuthError') {
