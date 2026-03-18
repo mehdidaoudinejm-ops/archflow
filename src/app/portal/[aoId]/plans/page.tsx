@@ -1,7 +1,5 @@
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { getSession } from '@/lib/auth'
-import { verifyInviteToken } from '@/lib/invite'
 import { PlansPageClient } from '@/components/portal/PlansPageClient'
 
 interface Props {
@@ -11,43 +9,16 @@ interface Props {
 
 export default async function PortalPlansPage({ params, searchParams }: Props) {
   const token = searchParams.token ?? null
-  let aoCompanyId: string | null = null
-  let companyUserId: string | null = null
+  if (!token) redirect('/login?error=lien_invalide')
 
-  if (token) {
-    try {
-      const payload = await verifyInviteToken(token)
-      if (payload.aoId === params.aoId) {
-        const aoCompany = await prisma.aOCompany.findUnique({
-          where: { id: payload.aoCompanyId },
-          select: { id: true, aoId: true, companyUserId: true },
-        })
-        if (aoCompany && aoCompany.aoId === params.aoId) {
-          aoCompanyId = aoCompany.id
-          companyUserId = aoCompany.companyUserId
-        }
-      }
-    } catch {
-      // Token invalide
-    }
-  }
+  const aoCompanyRecord = await prisma.aOCompany.findFirst({
+    where: { inviteToken: token, aoId: params.aoId },
+    select: { id: true, companyUserId: true },
+  })
+  if (!aoCompanyRecord) redirect('/login?error=lien_invalide')
 
-  if (!aoCompanyId) {
-    const session = await getSession()
-    if (!session) redirect(`/login`)
-
-    const user = await prisma.user.findUnique({ where: { email: session.user.email! } })
-    if (!user || user.role !== 'COMPANY') redirect('/login')
-
-    const aoCompany = await prisma.aOCompany.findFirst({
-      where: { companyUserId: user.id, aoId: params.aoId },
-      select: { id: true, companyUserId: true },
-    })
-    if (!aoCompany) redirect('/dashboard')
-
-    aoCompanyId = aoCompany.id
-    companyUserId = aoCompany.companyUserId
-  }
+  const aoCompanyId = aoCompanyRecord.id
+  const companyUserId = aoCompanyRecord.companyUserId
 
   const ao = await prisma.aO.findUnique({
     where: { id: params.aoId },
@@ -57,7 +28,7 @@ export default async function PortalPlansPage({ params, searchParams }: Props) {
   if (!ao) redirect('/dashboard')
 
   const companyUser = await prisma.user.findUnique({
-    where: { id: companyUserId! },
+    where: { id: companyUserId },
     select: { firstName: true, lastName: true, agency: { select: { name: true } } },
   })
 
@@ -71,7 +42,7 @@ export default async function PortalPlansPage({ params, searchParams }: Props) {
     orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
     include: {
       reads: {
-        where: { aoCompanyId: aoCompanyId! },
+        where: { aoCompanyId: aoCompanyId },
         select: { readAt: true },
       },
     },
@@ -88,7 +59,7 @@ export default async function PortalPlansPage({ params, searchParams }: Props) {
       aoName={ao.name}
       deadline={ao.deadline.toISOString()}
       companyName={companyName}
-      aoCompanyId={aoCompanyId!}
+      aoCompanyId={aoCompanyId}
       initialDocs={documents.map((d) => ({
         id: d.id,
         name: d.name,

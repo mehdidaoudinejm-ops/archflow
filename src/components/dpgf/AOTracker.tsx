@@ -27,6 +27,8 @@ import {
   Trophy,
   Ban,
   X,
+  Copy,
+  Send,
 } from 'lucide-react'
 
 interface Company {
@@ -34,6 +36,7 @@ interface Company {
   status: string
   paymentStatus: string | null
   tokenUsedAt: Date | null
+  portalUrl: string | null
   offer: { id: string; submittedAt: Date | null; isComplete: boolean } | null
   companyUser: {
     id: string
@@ -615,7 +618,8 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
   const [emailInput, setEmailInput] = useState('')
   const [inviting, setInviting] = useState(false)
   const [inviteError, setInviteError] = useState<string | null>(null)
-  const [lastDevLink, setLastDevLink] = useState<string | null>(null)
+  const [resendingId, setResendingId] = useState<string | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
   const [closing, setClosing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [aoStatus, setAoStatus] = useState(ao.status)
@@ -655,7 +659,7 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
         body: JSON.stringify({ email: emailInput.trim() }),
       })
 
-      const data = await res.json() as { error?: string; aoCompanyId?: string; devLink?: string }
+      const data = await res.json() as { error?: string; aoCompanyId?: string; portalUrl?: string }
       if (!res.ok) {
         setInviteError(data.error ?? 'Erreur')
         return
@@ -668,16 +672,31 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
           status: 'INVITED',
           paymentStatus: null,
           tokenUsedAt: null,
+          portalUrl: data.portalUrl ?? null,
           offer: null,
           companyUser: { id: '', email: emailInput.trim(), firstName: null, lastName: null, agency: null },
         },
       ])
-      setLastDevLink(data.devLink ?? null)
       setEmailInput('')
     } catch {
       setInviteError('Erreur réseau')
     } finally {
       setInviting(false)
+    }
+  }
+
+  async function handleCopyLink(companyId: string, portalUrl: string) {
+    await navigator.clipboard.writeText(portalUrl)
+    setCopiedId(companyId)
+    setTimeout(() => setCopiedId(null), 2000)
+  }
+
+  async function handleResend(companyId: string) {
+    setResendingId(companyId)
+    try {
+      await fetch(`/api/ao/${ao.id}/companies/${companyId}/resend`, { method: 'POST' })
+    } finally {
+      setResendingId(null)
     }
   }
 
@@ -885,24 +904,6 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
           </div>
         )}
 
-        {lastDevLink && (
-          <div className="px-4 py-3 flex items-center gap-3" style={{ background: 'var(--amber-light)', borderBottom: '1px solid var(--border)' }}>
-            <span className="text-xs font-medium flex-shrink-0" style={{ color: 'var(--amber)' }}>
-              [DEV] Lien :
-            </span>
-            <span className="text-xs font-mono truncate flex-1" style={{ color: 'var(--text2)' }}>
-              {lastDevLink}
-            </span>
-            <button
-              onClick={() => navigator.clipboard.writeText(lastDevLink)}
-              className="text-xs flex-shrink-0 font-medium"
-              style={{ color: 'var(--amber)' }}
-            >
-              Copier
-            </button>
-          </div>
-        )}
-
         {companies.length === 0 ? (
           <div className="p-8 text-center" style={{ color: 'var(--text3)' }}>
             <FileText size={32} className="mx-auto mb-3 opacity-30" />
@@ -952,8 +953,33 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
                       <span style={{ color: 'var(--text3)' }}>—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <ChevronRight size={15} style={{ color: 'var(--text3)' }} />
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      {c.portalUrl && (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); void handleCopyLink(c.id, c.portalUrl!) }}
+                            title="Copier le lien portail"
+                            className="flex items-center gap-1 px-2 py-1 rounded text-xs"
+                            style={{ color: copiedId === c.id ? 'var(--green)' : 'var(--text2)', background: 'var(--surface2)' }}
+                          >
+                            <Copy size={12} />
+                            {copiedId === c.id ? 'Copié' : 'Lien'}
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); void handleResend(c.id) }}
+                            title="Renvoyer l'invitation par email"
+                            disabled={resendingId === c.id}
+                            className="flex items-center gap-1 px-2 py-1 rounded text-xs"
+                            style={{ color: 'var(--text2)', background: 'var(--surface2)' }}
+                          >
+                            <Send size={12} />
+                            {resendingId === c.id ? '...' : 'Renvoyer'}
+                          </button>
+                        </>
+                      )}
+                      <ChevronRight size={15} style={{ color: 'var(--text3)' }} />
+                    </div>
                   </td>
                 </tr>
               ))}

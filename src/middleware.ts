@@ -1,17 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
-import { jwtVerify } from 'jose'
 import { NextResponse, type NextRequest } from 'next/server'
-
-async function verifyPortalToken(token: string): Promise<boolean> {
-  try {
-    const secret = process.env.INVITE_JWT_SECRET
-    if (!secret) return false
-    await jwtVerify(token, new TextEncoder().encode(secret))
-    return true
-  } catch {
-    return false
-  }
-}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -55,19 +43,12 @@ export async function middleware(request: NextRequest) {
     data: { user: session },
   } = await supabase.auth.getUser()
 
-  // Routes portail entreprise — vérification token JWT d'invitation
+  // Routes portail entreprise — token opaque vérifié par la page elle-même
   if (pathname.startsWith('/portal/')) {
     const token = request.nextUrl.searchParams.get('token')
-
-    if (token) {
-      const valid = await verifyPortalToken(token)
-      if (valid) return response
-    }
-
-    // Fallback : session Supabase valide (entreprise déjà connectée)
-    if (session) return response
-
-    return NextResponse.redirect(new URL('/login', request.url))
+    if (token) return response
+    // Pas de token → page d'erreur gérée côté serveur
+    return NextResponse.redirect(new URL('/login?error=lien_invalide', request.url))
   }
 
   // Routes espace client
@@ -95,7 +76,6 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/settings') ||
     pathname.startsWith('/dpgf') ||
-    pathname.startsWith('/mes-appels-doffres') ||
     pathname.startsWith('/annuaire')
   ) {
     if (!session) {

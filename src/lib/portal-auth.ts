@@ -1,6 +1,4 @@
 import { prisma } from '@/lib/prisma'
-import { getSession } from '@/lib/auth'
-import { verifyInviteToken } from '@/lib/invite'
 import { AuthError } from '@/lib/auth'
 
 export interface PortalSession {
@@ -21,63 +19,36 @@ export interface PortalSession {
   }
 }
 
+/**
+ * Authentification portail entreprise — token opaque uniquement.
+ * Le token est passé dans le header X-Portal-Token (API routes)
+ * ou en query param ?token= (pages server components).
+ */
 export async function requirePortalAuth(req: Request, aoId: string): Promise<PortalSession> {
-  const tokenHeader = req.headers.get('X-Portal-Token')
+  const token = req.headers.get('X-Portal-Token')
 
-  if (tokenHeader) {
-    try {
-      const payload = await verifyInviteToken(tokenHeader)
+  if (!token) throw new AuthError('Token requis', 401)
 
-      if (payload.aoId !== aoId) {
-        throw new AuthError('Token invalide pour cet AO', 401)
-      }
+  const aoCompany = await prisma.aOCompany.findFirst({
+    where: { inviteToken: token, aoId },
+  })
 
-      const aoCompany = await prisma.aOCompany.findFirst({
-        where: { id: payload.aoCompanyId, aoId },
-      })
+  if (!aoCompany) throw new AuthError('Lien invalide', 401)
 
-      if (!aoCompany) throw new AuthError('Invitation introuvable', 404)
-
-      const companyUser = await prisma.user.findUnique({
-        where: { id: aoCompany.companyUserId },
-        include: { agency: { select: { name: true } } },
-      })
-
-      if (!companyUser) throw new AuthError('Utilisateur introuvable', 404)
-
-      // Enregistrer la première utilisation du token (auditabilité)
-      if (!aoCompany.tokenUsedAt) {
-        await prisma.aOCompany.update({
-          where: { id: aoCompany.id },
-          data: { tokenUsedAt: new Date() },
-        })
-      }
-
-      return { aoCompany, companyUser }
-    } catch (err) {
-      if (err instanceof AuthError) throw err
-      throw new AuthError('Token invalide ou expiré', 401)
-    }
-  }
-
-  // Fallback : session Supabase (entreprise déjà connectée)
-  const session = await getSession()
-  if (!session) throw new AuthError('Non authentifié', 401)
-
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email! },
+  const companyUser = await prisma.user.findUnique({
+    where: { id: aoCompany.companyUserId },
     include: { agency: { select: { name: true } } },
   })
 
-  if (!user || user.role !== 'COMPANY') {
-    throw new AuthError('Accès refusé', 403)
+  if (!companyUser) throw new AuthError('Utilisateur introuvable', 404)
+
+  // Enregistrer la première utilisation du token (audit)
+  if (!aoCompany.tokenUsedAt) {
+    await prisma.aOCompany.update({
+      where: { id: aoCompany.id },
+      data: { tokenUsedAt: new Date() },
+    })
   }
 
-  const aoCompany = await prisma.aOCompany.findFirst({
-    where: { companyUserId: user.id, aoId },
-  })
-
-  if (!aoCompany) throw new AuthError('Non invité à cet AO', 403)
-
-  return { aoCompany, companyUser: user }
+  return { aoCompany, companyUser }
 }

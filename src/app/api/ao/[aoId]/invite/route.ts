@@ -55,11 +55,8 @@ export async function POST(
 
     return NextResponse.json(
       {
-        type: result.type,
         aoCompanyId: result.aoCompanyId,
-        ...(process.env.NODE_ENV === 'development' && result.devLink
-          ? { devLink: result.devLink }
-          : {}),
+        portalUrl: result.portalUrl,
       },
       { status: 201 }
     )

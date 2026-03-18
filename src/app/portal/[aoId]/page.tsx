@@ -1,7 +1,5 @@
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { getSession } from '@/lib/auth'
-import { verifyInviteToken } from '@/lib/invite'
 import { PortalPageClient } from '@/components/portal/PortalPageClient'
 import { computeDpgfDiff, type SnapshotJson, type LotSnapshot, type DpgfDiff } from '@/lib/dpgf-diff'
 
@@ -12,61 +10,19 @@ interface Props {
 
 export default async function PortalPage({ params, searchParams }: Props) {
   const token = searchParams.token ?? null
-  let aoCompanyId: string | null = null
-  let companyUserId: string | null = null
 
-  // 1. Vérifier l'auth via JWT token
-  let needsRegistration = false
-  if (token) {
-    try {
-      const payload = await verifyInviteToken(token)
-      if (payload.aoId === params.aoId) {
-        const aoCompany = await prisma.aOCompany.findUnique({
-          where: { id: payload.aoCompanyId },
-          select: { id: true, aoId: true, companyUserId: true, status: true },
-        })
-        if (aoCompany && aoCompany.aoId === params.aoId) {
-          const companyUserRecord = await prisma.user.findUnique({
-            where: { id: aoCompany.companyUserId },
-            select: { agencyId: true },
-          })
-          if (!companyUserRecord?.agencyId) {
-            needsRegistration = true
-          } else {
-            aoCompanyId = aoCompany.id
-            companyUserId = aoCompany.companyUserId
-          }
-        }
-      }
-    } catch {
-      // Token invalide, on tente la session
-    }
-  }
+  // Auth : token opaque vérifié par lookup DB
+  if (!token) redirect('/login?error=lien_invalide')
 
-  // Rediriger hors du try/catch pour ne pas avaler l'exception Next.js
-  if (needsRegistration) {
-    redirect(`/register/company?token=${token}`)
-  }
+  const aoCompanyRecord = await prisma.aOCompany.findFirst({
+    where: { inviteToken: token, aoId: params.aoId },
+    select: { id: true, companyUserId: true, status: true },
+  })
 
-  // 2. Fallback : session Supabase
-  if (!aoCompanyId) {
-    const session = await getSession()
-    if (!session) {
-      redirect(`/login?redirect=/portal/${params.aoId}${token ? `?token=${token}` : ''}`)
-    }
+  if (!aoCompanyRecord) redirect('/login?error=lien_invalide')
 
-    const user = await prisma.user.findUnique({ where: { email: session.user.email! } })
-    if (!user || user.role !== 'COMPANY') redirect('/login')
-
-    const aoCompany = await prisma.aOCompany.findFirst({
-      where: { companyUserId: user.id, aoId: params.aoId },
-      select: { id: true, companyUserId: true },
-    })
-    if (!aoCompany) redirect('/dashboard')
-
-    aoCompanyId = aoCompany.id
-    companyUserId = aoCompany.companyUserId
-  }
+  const aoCompanyId = aoCompanyRecord.id
+  const companyUserId = aoCompanyRecord.companyUserId
 
   // 3. Récupérer l'AO (sans estimatif)
   const ao = await prisma.aO.findUnique({
@@ -205,11 +161,7 @@ export default async function PortalPage({ params, searchParams }: Props) {
   const uploadedDocTypes = uploadedAdminDocs.map((d) => d.type)
 
   // 8. Marquer comme ouvert à la première visite
-  const aoCompanyRecord = await prisma.aOCompany.findUnique({
-    where: { id: aoCompanyId! },
-    select: { status: true },
-  })
-  if (aoCompanyRecord?.status === 'INVITED') {
+  if (aoCompanyRecord.status === 'INVITED') {
     await prisma.aOCompany.update({
       where: { id: aoCompanyId! },
       data: { status: 'OPENED' },

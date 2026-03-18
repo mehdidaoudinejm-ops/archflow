@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { buildPortalUrl } from '@/lib/invite'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +30,7 @@ export async function GET(
       orderBy: { id: 'asc' },
     })
 
-    // Récupérer les emails des utilisateurs company
+    // Récupérer les infos utilisateurs company
     const userIds = companies.map((c) => c.companyUserId)
     const users = await prisma.user.findMany({
       where: { id: { in: userIds } },
@@ -40,7 +41,8 @@ export async function GET(
 
     const result = companies.map((c) => ({
       ...c,
-      inviteToken: undefined, // Ne jamais retourner le token
+      inviteToken: undefined, // Ne jamais retourner le token brut
+      portalUrl: c.inviteToken ? buildPortalUrl(params.aoId, c.inviteToken) : null,
       companyUser: usersMap.get(c.companyUserId) ?? null,
     }))
 

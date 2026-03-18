@@ -24,7 +24,7 @@ interface InvitedCompany {
   email: string
   aoCompanyId: string
   type: 'NEW_COMPANY' | 'EXISTING_COMPANY'
-  devLink?: string
+  portalUrl?: string
 }
 
 const STEPS = ['Lots', 'Paramètres', 'Entreprises', 'Récapitulatif']
@@ -145,7 +145,7 @@ export function AOWizard({ dpgfId, projectId, projectName, lots }: Props) {
         body: JSON.stringify({ email: emailInput.trim() }),
       })
 
-      const data = await res.json() as { error?: string; type?: string; aoCompanyId?: string; devLink?: string }
+      const data = await res.json() as { error?: string; aoCompanyId?: string; portalUrl?: string }
       if (!res.ok) {
         setInviteError(data.error ?? 'Erreur lors de l\'invitation')
         return
@@ -156,8 +156,8 @@ export function AOWizard({ dpgfId, projectId, projectName, lots }: Props) {
         {
           email: emailInput.trim(),
           aoCompanyId: data.aoCompanyId!,
-          type: (data.type as 'NEW_COMPANY' | 'EXISTING_COMPANY') ?? 'NEW_COMPANY',
-          devLink: data.devLink,
+          type: 'NEW_COMPANY',
+          portalUrl: data.portalUrl,
         },
       ])
       setEmailInput('')
@@ -621,15 +621,15 @@ export function AOWizard({ dpgfId, projectId, projectName, lots }: Props) {
                           {c.type === 'NEW_COMPANY' ? 'Nouveau compte' : 'Compte existant'}
                         </span>
                       </div>
-                      {c.devLink && (
+                      {c.portalUrl && (
                         <div className="ml-6 flex items-center gap-2">
                           <span className="text-xs font-mono px-2 py-1 rounded truncate max-w-xs"
                             style={{ background: 'var(--surface)', color: 'var(--text2)', border: '1px solid var(--border)' }}>
-                            {c.devLink}
+                            {c.portalUrl}
                           </span>
                           <button
                             type="button"
-                            onClick={() => navigator.clipboard.writeText(c.devLink!)}
+                            onClick={() => navigator.clipboard.writeText(c.portalUrl!)}
                             className="text-xs flex-shrink-0"
                             style={{ color: 'var(--green)' }}
                           >

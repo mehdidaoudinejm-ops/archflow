@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireRole } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { AOTracker } from '@/components/dpgf/AOTracker'
+import { buildPortalUrl } from '@/lib/invite'
 
 interface Props {
   params: { projectId: string; aoId: string }
@@ -52,6 +53,7 @@ export default async function AOTrackingPage({ params }: Props) {
     status: c.status,
     paymentStatus: c.paymentStatus,
     tokenUsedAt: c.tokenUsedAt,
+    portalUrl: c.inviteToken ? buildPortalUrl(params.aoId, c.inviteToken) : null,
     offer: c.offer,
     companyUser: companyUsersMap.get(c.companyUserId) ?? null,
   }))
