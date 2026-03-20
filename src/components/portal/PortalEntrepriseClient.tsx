@@ -13,6 +13,7 @@ interface AgencyData {
   siret: string | null
   siretVerified: boolean
   legalForm: string | null
+  legalFormDeclared: string | null
   companyAddress: string | null
   postalCode: string | null
   city: string | null
@@ -89,7 +90,7 @@ export function PortalEntrepriseClient({ aoId, aoName, deadline, token, user, ag
   const [companyName, setCompanyName] = useState(agency?.name ?? '')
   const [siret, setSiret] = useState(agency?.siret ?? '')
   const [siretVerified, setSiretVerified] = useState(agency?.siretVerified ?? false)
-  const [legalForm, setLegalForm] = useState(agency?.legalForm ?? '')
+  const [legalForm, setLegalForm] = useState(agency?.legalFormDeclared ?? agency?.legalForm ?? '')
   const [companyAddress, setCompanyAddress] = useState(agency?.companyAddress ?? '')
   const [postalCode, setPostalCode] = useState(agency?.postalCode ?? '')
   const [city, setCity] = useState(agency?.city ?? '')
