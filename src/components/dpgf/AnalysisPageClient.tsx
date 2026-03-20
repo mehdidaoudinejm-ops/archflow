@@ -66,6 +66,7 @@ interface AnalysisData {
     status: string
     clientPublished: boolean
     publishedElements: Record<string, unknown>
+    mandatoryDocTypes: string[]
   }
   project: { id: string; name: string }
   companies: CompanyData[]
@@ -738,6 +739,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
           totalPosts: c.totalPosts,
           pricedPosts: c.pricedPosts,
           adminDocs: c.adminDocs,
+          mandatoryDocTypes: initialData.ao.mandatoryDocTypes,
           siretVerified: c.siretVerified,
           agencyCreatedAt: c.agencyCreatedAt,
           divergences: c.divergences,

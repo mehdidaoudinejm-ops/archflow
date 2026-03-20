@@ -58,6 +58,7 @@ export default async function AnalysePage({ params }: Props) {
         status: true,
         dpgfId: true,
         lotIds: true,
+        requiredDocs: true,
         clientPublished: true,
         publishedElements: true,
         createdAt: true,
@@ -299,6 +300,11 @@ export default async function AnalysePage({ params }: Props) {
           status: ao.status,
           clientPublished: ao.clientPublished,
           publishedElements,
+          mandatoryDocTypes: (
+            Array.isArray(ao.requiredDocs)
+              ? (ao.requiredDocs as { type: string; required: boolean }[]).filter((d) => d.required).map((d) => d.type)
+              : []
+          ),
         },
         project: { id: project.id, name: project.name },
         companies: companiesData,

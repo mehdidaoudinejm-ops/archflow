@@ -266,6 +266,7 @@ export default async function ClientPage({ params }: Props) {
               status: ao.status,
               clientPublished: ao.clientPublished,
               publishedElements,
+              mandatoryDocTypes: [],
             },
             project: { id: project.id, name: project.name },
             companies: companiesData,

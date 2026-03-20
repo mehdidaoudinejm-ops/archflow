@@ -52,7 +52,7 @@ export async function PATCH(
         data: {
           name: companyName,
           siret: siret ?? undefined,
-          legalForm: legalForm ?? undefined,
+          legalFormDeclared: legalForm ?? undefined,
           companyAddress: companyAddress ?? undefined,
           postalCode: postalCode ?? undefined,
           city: city ?? undefined,
@@ -76,7 +76,7 @@ export async function PATCH(
         data: {
           name: companyName,
           siret: siret ?? undefined,
-          legalForm: legalForm ?? undefined,
+          legalFormDeclared: legalForm ?? undefined,
           companyAddress: companyAddress ?? undefined,
           postalCode: postalCode ?? undefined,
           city: city ?? undefined,

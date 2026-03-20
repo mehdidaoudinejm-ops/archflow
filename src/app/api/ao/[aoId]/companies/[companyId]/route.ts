@@ -52,6 +52,8 @@ export async function GET(
             siret: true,
             siretVerified: true,
             legalForm: true,
+            legalFormDeclared: true,
+            dateCreationInsee: true,
             companyAddress: true,
             postalCode: true,
             city: true,

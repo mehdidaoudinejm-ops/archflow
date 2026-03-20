@@ -29,6 +29,7 @@ export interface ScoringCompanyInput {
   totalPosts: number               // Nombre total de postes dans l'AO
   pricedPosts: number              // Nombre de postes effectivement chiffrés
   adminDocs: AdminDocInfo[]        // Documents fournis
+  mandatoryDocTypes: string[]      // Types obligatoires pour cet AO spécifique
   siretVerified: boolean           // SIRET vérifié par INSEE
   agencyCreatedAt: string | null   // Date d'immatriculation INSEE (null si non vérifié)
   divergences: number              // Nb postes avec métrés modifiés
@@ -125,10 +126,11 @@ function scorePrix(input: ScoringCompanyInput): { score: number; flags: AlertFla
 function scoreDocuments(input: ScoringCompanyInput): { score: number; flags: AlertFlag[] } {
   const flags: AlertFlag[] = []
 
-  const providedMandatory = MANDATORY_DOCS.filter((type) =>
+  const mandatoryDocs = input.mandatoryDocTypes.length > 0 ? input.mandatoryDocTypes : MANDATORY_DOCS
+  const providedMandatory = mandatoryDocs.filter((type) =>
     input.adminDocs.some((d) => d.type === type && (d.status === 'VALID' || d.status === 'PENDING'))
   )
-  const missingMandatory = MANDATORY_DOCS.length - providedMandatory.length
+  const missingMandatory = mandatoryDocs.length - providedMandatory.length
 
   if (missingMandatory >= 2) {
     flags.push('DOSSIER_INCOMPLET')
@@ -274,7 +276,8 @@ export function calculateScore(
 
   const pricedRate = input.totalPosts > 0 ? (input.pricedPosts / input.totalPosts) * 100 : 0
 
-  const mandatoryDocsMissing = MANDATORY_DOCS.filter(
+  const _mandatoryDocs = input.mandatoryDocTypes.length > 0 ? input.mandatoryDocTypes : MANDATORY_DOCS
+  const mandatoryDocsMissing = _mandatoryDocs.filter(
     (type) => !input.adminDocs.some((d) => d.type === type && (d.status === 'VALID' || d.status === 'PENDING'))
   ).length
 

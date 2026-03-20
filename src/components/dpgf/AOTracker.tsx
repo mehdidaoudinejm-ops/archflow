@@ -109,6 +109,8 @@ interface CompanyDetail {
       siret: string | null
       siretVerified: boolean
       legalForm: string | null
+      legalFormDeclared: string | null
+      dateCreationInsee: string | null
       companyAddress: string | null
       postalCode: string | null
       city: string | null
@@ -263,7 +265,41 @@ function CompanySheet({
               </h3>
               <div className="space-y-2">
                 <Row label="Raison sociale" value={agency?.name ?? '—'} />
-                <Row label="Forme juridique" value={agency?.legalForm ?? '—'} />
+                {/* Forme juridique : comparaison INSEE vs déclarée */}
+                {(() => {
+                  const insee = agency?.legalForm ?? null
+                  const declared = agency?.legalFormDeclared ?? null
+                  if (!insee && !declared) return <Row label="Forme juridique" value="—" />
+                  if (insee && !declared) return (
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="text-sm flex-shrink-0" style={{ color: 'var(--text2)' }}>Forme juridique</span>
+                      <div className="text-right">
+                        <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{insee}</span>
+                        <div className="text-xs mt-0.5" style={{ color: 'var(--text3)' }}>Source INSEE</div>
+                      </div>
+                    </div>
+                  )
+                  if (!insee && declared) return <Row label="Forme juridique" value={declared} />
+                  // Les deux existent — on compare
+                  const match = insee!.toLowerCase().trim() === declared!.toLowerCase().trim()
+                  return (
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="text-sm flex-shrink-0" style={{ color: 'var(--text2)' }}>Forme juridique</span>
+                      <div className="text-right space-y-0.5">
+                        <div className="flex items-center gap-1.5 justify-end">
+                          <ShieldCheck size={12} style={{ color: 'var(--green)' }} />
+                          <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{insee}</span>
+                        </div>
+                        {!match && (
+                          <div className="flex items-center gap-1.5 justify-end">
+                            <ShieldAlert size={12} style={{ color: 'var(--amber)' }} />
+                            <span className="text-xs" style={{ color: 'var(--amber)' }}>Déclarée : {declared}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()}
                 <Row label="Corps de métier" value={agency?.trade ?? '—'} />
                 <Row label="Email" value={detail.companyUser.email} />
                 <Row
@@ -320,6 +356,15 @@ function CompanySheet({
                       </span>
                     )}
                   </div>
+                  {/* Date de création INSEE */}
+                  {agency?.dateCreationInsee && (
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-sm" style={{ color: 'var(--text2)' }}>Date d&apos;immatriculation</span>
+                      <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                        {new Date(agency.dateCreationInsee).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </span>
+                    </div>
+                  )}
                   {/* Dirigeant data.gouv */}
                   {detail.dirigeant && (
                     <div className="flex items-start justify-between pt-1">

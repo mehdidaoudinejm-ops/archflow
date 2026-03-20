@@ -20,7 +20,8 @@ model Agency {
   activeModules    String[]  @default(["dpgf"])
   siret            String?
   siretVerified    Boolean   @default(false)
-  legalForm        String?
+  legalForm         String?   // Forme juridique INSEE (via vérification SIRET)
+  legalFormDeclared String?   // Forme juridique déclarée par l'entreprise dans son profil
   dirigeantNom     String?
   dirigeantPrenoms  String?
   dateCreationInsee DateTime?
