@@ -5,22 +5,27 @@ import { AuthError } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-interface DataGouvEtablissement {
-  siret: string
-  unite_legale?: {
-    denomination?: string
-    prenom_usuel?: string
-    nom?: string
-    libelle_categorie_juridique?: string
-    dirigeants?: Array<{ nom: string; prenoms?: string; prenom_de_naissance?: string }>
-  }
-  adresse_etablissement?: {
+interface RechercheResult {
+  siren?: string
+  nom_complet?: string
+  nom_raison_sociale?: string
+  nature_juridique?: string
+  libelle_nature_juridique?: string
+  siege?: {
+    siret?: string
     numero_voie?: string
     type_voie?: string
     libelle_voie?: string
     code_postal?: string
     libelle_commune?: string
   }
+  dirigeants?: Array<{ nom?: string; prenoms?: string; qualite?: string }>
+  matching_etablissements?: Array<{ siret?: string }>
+}
+
+interface RechercheResponse {
+  results?: RechercheResult[]
+  total_results?: number
 }
 
 export async function GET(
@@ -37,49 +42,54 @@ export async function GET(
       return NextResponse.json({ error: 'SIRET/SIREN invalide (9 ou 14 chiffres)' }, { status: 400 })
     }
 
-    const siretToFetch = siret.length === 9
-      ? await fetchSiretFromSiren(siret)
-      : siret
+    // Appel recherche-entreprises.api.gouv.fr
+    let res: Response
+    try {
+      res = await fetch(
+        `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(siret)}&page=1&per_page=1`,
+        { headers: { Accept: 'application/json' }, cache: 'no-store' }
+      )
+    } catch (fetchErr) {
+      console.error('[verify-siren] fetch recherche-entreprises failed:', fetchErr)
+      return NextResponse.json({ error: 'Impossible de joindre le service de vérification SIRET' }, { status: 502 })
+    }
+
+    if (!res.ok) {
+      console.error('[verify-siren] recherche-entreprises HTTP', res.status)
+      return NextResponse.json({ error: 'Entreprise introuvable' }, { status: 404 })
+    }
+
+    let data: RechercheResponse
+    try {
+      data = await res.json() as RechercheResponse
+    } catch (parseErr) {
+      console.error('[verify-siren] JSON parse error:', parseErr)
+      return NextResponse.json({ error: 'Réponse invalide du service de vérification' }, { status: 502 })
+    }
+
+    const result = data.results?.[0]
+    if (!result) {
+      return NextResponse.json({ error: 'Entreprise introuvable' }, { status: 404 })
+    }
+
+    // Résoudre le SIRET : si 14 chiffres saisis → on vérifie qu'il correspond, sinon on prend le siège
+    const siretToFetch = siret.length === 14
+      ? siret
+      : (result.siege?.siret ?? null)
 
     if (!siretToFetch) {
       return NextResponse.json({ error: 'Entreprise introuvable' }, { status: 404 })
     }
 
-    // Appel data.gouv.fr
-    let res: Response
-    try {
-      res = await fetch(
-        `https://api.annuaire-entreprises.data.gouv.fr/etablissement/${siretToFetch}`,
-        { headers: { Accept: 'application/json' }, cache: 'no-store' }
-      )
-    } catch (fetchErr) {
-      console.error('[verify-siren] fetch data.gouv.fr failed:', fetchErr)
-      return NextResponse.json({ error: 'Impossible de joindre annuaire-entreprises.data.gouv.fr' }, { status: 502 })
-    }
+    const companyName = result.nom_complet ?? result.nom_raison_sociale ?? ''
+    const legalForm = result.libelle_nature_juridique ?? null
 
-    if (!res.ok) {
-      return NextResponse.json({ error: 'Entreprise introuvable sur data.gouv.fr' }, { status: 404 })
-    }
+    const siege = result.siege
+    const companyAddress = [siege?.numero_voie, siege?.type_voie, siege?.libelle_voie].filter(Boolean).join(' ') || null
+    const postalCode = siege?.code_postal ?? null
+    const city = siege?.libelle_commune ?? null
 
-    let data: DataGouvEtablissement
-    try {
-      data = await res.json() as DataGouvEtablissement
-    } catch (parseErr) {
-      console.error('[verify-siren] JSON parse error:', parseErr)
-      return NextResponse.json({ error: 'Réponse invalide de data.gouv.fr' }, { status: 502 })
-    }
-
-    const ul = data.unite_legale
-    const companyName = ul?.denomination ?? [ul?.prenom_usuel, ul?.nom].filter(Boolean).join(' ') ?? ''
-    const legalForm = ul?.libelle_categorie_juridique ?? null
-
-    const addr = data.adresse_etablissement
-    const companyAddress = [addr?.numero_voie, addr?.type_voie, addr?.libelle_voie].filter(Boolean).join(' ') || null
-    const postalCode = addr?.code_postal ?? null
-    const city = addr?.libelle_commune ?? null
-
-    const dirigeants = Array.isArray(ul?.dirigeants) ? ul!.dirigeants : []
-    const dirigeant = dirigeants[0] ?? null
+    const dirigeant = result.dirigeants?.[0] ?? null
 
     // Sauvegarder le SIRET vérifié + dirigeant (non-bloquant si erreur)
     if (companyUser.agencyId) {
@@ -97,7 +107,7 @@ export async function GET(
         })
       } catch (dbErr) {
         console.error('[verify-siren] prisma.agency.update failed:', dbErr)
-        // On continue quand même — la vérification reste valide
+        // Non-bloquant — la vérification reste valide
       }
     }
 
@@ -109,7 +119,7 @@ export async function GET(
       postalCode,
       city,
       dirigeant: dirigeant
-        ? { nom: dirigeant.nom, prenoms: dirigeant.prenoms ?? dirigeant.prenom_de_naissance ?? '' }
+        ? { nom: dirigeant.nom ?? '', prenoms: dirigeant.prenoms ?? '' }
         : null,
     })
   } catch (error) {
@@ -118,19 +128,5 @@ export async function GET(
     }
     console.error('[GET /api/portal/[aoId]/verify-siren]', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
-  }
-}
-
-async function fetchSiretFromSiren(siren: string): Promise<string | null> {
-  try {
-    const res = await fetch(
-      `https://api.annuaire-entreprises.data.gouv.fr/entreprise/${siren}`,
-      { headers: { Accept: 'application/json' }, cache: 'no-store' }
-    )
-    if (!res.ok) return null
-    const data = await res.json() as { siege?: { siret?: string } }
-    return data.siege?.siret ?? null
-  } catch {
-    return null
   }
 }
