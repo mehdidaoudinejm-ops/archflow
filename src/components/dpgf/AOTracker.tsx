@@ -267,46 +267,31 @@ export function CompanySheet({
               </h3>
               <div className="space-y-2">
                 <Row label="Raison sociale" value={agency?.name ?? '—'} />
-                {/* Forme juridique : valeur live data.gouv vs déclarée */}
-                {(() => {
-                  const insee = detail.legalFormInsee   // valeur live data.gouv.fr
-                  const declared = agency?.legalFormDeclared ?? null
-
-                  if (!insee && !declared) return <Row label="Forme juridique" value="—" />
-
-                  if (insee && !declared) return (
-                    <div className="flex items-start justify-between gap-4">
-                      <span className="text-sm flex-shrink-0" style={{ color: 'var(--text2)' }}>Forme juridique</span>
-                      <div className="text-right">
-                        <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{insee}</span>
-                        <div className="text-xs mt-0.5" style={{ color: 'var(--text3)' }}>Source INSEE (data.gouv)</div>
-                      </div>
-                    </div>
-                  )
-
-                  if (!insee && declared) return <Row label="Forme juridique" value={declared} />
-
-                  // Les deux — utiliser le match calculé par l'API (fuzzy)
-                  const match = detail.legalFormMatch
-                  return (
-                    <div className="flex items-start justify-between gap-4">
-                      <span className="text-sm flex-shrink-0" style={{ color: 'var(--text2)' }}>Forme juridique</span>
-                      <div className="text-right space-y-0.5">
+                {/* Forme juridique — valeur officielle data.gouv + comparaison déclarée */}
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-sm flex-shrink-0" style={{ color: 'var(--text2)' }}>Forme juridique</span>
+                  <div className="text-right space-y-0.5">
+                    {detail.legalFormInsee ? (
+                      <>
                         <div className="flex items-center gap-1.5 justify-end">
-                          {match === true && <ShieldCheck size={12} style={{ color: 'var(--green)' }} />}
-                          {match === false && <ShieldAlert size={12} style={{ color: 'var(--amber)' }} />}
-                          <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{insee}</span>
+                          {detail.legalFormMatch === true && <ShieldCheck size={12} style={{ color: 'var(--green)' }} />}
+                          {detail.legalFormMatch === false && <ShieldAlert size={12} style={{ color: 'var(--amber)' }} />}
+                          <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{detail.legalFormInsee}</span>
                         </div>
-                        <div className="text-xs mt-0.5" style={{ color: 'var(--text3)' }}>Source INSEE (data.gouv)</div>
-                        {match === false && (
-                          <div className="flex items-center gap-1.5 justify-end mt-0.5">
-                            <span className="text-xs" style={{ color: 'var(--amber)' }}>Déclarée : {declared}</span>
+                        <div className="text-xs" style={{ color: 'var(--text3)' }}>Source data.gouv.fr</div>
+                        {agency?.legalFormDeclared && agency.legalFormDeclared !== detail.legalFormInsee && (
+                          <div className="text-xs" style={{ color: detail.legalFormMatch === false ? 'var(--amber)' : 'var(--text3)' }}>
+                            Déclarée : {agency.legalFormDeclared}
                           </div>
                         )}
-                      </div>
-                    </div>
-                  )
-                })()}
+                      </>
+                    ) : (
+                      <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                        {agency?.legalFormDeclared ?? '—'}
+                      </span>
+                    )}
+                  </div>
+                </div>
                 <Row label="Corps de métier" value={agency?.trade ?? '—'} />
                 <Row label="Email" value={detail.companyUser.email} />
                 <Row
@@ -446,31 +431,29 @@ export function CompanySheet({
               </div>
             )}
 
-            {/* Alerte forme juridique ≠ INSEE (data live) */}
-            {(() => {
-              const insee = detail.legalFormInsee
-              const declared = agency?.legalFormDeclared ?? null
-              if (!insee || !declared || detail.legalFormMatch !== false) return null
-              return (
-                <div
-                  className="flex items-start gap-3 px-4 py-3 rounded-[var(--radius)]"
-                  style={{ background: 'var(--amber-light)', border: '1px solid var(--amber)' }}
-                >
-                  <ShieldAlert size={16} style={{ color: 'var(--amber)', flexShrink: 0, marginTop: 1 }} />
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: 'var(--amber)' }}>
-                      Forme juridique déclarée différente de l&apos;INSEE
-                    </p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text2)' }}>
-                      INSEE : <strong>{insee}</strong> · Déclarée : <strong>{declared}</strong>
-                    </p>
-                    <p className="text-xs mt-1" style={{ color: 'var(--text2)' }}>
-                      Vérifiez la cohérence avec le KBIS fourni.
-                    </p>
-                  </div>
+            {/* Alerte forme juridique — mismatch confirmé */}
+            {detail.legalFormMatch === false && detail.legalFormInsee && (
+              <div
+                className="flex items-start gap-3 px-4 py-3 rounded-[var(--radius)]"
+                style={{ background: 'var(--amber-light)', border: '1px solid var(--amber)' }}
+              >
+                <ShieldAlert size={16} style={{ color: 'var(--amber)', flexShrink: 0, marginTop: 1 }} />
+                <div>
+                  <p className="text-sm font-medium" style={{ color: 'var(--amber)' }}>
+                    Forme juridique incohérente avec data.gouv.fr
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text2)' }}>
+                    data.gouv.fr : <strong>{detail.legalFormInsee}</strong>
+                    {agency?.legalFormDeclared && (
+                      <> · Déclarée par l&apos;entreprise : <strong>{agency.legalFormDeclared}</strong></>
+                    )}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text2)' }}>
+                    Vérifiez la cohérence avec le KBIS fourni.
+                  </p>
                 </div>
-              )
-            })()}
+              </div>
+            )}
 
             {/* Fiabilité */}
             <section>
