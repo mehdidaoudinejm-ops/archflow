@@ -697,16 +697,38 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
   const [aoData, setAoData] = useState(ao)
   const [notifying, setNotifying] = useState(false)
   const [notifySuccess, setNotifySuccess] = useState(false)
+  const [notifyModalOpen, setNotifyModalOpen] = useState(false)
+  const [notifySelectedIds, setNotifySelectedIds] = useState<Set<string>>(new Set())
 
   const deadline = new Date(aoData.deadline)
   const isClosed = ['CLOSED', 'ANALYSED', 'AWARDED', 'INFRUCTUEUX', 'ARCHIVED'].includes(aoStatus)
 
+  function openNotifyModal() {
+    setNotifySelectedIds(new Set(companies.filter((c) => c.status !== 'INCOMPLETE').map((c) => c.id)))
+    setNotifyModalOpen(true)
+  }
+
+  function toggleNotifyCompany(id: string) {
+    setNotifySelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   async function handleNotify() {
+    if (notifySelectedIds.size === 0) return
     setNotifying(true)
     setNotifySuccess(false)
     try {
-      await fetch(`/api/ao/${ao.id}/notify-amendment`, { method: 'POST' })
+      await fetch(`/api/ao/${ao.id}/notify-amendment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyIds: Array.from(notifySelectedIds) }),
+      })
       setNotifySuccess(true)
+      setNotifyModalOpen(false)
       setTimeout(() => setNotifySuccess(false), 4000)
     } finally {
       setNotifying(false)
@@ -858,14 +880,13 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
             )}
             {aoStatus !== 'DRAFT' && (
               <Button
-                onClick={handleNotify}
-                disabled={notifying}
+                onClick={openNotifyModal}
                 variant="outline"
                 className="text-sm"
                 style={{ borderColor: notifySuccess ? 'var(--green)' : 'var(--border)', color: notifySuccess ? 'var(--green)' : 'var(--text2)' }}
               >
                 <Bell size={14} className="mr-1.5" />
-                {notifySuccess ? 'Envoyé !' : notifying ? 'Envoi...' : 'Notifier'}
+                {notifySuccess ? 'Envoyé !' : 'Notifier'}
               </Button>
             )}
             {!isClosed && (
@@ -1105,6 +1126,109 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
         onClose={() => setEditOpen(false)}
         onSaved={(updates) => setAoData((prev) => ({ ...prev, ...updates }))}
       />
+
+      {/* Modal de notification amendement */}
+      {notifyModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.4)' }}
+          onClick={() => !notifying && setNotifyModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-[var(--radius-lg)] p-6"
+            style={{ background: '#fff', boxShadow: 'var(--shadow-md)', margin: '0 16px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-base font-semibold" style={{ color: 'var(--text)' }}>
+                Notifier les entreprises
+              </h2>
+              <button onClick={() => !notifying && setNotifyModalOpen(false)} style={{ color: 'var(--text3)' }}>
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-xs mb-4" style={{ color: 'var(--text2)' }}>
+              Sélectionnez les entreprises à notifier des modifications du dossier.
+            </p>
+
+            {/* Tout sélectionner / désélectionner */}
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium" style={{ color: 'var(--text2)' }}>
+                {notifySelectedIds.size} / {companies.filter((c) => c.status !== 'INCOMPLETE').length} sélectionnée(s)
+              </span>
+              <button
+                className="text-xs"
+                style={{ color: 'var(--green)' }}
+                onClick={() => {
+                  const active = companies.filter((c) => c.status !== 'INCOMPLETE').map((c) => c.id)
+                  if (notifySelectedIds.size === active.length) setNotifySelectedIds(new Set())
+                  else setNotifySelectedIds(new Set(active))
+                }}
+              >
+                {notifySelectedIds.size === companies.filter((c) => c.status !== 'INCOMPLETE').length
+                  ? 'Tout désélectionner'
+                  : 'Tout sélectionner'}
+              </button>
+            </div>
+
+            {/* Liste entreprises */}
+            <div
+              className="rounded-[var(--radius)] divide-y overflow-y-auto mb-5"
+              style={{ border: '1px solid var(--border)', maxHeight: '300px' }}
+            >
+              {companies
+                .filter((c) => c.status !== 'INCOMPLETE')
+                .map((c) => {
+                  const name = c.companyUser?.agency?.name ?? c.companyUser?.email ?? '—'
+                  const email = c.companyUser?.email ?? ''
+                  const checked = notifySelectedIds.has(c.id)
+                  return (
+                    <label
+                      key={c.id}
+                      className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-[var(--surface2)] transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleNotifyCompany(c.id)}
+                        className="rounded"
+                        style={{ accentColor: 'var(--green)', width: 16, height: 16, flexShrink: 0 }}
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{name}</p>
+                        <p className="text-xs truncate" style={{ color: 'var(--text3)' }}>{email}</p>
+                      </div>
+                      <div className="ml-auto flex-shrink-0">
+                        {statusBadge(c.status)}
+                      </div>
+                    </label>
+                  )
+                })}
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setNotifyModalOpen(false)}
+                disabled={notifying}
+                className="text-sm px-4 py-2 rounded-lg"
+                style={{ color: 'var(--text2)' }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => void handleNotify()}
+                disabled={notifying || notifySelectedIds.size === 0}
+                className="text-sm px-4 py-2 rounded-lg font-medium disabled:opacity-50 transition-colors"
+                style={{ background: 'var(--green-btn)', color: '#fff' }}
+              >
+                <Bell size={14} className="inline mr-1.5" />
+                {notifying ? 'Envoi...' : `Notifier (${notifySelectedIds.size})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de clôture */}
       {closeModalOpen && (

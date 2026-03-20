@@ -7,11 +7,20 @@ import { sendEmail } from '@/lib/email'
 import { computeDpgfDiff, type SnapshotJson, type LotSnapshot } from '@/lib/dpgf-diff'
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: { aoId: string } }
 ) {
   try {
     const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
+
+    // IDs des entreprises sélectionnées par l'architecte (optionnel — si absent, toutes)
+    let selectedCompanyIds: string[] | null = null
+    try {
+      const body = await req.json() as { companyIds?: string[] }
+      if (Array.isArray(body.companyIds) && body.companyIds.length > 0) {
+        selectedCompanyIds = body.companyIds
+      }
+    } catch { /* body absent ou invalide → on notifie toutes */ }
 
     const ao = await prisma.aO.findUnique({
       where: { id: params.aoId },
@@ -27,6 +36,11 @@ export async function POST(
     if (!ao || ao.dpgf.project.agencyId !== user.agencyId) {
       return NextResponse.json({ error: 'AO introuvable' }, { status: 404 })
     }
+
+    // Filtrer selon la sélection de l'architecte
+    const targetCompanies = selectedCompanyIds
+      ? ao.aoCompanies.filter((c) => selectedCompanyIds!.includes(c.id))
+      : ao.aoCompanies
 
     // Toujours récupérer l'état actuel du DPGF — sert au diff email + nouveau snapshot
     const lots = await prisma.lot.findMany({
@@ -56,15 +70,15 @@ export async function POST(
       if (parts.length > 0) diffSummary = `<ul style="margin:8px 0 0 16px;padding:0;color:#4B4B45;">${parts.join('')}</ul>`
     }
 
-    // Entreprises ayant déjà soumis → ré-ouvrir leur offre
-    const submittedCompanyIds = ao.aoCompanies
+    // Parmi les entreprises ciblées, celles qui avaient soumis → ré-ouvrir leur offre
+    const submittedCompanyIds = targetCompanies
       .filter((c) => c.status === 'SUBMITTED')
       .map((c) => c.id)
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://archflow.fr'
 
-    // Emails aux entreprises
-    const companyUserIds = ao.aoCompanies.map((c) => c.companyUserId)
+    // Emails aux entreprises ciblées
+    const companyUserIds = targetCompanies.map((c) => c.companyUserId)
     const companyUsers = await prisma.user.findMany({
       where: { id: { in: companyUserIds } },
       select: { id: true, email: true },
@@ -72,7 +86,7 @@ export async function POST(
 
     // Construire les URLs portail par entreprise (token individuel)
     const tokenByUserId = new Map(
-      ao.aoCompanies.map((c) => [c.companyUserId, c.inviteToken])
+      targetCompanies.map((c) => [c.companyUserId, c.inviteToken])
     )
 
     await Promise.all(
@@ -81,7 +95,7 @@ export async function POST(
         const portalUrl = token
           ? `${appUrl}/portal/${ao.id}/entreprise?token=${token}`
           : `${appUrl}/portal/${ao.id}`
-        const wasSubmitted = submittedCompanyIds.length > 0 // simplifié — on pourrait affiner par entreprise
+        const wasSubmitted = submittedCompanyIds.length > 0
 
         return sendEmail({
           to: cu.email,
@@ -115,7 +129,7 @@ export async function POST(
       })
     )
 
-    // Ré-ouvrir les offres soumises + mettre à jour le snapshot (dans une transaction)
+    // Ré-ouvrir les offres soumises des entreprises ciblées + mettre à jour le snapshot
     await prisma.$transaction([
       // Reset isComplete → false (garde submittedAt comme preuve de soumission antérieure)
       prisma.offer.updateMany({
