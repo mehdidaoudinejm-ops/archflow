@@ -357,14 +357,18 @@ export function CompanySheet({
                     )}
                   </div>
                   {/* Date de création INSEE */}
-                  {agency?.dateCreationInsee && (
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-sm" style={{ color: 'var(--text2)' }}>Date d&apos;immatriculation</span>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-sm" style={{ color: 'var(--text2)' }}>Date d&apos;immatriculation</span>
+                    {agency?.dateCreationInsee ? (
                       <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
                         {new Date(agency.dateCreationInsee).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                       </span>
-                    </div>
-                  )}
+                    ) : (
+                      <span className="text-xs" style={{ color: 'var(--text3)' }}>
+                        {agency?.siretVerified ? '— (re-vérifier le SIRET)' : '—'}
+                      </span>
+                    )}
+                  </div>
                   {/* Dirigeant data.gouv */}
                   {detail.dirigeant && (
                     <div className="flex items-start justify-between pt-1">
