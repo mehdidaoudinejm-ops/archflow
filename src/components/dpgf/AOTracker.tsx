@@ -119,6 +119,8 @@ interface CompanyDetail {
       signatoryQuality: string | null
     } | null
   }
+  legalFormInsee: string | null
+  legalFormMatch: boolean | null
   dirigeant: { nom: string; prenoms: string } | null
   dirigeantNameMatch: boolean | null
   activityLogs: Array<{ id: string; action: string; module: string; createdAt: string }>
@@ -265,42 +267,38 @@ export function CompanySheet({
               </h3>
               <div className="space-y-2">
                 <Row label="Raison sociale" value={agency?.name ?? '—'} />
-                {/* Forme juridique : comparaison INSEE vs déclarée */}
+                {/* Forme juridique : valeur live data.gouv vs déclarée */}
                 {(() => {
-                  // legalForm n'est fiable comme source INSEE que si SIRET vérifié
-                  const isVerified = agency?.siretVerified === true
-                  const insee = isVerified ? (agency?.legalForm ?? null) : null
-                  const declared = agency?.legalFormDeclared ?? (!isVerified ? agency?.legalForm : null) ?? null
+                  const insee = detail.legalFormInsee   // valeur live data.gouv.fr
+                  const declared = agency?.legalFormDeclared ?? null
 
-                  const display = insee ?? declared
-                  if (!display) return <Row label="Forme juridique" value="—" />
+                  if (!insee && !declared) return <Row label="Forme juridique" value="—" />
 
                   if (insee && !declared) return (
                     <div className="flex items-start justify-between gap-4">
                       <span className="text-sm flex-shrink-0" style={{ color: 'var(--text2)' }}>Forme juridique</span>
                       <div className="text-right">
                         <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{insee}</span>
-                        <div className="text-xs mt-0.5" style={{ color: 'var(--text3)' }}>Source INSEE</div>
+                        <div className="text-xs mt-0.5" style={{ color: 'var(--text3)' }}>Source INSEE (data.gouv)</div>
                       </div>
                     </div>
                   )
 
                   if (!insee && declared) return <Row label="Forme juridique" value={declared} />
 
-                  // Les deux existent (SIRET vérifié + valeur déclarée) — on compare
-                  const match = insee!.toLowerCase().trim() === declared!.toLowerCase().trim()
+                  // Les deux — utiliser le match calculé par l'API (fuzzy)
+                  const match = detail.legalFormMatch
                   return (
                     <div className="flex items-start justify-between gap-4">
                       <span className="text-sm flex-shrink-0" style={{ color: 'var(--text2)' }}>Forme juridique</span>
                       <div className="text-right space-y-0.5">
                         <div className="flex items-center gap-1.5 justify-end">
-                          {match
-                            ? <ShieldCheck size={12} style={{ color: 'var(--green)' }} />
-                            : <ShieldAlert size={12} style={{ color: 'var(--amber)' }} />}
+                          {match === true && <ShieldCheck size={12} style={{ color: 'var(--green)' }} />}
+                          {match === false && <ShieldAlert size={12} style={{ color: 'var(--amber)' }} />}
                           <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{insee}</span>
                         </div>
-                        <div className="text-xs mt-0.5" style={{ color: 'var(--text3)' }}>Source INSEE</div>
-                        {!match && (
+                        <div className="text-xs mt-0.5" style={{ color: 'var(--text3)' }}>Source INSEE (data.gouv)</div>
+                        {match === false && (
                           <div className="flex items-center gap-1.5 justify-end mt-0.5">
                             <span className="text-xs" style={{ color: 'var(--amber)' }}>Déclarée : {declared}</span>
                           </div>
@@ -448,14 +446,11 @@ export function CompanySheet({
               </div>
             )}
 
-            {/* Alerte forme juridique ≠ INSEE */}
+            {/* Alerte forme juridique ≠ INSEE (data live) */}
             {(() => {
-              const isVerified = agency?.siretVerified === true
-              const insee = isVerified ? (agency?.legalForm ?? null) : null
+              const insee = detail.legalFormInsee
               const declared = agency?.legalFormDeclared ?? null
-              if (!insee || !declared) return null
-              const match = insee.toLowerCase().trim() === declared.toLowerCase().trim()
-              if (match) return null
+              if (!insee || !declared || detail.legalFormMatch !== false) return null
               return (
                 <div
                   className="flex items-start gap-3 px-4 py-3 rounded-[var(--radius)]"
@@ -489,7 +484,7 @@ export function CompanySheet({
                   { label: 'SIRET renseigné', ok: !!(agency?.siret) },
                   { label: 'SIRET vérifié', ok: !!(agency?.siretVerified) },
                   { label: 'Dirigeant correspond au signataire', ok: detail.dirigeantNameMatch === true },
-                  { label: 'Forme juridique cohérente (INSEE)', ok: (() => { const iv = agency?.siretVerified === true; const i = iv ? (agency?.legalForm ?? null) : null; const d = agency?.legalFormDeclared ?? null; if (!i || !d) return true; return i.toLowerCase().trim() === d.toLowerCase().trim() })() },
+                  { label: 'Forme juridique cohérente (INSEE)', ok: detail.legalFormMatch !== false },
                   { label: 'Documents admin déposés', ok: detail.adminDocs.filter((d) => d.status === 'VALID').length >= 2 },
                   { label: 'Offre soumise sur cet AO', ok: !!(detail.offer?.submittedAt) },
                 ]

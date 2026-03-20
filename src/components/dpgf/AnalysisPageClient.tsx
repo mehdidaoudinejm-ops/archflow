@@ -58,6 +58,7 @@ interface CompanyData {
   hasAskedQuestion: boolean
   directorNameMatch: boolean | null
   legalFormMatch: boolean | null
+  legalFormInsee: string | null
 }
 
 interface AnalysisData {

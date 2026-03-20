@@ -4,6 +4,32 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
+// Normalise une forme juridique pour comparaison
+function normalizeLF(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '')
+}
+
+const LEGAL_ABBREV: Record<string, string> = {
+  sarl: 'responsabilitelimitee',
+  sas:  'actionsimplifiee',
+  sasu: 'actionsimplifieeunipersonnelle',
+  sa:   'societeanonyme',
+  eurl: 'unipersonnelleresponsabilitelimitee',
+  sci:  'civilimmobiliere',
+  snc:  'nomcollectif',
+  ei:   'entrepreneurindividuel',
+}
+
+function legalFormsMatch(insee: string, declared: string): boolean {
+  const ni = normalizeLF(insee)
+  const nd = normalizeLF(declared)
+  if (ni === nd) return true
+  if (ni.includes(nd) || nd.includes(ni)) return true
+  const fragment = LEGAL_ABBREV[nd]
+  if (fragment && ni.includes(fragment)) return true
+  return false
+}
+
 export async function GET(
   _req: Request,
   { params }: { params: { aoId: string; companyId: string } }
@@ -74,28 +100,68 @@ export async function GET(
       select: { id: true, action: true, module: true, createdAt: true, metadata: true },
     })
 
-    // Dirigeant : utiliser les données stockées lors de la vérification SIREN (pas de call live)
-    const agencyExt = companyUser?.agency as ({ name: string | null; siret?: string | null; siretVerified?: boolean; legalForm?: string | null; companyAddress?: string | null; postalCode?: string | null; city?: string | null; phone?: string | null; trade?: string | null; signatoryQuality?: string | null; dirigeantNom?: string | null; dirigeantPrenoms?: string | null } | null)
+    const agencyExt = companyUser?.agency as ({
+      siret?: string | null; siretVerified?: boolean
+      legalForm?: string | null; legalFormDeclared?: string | null
+      dirigeantNom?: string | null; dirigeantPrenoms?: string | null
+    } | null)
+
+    // ── Fetch live data.gouv.fr (non-bloquant) ──────────────────────────────
+    let legalFormInsee: string | null = null
     let dirigeant: { nom: string; prenoms: string } | null = null
     let dirigeantNameMatch: boolean | null = null
 
-    if (agencyExt?.siretVerified && agencyExt.dirigeantNom) {
-      dirigeant = { nom: agencyExt.dirigeantNom, prenoms: agencyExt.dirigeantPrenoms ?? '' }
-      const normalize = (s: string) =>
-        s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
-      const signatoryFirst = normalize(companyUser?.firstName ?? '')
-      const signatoryLast = normalize(companyUser?.lastName ?? '')
-      const govFirst = normalize(dirigeant.prenoms)
-      const govLast = normalize(dirigeant.nom)
-      dirigeantNameMatch =
-        govLast.length > 0 && signatoryLast.length > 0
-          ? govLast === signatoryLast
-          : null
-      // Si nom identique, vérifier aussi le prénom (tolérance partielle)
-      if (dirigeantNameMatch && govFirst && signatoryFirst) {
-        dirigeantNameMatch = govFirst.includes(signatoryFirst) || signatoryFirst.includes(govFirst)
+    const siret = agencyExt?.siret ?? null
+    if (siret && siret.length >= 9) {
+      try {
+        const siren = siret.slice(0, 9)
+        const govRes = await fetch(
+          `https://recherche-entreprises.api.gouv.fr/search?q=${siren}&per_page=1`,
+          { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(3000) }
+        )
+        if (govRes.ok) {
+          const govData = await govRes.json() as {
+            results?: Array<{
+              libelle_nature_juridique?: string
+              dirigeants?: Array<{ nom?: string; prenoms?: string }>
+            }>
+          }
+          const result = govData.results?.[0]
+          legalFormInsee = result?.libelle_nature_juridique ?? null
+
+          const govDirigeant = result?.dirigeants?.[0]
+          if (govDirigeant?.nom) {
+            dirigeant = { nom: govDirigeant.nom, prenoms: govDirigeant.prenoms ?? '' }
+            const normalize = (s: string) =>
+              s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+            const govLast = normalize(dirigeant.nom)
+            const signatoryLast = normalize(companyUser?.lastName ?? '')
+            dirigeantNameMatch = govLast.length > 0 && signatoryLast.length > 0 ? govLast === signatoryLast : null
+            if (dirigeantNameMatch) {
+              const govFirst = normalize(dirigeant.prenoms)
+              const signatoryFirst = normalize(companyUser?.firstName ?? '')
+              if (govFirst && signatoryFirst) {
+                dirigeantNameMatch = govFirst.includes(signatoryFirst) || signatoryFirst.includes(govFirst)
+              }
+            }
+          }
+        }
+      } catch {
+        // Non-bloquant — on utilise les données DB en fallback
+        if (agencyExt?.siretVerified && agencyExt.dirigeantNom) {
+          dirigeant = { nom: agencyExt.dirigeantNom, prenoms: agencyExt.dirigeantPrenoms ?? '' }
+        }
+        legalFormInsee = agencyExt?.legalForm ?? null
       }
+    } else if (agencyExt?.siretVerified && agencyExt.dirigeantNom) {
+      // Pas de SIRET mais données stockées
+      dirigeant = { nom: agencyExt.dirigeantNom, prenoms: agencyExt.dirigeantPrenoms ?? '' }
     }
+
+    // Comparaison forme juridique : INSEE (live) vs déclarée
+    const declared = agencyExt?.legalFormDeclared ?? null
+    const legalFormMatch: boolean | null =
+      legalFormInsee && declared ? legalFormsMatch(legalFormInsee, declared) : null
 
     return NextResponse.json({
       id: aoCompany.id,
@@ -122,6 +188,8 @@ export async function GET(
         lastName: companyUser?.lastName ?? null,
         agency: companyUser?.agency ?? null,
       },
+      legalFormInsee,
+      legalFormMatch,
       dirigeant,
       dirigeantNameMatch,
       activityLogs: activityLogs.map((l) => ({

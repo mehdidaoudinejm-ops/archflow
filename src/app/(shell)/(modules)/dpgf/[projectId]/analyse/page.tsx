@@ -5,31 +5,89 @@ import { prisma } from '@/lib/prisma'
 import { AnalysisPageClient } from '@/components/dpgf/AnalysisPageClient'
 import { DEFAULT_WEIGHTS } from '@/lib/scoring'
 
-// Cache director name verification for 24h per SIREN+lastName
-const checkDirectorMatch = unstable_cache(
-  async (siren: string, lastName: string): Promise<boolean | null> => {
+// ── Helpers data.gouv (cached 24h) ────────────────────────────────────────────
+
+type GovCompanyData = {
+  legalForm: string | null
+  dirigeantNom: string | null
+}
+
+const fetchGovCompanyData = unstable_cache(
+  async (siren: string): Promise<GovCompanyData> => {
     try {
       const res = await fetch(
         `https://recherche-entreprises.api.gouv.fr/search?q=${siren}&per_page=1`,
         { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(3000) }
       )
-      if (!res.ok) return null
+      if (!res.ok) return { legalForm: null, dirigeantNom: null }
       const govData = await res.json() as {
-        results?: Array<{ dirigeants?: Array<{ nom?: string }> }>
+        results?: Array<{
+          libelle_nature_juridique?: string
+          dirigeants?: Array<{ nom?: string }>
+        }>
       }
-      const firstDirigeant = govData.results?.[0]?.dirigeants?.[0]
-      if (!firstDirigeant?.nom) return null
-      const normalize = (s: string) =>
-        s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
-      const govLast = normalize(firstDirigeant.nom)
-      const registeredLast = normalize(lastName)
-      return govLast.length > 0 && registeredLast.length > 0 ? govLast === registeredLast : null
+      const result = govData.results?.[0]
+      return {
+        legalForm: result?.libelle_nature_juridique ?? null,
+        dirigeantNom: result?.dirigeants?.[0]?.nom ?? null,
+      }
     } catch {
-      return null
+      return { legalForm: null, dirigeantNom: null }
     }
   },
-  ['gov-director-match'],
+  ['gov-company-data'],
   { revalidate: 86400 } // 24h
+)
+
+// Normalise une forme juridique pour comparaison : retire accents, ponctuation, espaces
+function normalizeLegalForm(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '')
+}
+
+// Abréviations françaises courantes → fragments attendus dans la valeur INSEE complète
+const LEGAL_ABBREV: Record<string, string> = {
+  sarl: 'responsabilitelimitee',
+  sas:  'actionsimplifiee',
+  sasu: 'actionsimplifieeunipersonnelle',
+  sa:   'societeanonyme',
+  eurl: 'unipersonnelleresponsabilitelimitee',
+  sci:  'civilimmobiliere',
+  snc:  'nomcollectif',
+  ei:   'entrepreneurindividuel',
+  scp:  'civileprofessionnelle',
+  sel:  'exerciceliberal',
+}
+
+function legalFormsMatch(insee: string, declared: string): boolean {
+  const normInsee = normalizeLegalForm(insee)
+  const normDeclared = normalizeLegalForm(declared)
+
+  // Égalité exacte normalisée
+  if (normInsee === normDeclared) return true
+
+  // L'un contient l'autre (gère "SARL" dans "Société à responsabilité limitée (SARL)")
+  if (normInsee.includes(normDeclared) || normDeclared.includes(normInsee)) return true
+
+  // Résolution d'abréviation : vérifier si declared est une abréviation connue qui correspond à insee
+  const fragment = LEGAL_ABBREV[normDeclared]
+  if (fragment && normInsee.includes(fragment)) return true
+
+  return false
+}
+
+// Legacy — keep for backward compat
+const checkDirectorMatch = unstable_cache(
+  async (siren: string, lastName: string): Promise<boolean | null> => {
+    const data = await fetchGovCompanyData(siren)
+    if (!data.dirigeantNom) return null
+    const normalize = (s: string) =>
+      s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+    const govLast = normalize(data.dirigeantNom)
+    const registeredLast = normalize(lastName)
+    return govLast.length > 0 && registeredLast.length > 0 ? govLast === registeredLast : null
+  },
+  ['gov-director-match'],
+  { revalidate: 86400 }
 )
 
 interface Props {
@@ -136,16 +194,28 @@ export default async function AnalysePage({ params }: Props) {
 
   const userMap = new Map(companyUsers.map((u) => [u.id, u]))
 
-  // Check director names via data.gouv.fr — results cached 24h per SIREN
+  // Fetch data.gouv.fr data for all companies with SIRET — cached 24h per SIREN
   const directorMatchMap = new Map<string, boolean | null>()
+  const legalFormInseeMap = new Map<string, string | null>()
   await Promise.allSettled(
     companyUsers.map(async (u) => {
       const siret = (u.agency as { siret?: string | null } | null)?.siret ?? null
-      const lastName = u.lastName ?? ''
-      if (!siret || siret.length < 9 || !lastName) return
+      if (!siret || siret.length < 9) return
       const siren = siret.slice(0, 9)
-      const match = await checkDirectorMatch(siren, lastName)
-      directorMatchMap.set(u.id, match)
+      const govData = await fetchGovCompanyData(siren)
+
+      // Director match
+      const lastName = u.lastName ?? ''
+      if (lastName && govData.dirigeantNom) {
+        const normalize = (s: string) =>
+          s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+        const govLast = normalize(govData.dirigeantNom)
+        const regLast = normalize(lastName)
+        directorMatchMap.set(u.id, govLast.length > 0 && regLast.length > 0 ? govLast === regLast : null)
+      }
+
+      // Legal form live from data.gouv
+      legalFormInseeMap.set(u.id, govData.legalForm)
     })
   )
 
@@ -267,11 +337,13 @@ export default async function AnalysePage({ params }: Props) {
       adminDocs: adminDocsMap.get(company.id) ?? [],
       siretVerified: u?.agency?.siretVerified ?? false,
       agencyCreatedAt: u?.agency?.dateCreationInsee?.toISOString() ?? null,
+      legalFormInsee: legalFormInseeMap.get(u?.id ?? '') ?? null,
       legalFormMatch: (() => {
-        const agency = u?.agency as ({ siretVerified?: boolean; legalForm?: string | null; legalFormDeclared?: string | null } | null)
-        if (!agency?.siretVerified || !agency.legalForm || !agency.legalFormDeclared) return null
-        const normalize = (s: string) => s.toLowerCase().trim()
-        return normalize(agency.legalForm) === normalize(agency.legalFormDeclared)
+        const inseeVal = legalFormInseeMap.get(u?.id ?? '') ?? null
+        const agency = u?.agency as ({ legalFormDeclared?: string | null } | null)
+        const declared = agency?.legalFormDeclared ?? null
+        if (!inseeVal || !declared) return null
+        return legalFormsMatch(inseeVal, declared)
       })(),
       divergences,
       totalPosts,
