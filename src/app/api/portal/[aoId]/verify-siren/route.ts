@@ -92,8 +92,8 @@ export async function GET(
     const dirigeant = result.dirigeants?.[0] ?? null
 
     // Sauvegarder le SIRET vérifié + dirigeant (non-bloquant si erreur)
-    if (companyUser.agencyId) {
-      try {
+    try {
+      if (companyUser.agencyId) {
         await prisma.agency.update({
           where: { id: companyUser.agencyId },
           data: {
@@ -105,10 +105,26 @@ export async function GET(
             dirigeantPrenoms: dirigeant?.prenoms ?? null,
           },
         })
-      } catch (dbErr) {
-        console.error('[verify-siren] prisma.agency.update failed:', dbErr)
-        // Non-bloquant — la vérification reste valide
+      } else {
+        // Pas encore d'agence (profil jamais sauvegardé) — on en crée une minimale
+        // pour que siretVerified soit bien persisté en base dès maintenant.
+        // Le PATCH /company l'enrichira ensuite avec nom, adresse, etc.
+        const agency = await prisma.agency.create({
+          data: {
+            name: companyName || 'Entreprise',
+            siret: siretToFetch,
+            siretVerified: true,
+            legalForm: legalForm ?? undefined,
+            dirigeantNom: dirigeant?.nom ?? null,
+            dirigeantPrenoms: dirigeant?.prenoms ?? null,
+            activeModules: [],
+          },
+        })
+        await prisma.user.update({ where: { id: companyUser.id }, data: { agencyId: agency.id } })
       }
+    } catch (dbErr) {
+      console.error('[verify-siren] prisma save failed:', dbErr)
+      // Non-bloquant — la vérification reste valide
     }
 
     return NextResponse.json({
