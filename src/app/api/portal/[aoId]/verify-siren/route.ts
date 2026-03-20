@@ -45,18 +45,31 @@ export async function GET(
       return NextResponse.json({ error: 'Entreprise introuvable' }, { status: 404 })
     }
 
-    const res = await fetch(
-      `https://api.annuaire-entreprises.data.gouv.fr/etablissement/${siretToFetch}`,
-      { headers: { Accept: 'application/json' }, next: { revalidate: 0 } }
-    )
+    // Appel data.gouv.fr
+    let res: Response
+    try {
+      res = await fetch(
+        `https://api.annuaire-entreprises.data.gouv.fr/etablissement/${siretToFetch}`,
+        { headers: { Accept: 'application/json' }, cache: 'no-store' }
+      )
+    } catch (fetchErr) {
+      console.error('[verify-siren] fetch data.gouv.fr failed:', fetchErr)
+      return NextResponse.json({ error: 'Impossible de joindre annuaire-entreprises.data.gouv.fr' }, { status: 502 })
+    }
 
     if (!res.ok) {
       return NextResponse.json({ error: 'Entreprise introuvable sur data.gouv.fr' }, { status: 404 })
     }
 
-    const data = await res.json() as DataGouvEtablissement
-    const ul = data.unite_legale
+    let data: DataGouvEtablissement
+    try {
+      data = await res.json() as DataGouvEtablissement
+    } catch (parseErr) {
+      console.error('[verify-siren] JSON parse error:', parseErr)
+      return NextResponse.json({ error: 'Réponse invalide de data.gouv.fr' }, { status: 502 })
+    }
 
+    const ul = data.unite_legale
     const companyName = ul?.denomination ?? [ul?.prenom_usuel, ul?.nom].filter(Boolean).join(' ') ?? ''
     const legalForm = ul?.libelle_categorie_juridique ?? null
 
@@ -65,22 +78,27 @@ export async function GET(
     const postalCode = addr?.code_postal ?? null
     const city = addr?.libelle_commune ?? null
 
-    const dirigeants = ul?.dirigeants ?? []
+    const dirigeants = Array.isArray(ul?.dirigeants) ? ul!.dirigeants : []
     const dirigeant = dirigeants[0] ?? null
 
-    // Sauvegarder le SIRET vérifié + dirigeant
+    // Sauvegarder le SIRET vérifié + dirigeant (non-bloquant si erreur)
     if (companyUser.agencyId) {
-      await prisma.agency.update({
-        where: { id: companyUser.agencyId },
-        data: {
-          siret: siretToFetch,
-          siretVerified: true,
-          name: companyName || undefined,
-          legalForm: legalForm ?? undefined,
-          dirigeantNom: dirigeant?.nom ?? undefined,
-          dirigeantPrenoms: dirigeant?.prenoms ?? undefined,
-        },
-      })
+      try {
+        await prisma.agency.update({
+          where: { id: companyUser.agencyId },
+          data: {
+            siret: siretToFetch,
+            siretVerified: true,
+            name: companyName || undefined,
+            legalForm: legalForm ?? undefined,
+            dirigeantNom: dirigeant?.nom ?? null,
+            dirigeantPrenoms: dirigeant?.prenoms ?? null,
+          },
+        })
+      } catch (dbErr) {
+        console.error('[verify-siren] prisma.agency.update failed:', dbErr)
+        // On continue quand même — la vérification reste valide
+      }
     }
 
     return NextResponse.json({
@@ -107,7 +125,7 @@ async function fetchSiretFromSiren(siren: string): Promise<string | null> {
   try {
     const res = await fetch(
       `https://api.annuaire-entreprises.data.gouv.fr/entreprise/${siren}`,
-      { headers: { Accept: 'application/json' }, next: { revalidate: 0 } }
+      { headers: { Accept: 'application/json' }, cache: 'no-store' }
     )
     if (!res.ok) return null
     const data = await res.json() as { siege?: { siret?: string } }
