@@ -243,7 +243,7 @@ export function DashboardClient({
     if (res.ok) {
       setProjects((prev) => prev.filter((p) => p.id !== project.id))
       setArchivedProjects((prev) => prev.filter((p) => p.id !== project.id))
-      router.push('/dashboard')
+      router.refresh()
     } else {
       const data = await res.json() as { error?: string }
       alert(data.error ?? 'Impossible de supprimer ce projet.')
@@ -348,7 +348,7 @@ export function DashboardClient({
                     )}
 
                     <DropdownMenuItem
-                      onClick={(e) => { e.preventDefault(); void deleteProject(project) }}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); void deleteProject(project) }}
                       className="gap-2 cursor-pointer"
                       style={{ color: 'var(--red)' }}
                     >
