@@ -240,8 +240,10 @@ export default async function AnalysePage({ params }: Props) {
         if (op.unitPrice !== null) pricedPosts++
         const qty = op.qtyCompany ?? post.qtyArchi
         if (qty != null && op.unitPrice != null) total = (total ?? 0) + qty * op.unitPrice
-        if (op.qtyCompany != null && post.qtyArchi != null && op.qtyCompany !== post.qtyArchi) {
-          divergences++
+        // Divergence significative : écart > 10% par rapport au métré archi
+        if (op.qtyCompany != null && post.qtyArchi != null && post.qtyArchi !== 0) {
+          const ecartRelatif = Math.abs(op.qtyCompany - post.qtyArchi) / post.qtyArchi
+          if (ecartRelatif > 0.10) divergences++
         }
       }
     }
@@ -263,7 +265,7 @@ export default async function AnalysePage({ params }: Props) {
       invitedAt: ao.createdAt.toISOString(),
       adminDocs: adminDocsMap.get(company.id) ?? [],
       siretVerified: u?.agency?.siretVerified ?? false,
-      agencyCreatedAt: u?.agency?.createdAt?.toISOString() ?? null,
+      agencyCreatedAt: null, // agency.createdAt = date d'inscription ArchFlow, pas la date de fondation réelle
       divergences,
       totalPosts,
       pricedPosts,
