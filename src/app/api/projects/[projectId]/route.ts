@@ -139,31 +139,83 @@ export async function DELETE(
 
     const project = await prisma.project.findUnique({
       where: { id: params.projectId },
-      include: {
-        dpgfs: {
-          include: {
-            aos: {
-              where: { status: { in: ['SENT', 'IN_PROGRESS'] } },
-              select: { id: true },
-            },
-          },
-        },
-      },
+      select: { agencyId: true },
     })
 
     if (!project || project.agencyId !== user.agencyId) {
       return NextResponse.json({ error: 'Projet introuvable' }, { status: 404 })
     }
 
-    const hasActiveAO = project.dpgfs.some((d) => d.aos.length > 0)
-    if (hasActiveAO) {
+    // Vérifier qu'il n'y a pas d'AO en cours
+    const activeAO = await prisma.aO.findFirst({
+      where: {
+        dpgf: { projectId: params.projectId },
+        status: { in: ['SENT', 'IN_PROGRESS'] },
+      },
+      select: { id: true },
+    })
+    if (activeAO) {
       return NextResponse.json(
         { error: 'Impossible de supprimer un projet avec un AO en cours. Clôturez l\'AO d\'abord.' },
         { status: 400 }
       )
     }
 
-    await prisma.project.delete({ where: { id: params.projectId } })
+    // Collecter les IDs des entités liées pour la suppression en cascade
+    const dpgfIds = (await prisma.dPGF.findMany({
+      where: { projectId: params.projectId },
+      select: { id: true },
+    })).map((d) => d.id)
+
+    const aoIds = dpgfIds.length ? (await prisma.aO.findMany({
+      where: { dpgfId: { in: dpgfIds } },
+      select: { id: true },
+    })).map((a) => a.id) : []
+
+    const aoCompanyIds = aoIds.length ? (await prisma.aOCompany.findMany({
+      where: { aoId: { in: aoIds } },
+      select: { id: true },
+    })).map((c) => c.id) : []
+
+    const offerIds = aoCompanyIds.length ? (await prisma.offer.findMany({
+      where: { aoCompanyId: { in: aoCompanyIds } },
+      select: { id: true },
+    })).map((o) => o.id) : []
+
+    const lotIds = dpgfIds.length ? (await prisma.lot.findMany({
+      where: { dpgfId: { in: dpgfIds } },
+      select: { id: true },
+    })).map((l) => l.id) : []
+
+    // Suppression en ordre (relations les plus profondes en premier)
+    await prisma.$transaction([
+      // QA answers + QAs
+      prisma.qAAnswer.deleteMany({ where: { qa: { aoId: { in: aoIds } } } }),
+      prisma.qA.deleteMany({ where: { aoId: { in: aoIds } } }),
+      // Documents admin + lectures
+      prisma.documentRead.deleteMany({ where: { aoCompanyId: { in: aoCompanyIds } } }),
+      prisma.adminDoc.deleteMany({ where: { aoCompanyId: { in: aoCompanyIds } } }),
+      // Offres
+      prisma.offerPost.deleteMany({ where: { offerId: { in: offerIds } } }),
+      prisma.offer.deleteMany({ where: { aoCompanyId: { in: aoCompanyIds } } }),
+      // Entreprises invitées
+      prisma.aOCompany.deleteMany({ where: { aoId: { in: aoIds } } }),
+      // Documents DCE
+      prisma.document.deleteMany({ where: { aoId: { in: aoIds } } }),
+      // AOs
+      prisma.aO.deleteMany({ where: { dpgfId: { in: dpgfIds } } }),
+      // DPGF : postes → sous-lots → lots → versions → imports IA
+      prisma.post.deleteMany({ where: { lotId: { in: lotIds } } }),
+      prisma.subLot.deleteMany({ where: { lotId: { in: lotIds } } }),
+      prisma.lot.deleteMany({ where: { dpgfId: { in: dpgfIds } } }),
+      prisma.dPGFVersion.deleteMany({ where: { dpgfId: { in: dpgfIds } } }),
+      prisma.aIImport.deleteMany({ where: { dpgfId: { in: dpgfIds } } }),
+      prisma.dPGF.deleteMany({ where: { projectId: params.projectId } }),
+      // Permissions projet
+      prisma.projectPermission.deleteMany({ where: { projectId: params.projectId } }),
+      // Projet
+      prisma.project.delete({ where: { id: params.projectId } }),
+    ])
 
     return NextResponse.json({ ok: true })
   } catch (error) {
