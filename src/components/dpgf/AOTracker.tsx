@@ -208,7 +208,7 @@ function Countdown({ deadline }: { deadline: string }) {
 
 // ── Fiche entreprise (Sheet) ─────────────────────────────
 
-function CompanySheet({
+export function CompanySheet({
   aoId,
   companyId,
   open,

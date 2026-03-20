@@ -3,12 +3,13 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { AlertTriangle, Download, Share2, Settings, ChevronDown, ChevronUp, RotateCcw, Save, Check, Trophy, Info } from 'lucide-react'
+import { AlertTriangle, Download, Share2, Settings, ChevronDown, ChevronUp, RotateCcw, Save, Check, Trophy, Info, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
 import { calculateScore, type ScoringWeights, type ScoringResult, DEFAULT_WEIGHTS } from '@/lib/scoring'
+import { CompanySheet } from '@/components/dpgf/AOTracker'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -424,6 +425,7 @@ function CompanyCard({
   isAwarded,
   aoId,
   readOnly = false,
+  onOpenSheet,
 }: {
   rank: number
   result: ScoringResult
@@ -433,6 +435,7 @@ function CompanyCard({
   isAwarded?: boolean
   aoId: string
   readOnly?: boolean
+  onOpenSheet?: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const [company, setCompany] = useState(initialCompany)
@@ -555,19 +558,35 @@ function CompanyCard({
           </div>
         )}
 
-        {/* Expand button */}
-        <button
-          onClick={() => setExpanded(!expanded)}
-          style={{
-            marginTop: 12, fontSize: 12, color: '#6B6B65',
-            background: 'none', border: '1px solid #E0E0DA',
-            borderRadius: 6, padding: '4px 10px', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 4,
-          }}
-        >
-          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          {expanded ? 'Masquer le détail' : 'Voir le détail complet'}
-        </button>
+        {/* Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            style={{
+              fontSize: 12, color: '#6B6B65',
+              background: 'none', border: '1px solid #E0E0DA',
+              borderRadius: 6, padding: '4px 10px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            {expanded ? 'Masquer le détail' : 'Voir le détail'}
+          </button>
+          {!readOnly && onOpenSheet && (
+            <button
+              onClick={onOpenSheet}
+              style={{
+                fontSize: 12, color: '#1A5C3A',
+                background: '#EAF3ED', border: '1px solid #A7D4B8',
+                borderRadius: 6, padding: '4px 10px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              <FileText size={12} />
+              Fiche entreprise
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Expanded detail */}
@@ -666,6 +685,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
     const pe = ao.publishedElements
     return (pe?.companyNotes ?? {}) as Record<string, string>
   })
+  const [sheetCompanyId, setSheetCompanyId] = useState<string | null>(null)
   const [publishDialogOpen, setPublishDialogOpen] = useState(false)
   const [publishElements, setPublishElements] = useState(() => {
     const pe = ao.publishedElements as Record<string, boolean> | null
@@ -1074,6 +1094,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
                 aoId={ao.id}
                 isAwarded={awardedCompanyId === result.companyId}
                 readOnly={readOnly}
+                onOpenSheet={() => setSheetCompanyId(result.companyId)}
               />
             )
           })}
@@ -1431,6 +1452,16 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Fiche entreprise */}
+      {sheetCompanyId && (
+        <CompanySheet
+          aoId={ao.id}
+          companyId={sheetCompanyId}
+          open={!!sheetCompanyId}
+          onClose={() => setSheetCompanyId(null)}
+        />
+      )}
     </div>
   )
 }
