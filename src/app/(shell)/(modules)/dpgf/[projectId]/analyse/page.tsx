@@ -59,18 +59,18 @@ const LEGAL_ABBREV: Record<string, string> = {
 }
 
 function legalFormsMatch(insee: string, declared: string): boolean {
-  const normInsee = normalizeLegalForm(insee)
-  const normDeclared = normalizeLegalForm(declared)
+  const ni = normalizeLegalForm(insee)
+  const nd = normalizeLegalForm(declared)
 
-  // Égalité exacte normalisée
-  if (normInsee === normDeclared) return true
+  if (ni === nd) return true
 
-  // L'un contient l'autre (gère "SARL" dans "Société à responsabilité limitée (SARL)")
-  if (normInsee.includes(normDeclared) || normDeclared.includes(normInsee)) return true
+  // Contains uniquement pour les chaînes longues (≥8 chars) — évite les faux positifs
+  // avec les abréviations courtes ("sa", "ei", "sas"…) qui se trouvent dans n'importe quelle description
+  if (nd.length >= 8 && (ni.includes(nd) || nd.includes(ni))) return true
 
-  // Résolution d'abréviation : vérifier si declared est une abréviation connue qui correspond à insee
-  const fragment = LEGAL_ABBREV[normDeclared]
-  if (fragment && normInsee.includes(fragment)) return true
+  // Résolution d'abréviation via table de correspondance
+  const fragment = LEGAL_ABBREV[nd]
+  if (fragment && ni.includes(fragment)) return true
 
   return false
 }

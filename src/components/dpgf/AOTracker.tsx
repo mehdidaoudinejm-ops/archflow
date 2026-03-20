@@ -484,7 +484,7 @@ export function CompanySheet({
                   { label: 'SIRET renseigné', ok: !!(agency?.siret) },
                   { label: 'SIRET vérifié', ok: !!(agency?.siretVerified) },
                   { label: 'Dirigeant correspond au signataire', ok: detail.dirigeantNameMatch === true },
-                  { label: 'Forme juridique cohérente (INSEE)', ok: detail.legalFormMatch !== false },
+                  { label: 'Forme juridique cohérente (INSEE)', ok: detail.legalFormMatch === true },
                   { label: 'Documents admin déposés', ok: detail.adminDocs.filter((d) => d.status === 'VALID').length >= 2 },
                   { label: 'Offre soumise sur cet AO', ok: !!(detail.offer?.submittedAt) },
                 ]

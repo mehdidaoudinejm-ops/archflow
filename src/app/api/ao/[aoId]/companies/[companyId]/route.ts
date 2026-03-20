@@ -24,7 +24,7 @@ function legalFormsMatch(insee: string, declared: string): boolean {
   const ni = normalizeLF(insee)
   const nd = normalizeLF(declared)
   if (ni === nd) return true
-  if (ni.includes(nd) || nd.includes(ni)) return true
+  if (nd.length >= 8 && (ni.includes(nd) || nd.includes(ni))) return true
   const fragment = LEGAL_ABBREV[nd]
   if (fragment && ni.includes(fragment)) return true
   return false
