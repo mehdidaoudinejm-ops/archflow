@@ -119,9 +119,13 @@ export default async function PortalPage({ params, searchParams }: Props) {
       email: true,
       firstName: true,
       lastName: true,
-      agency: { select: { name: true } },
+      agency: { select: { name: true, siret: true, phone: true, trade: true, companyAddress: true, city: true } },
     },
   })
+
+  // Profil incomplet si champs obligatoires manquants
+  const agency = companyUser?.agency
+  const profileIncomplete = !agency?.name || !agency?.siret || !agency?.phone || !agency?.trade || !agency?.companyAddress || !agency?.city
 
   // 7b. Calculer le diff DPGF (snapshot vs état actuel)
   let diff: DpgfDiff | null = null
@@ -210,6 +214,7 @@ export default async function PortalPage({ params, searchParams }: Props) {
       aoCompanyId={aoCompanyId!}
       diff={diff}
       newDocumentIds={newDocumentIds}
+      profileIncomplete={profileIncomplete}
     />
   )
 }

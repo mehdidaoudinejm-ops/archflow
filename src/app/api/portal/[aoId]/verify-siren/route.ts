@@ -68,7 +68,7 @@ export async function GET(
     const dirigeants = ul?.dirigeants ?? []
     const dirigeant = dirigeants[0] ?? null
 
-    // Sauvegarder le SIRET vérifié
+    // Sauvegarder le SIRET vérifié + dirigeant
     if (companyUser.agencyId) {
       await prisma.agency.update({
         where: { id: companyUser.agencyId },
@@ -77,6 +77,8 @@ export async function GET(
           siretVerified: true,
           name: companyName || undefined,
           legalForm: legalForm ?? undefined,
+          dirigeantNom: dirigeant?.nom ?? undefined,
+          dirigeantPrenoms: dirigeant?.prenoms ?? undefined,
         },
       })
     }

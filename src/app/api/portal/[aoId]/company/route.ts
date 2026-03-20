@@ -8,6 +8,8 @@ export const dynamic = 'force-dynamic'
 
 const schema = z.object({
   companyName: z.string().min(1).max(200),
+  firstName: z.string().max(100).optional().nullable(),
+  lastName: z.string().max(100).optional().nullable(),
   siret: z.string().max(14).optional().nullable(),
   legalForm: z.string().max(100).optional().nullable(),
   companyAddress: z.string().max(200).optional().nullable(),
@@ -32,7 +34,18 @@ export async function PATCH(
       return NextResponse.json({ error: 'Données invalides' }, { status: 422 })
     }
 
-    const { companyName, siret, legalForm, companyAddress, postalCode, city, country, phone, trade, signatoryQuality } = parsed.data
+    const { companyName, firstName, lastName, siret, legalForm, companyAddress, postalCode, city, country, phone, trade, signatoryQuality } = parsed.data
+
+    // Mettre à jour le nom du signataire sur l'utilisateur
+    if (firstName !== undefined || lastName !== undefined) {
+      await prisma.user.update({
+        where: { id: companyUser.id },
+        data: {
+          ...(firstName !== undefined ? { firstName: firstName ?? null } : {}),
+          ...(lastName !== undefined ? { lastName: lastName ?? null } : {}),
+        },
+      })
+    }
 
     if (!companyUser.agencyId) {
       const agency = await prisma.agency.create({
@@ -71,7 +84,7 @@ export async function PATCH(
           phone: phone ?? undefined,
           trade: trade ?? undefined,
           signatoryQuality: signatoryQuality ?? undefined,
-          ...(siretChanged ? { siretVerified: false } : {}),
+          ...(siretChanged ? { siretVerified: false, dirigeantNom: null, dirigeantPrenoms: null } : {}),
         },
       })
     }

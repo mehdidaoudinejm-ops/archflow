@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { FileText, FolderOpen, MessageSquare, Shield, Clock, CheckCircle2, Save, Building2, ChevronLeft } from 'lucide-react'
+import { FileText, FolderOpen, MessageSquare, Shield, Clock, CheckCircle2, Save, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface PortalShellProps {
@@ -53,10 +53,11 @@ export function PortalShell({
   const tokenSuffix = token ? `?token=${token}` : ''
 
   const navItems = [
-    { key: 'offer', label: 'Mon offre', icon: <FileText size={16} />, href: `/portal/${aoId}${tokenSuffix}` },
+    { key: 'entreprise', label: 'Mon entreprise', icon: <Building2 size={16} />, href: `/portal/${aoId}/entreprise${tokenSuffix}` },
     { key: 'plans', label: 'Plans DCE', icon: <FolderOpen size={16} />, href: `/portal/${aoId}/plans${tokenSuffix}` },
     { key: 'questions', label: 'Questions', icon: <MessageSquare size={16} />, href: `/portal/${aoId}/questions${tokenSuffix}` },
     { key: 'documents', label: 'Mes documents', icon: <Shield size={16} />, href: `/portal/${aoId}/documents${tokenSuffix}` },
+    { key: 'offer', label: 'Mon offre', icon: <FileText size={16} />, href: `/portal/${aoId}${tokenSuffix}` },
   ]
 
   const saveLabel =
@@ -120,19 +121,6 @@ export function PortalShell({
               </Link>
             )
           })}
-          {/* Mon entreprise */}
-          <Link
-            href={`/portal/${aoId}/entreprise${tokenSuffix}`}
-            className="flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius)] text-sm transition-colors"
-            style={{
-              background: activeSection === 'entreprise' ? 'rgba(255,255,255,0.3)' : 'transparent',
-              color: '#fff',
-              fontWeight: activeSection === 'entreprise' ? 600 : 400,
-            }}
-          >
-            <Building2 size={16} />
-            Mon entreprise
-          </Link>
         </nav>
 
         {/* Progression */}

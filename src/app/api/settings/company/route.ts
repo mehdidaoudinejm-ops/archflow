@@ -7,6 +7,8 @@ export const dynamic = 'force-dynamic'
 
 const schema = z.object({
   companyName: z.string().min(1).max(200),
+  firstName: z.string().max(100).optional().nullable(),
+  lastName: z.string().max(100).optional().nullable(),
   siret: z.string().max(14).optional().nullable(),
   legalForm: z.string().max(100).optional().nullable(),
   companyAddress: z.string().max(200).optional().nullable(),
@@ -28,7 +30,17 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: 'Données invalides' }, { status: 422 })
     }
 
-    const { companyName, siret, legalForm, companyAddress, postalCode, city, country, phone, trade, signatoryQuality } = parsed.data
+    const { companyName, firstName, lastName, siret, legalForm, companyAddress, postalCode, city, country, phone, trade, signatoryQuality } = parsed.data
+
+    if (firstName !== undefined || lastName !== undefined) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          ...(firstName !== undefined ? { firstName: firstName ?? null } : {}),
+          ...(lastName !== undefined ? { lastName: lastName ?? null } : {}),
+        },
+      })
+    }
 
     if (!user.agencyId) {
       // Company user without agency — create one
@@ -62,8 +74,8 @@ export async function PATCH(req: Request) {
           phone: phone ?? undefined,
           trade: trade ?? undefined,
           signatoryQuality: signatoryQuality ?? undefined,
-          // Reset verification if SIRET changed
-          ...(siret !== undefined ? { siretVerified: false } : {}),
+          // Reset verification si SIRET modifié
+          ...(siret !== undefined ? { siretVerified: false, dirigeantNom: null, dirigeantPrenoms: null } : {}),
         },
       })
     }

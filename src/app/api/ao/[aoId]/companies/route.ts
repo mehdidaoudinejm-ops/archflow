@@ -34,17 +34,40 @@ export async function GET(
     const userIds = companies.map((c) => c.companyUserId)
     const users = await prisma.user.findMany({
       where: { id: { in: userIds } },
-      select: { id: true, email: true, firstName: true, lastName: true, agency: { select: { name: true } } },
+      select: {
+        id: true, email: true, firstName: true, lastName: true,
+        agency: { select: { name: true, siretVerified: true, dirigeantNom: true, dirigeantPrenoms: true } },
+      },
     })
+
+    const normalize = (s: string) =>
+      s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
 
     const usersMap = new Map(users.map((u) => [u.id, u]))
 
-    const result = companies.map((c) => ({
-      ...c,
-      inviteToken: undefined, // Ne jamais retourner le token brut
-      portalUrl: c.inviteToken ? buildPortalUrl(params.aoId, c.inviteToken) : null,
-      companyUser: usersMap.get(c.companyUserId) ?? null,
-    }))
+    const result = companies.map((c) => {
+      const u = usersMap.get(c.companyUserId) ?? null
+      const agency = u?.agency as ({ name: string | null; siretVerified?: boolean; dirigeantNom?: string | null; dirigeantPrenoms?: string | null } | null | undefined)
+      let dirigeantNameMatch: boolean | null = null
+      if (agency?.siretVerified && agency.dirigeantNom) {
+        const sigLast = normalize(u?.lastName ?? '')
+        const sigFirst = normalize(u?.firstName ?? '')
+        const govLast = normalize(agency.dirigeantNom)
+        const govFirst = normalize(agency.dirigeantPrenoms ?? '')
+        if (govLast && sigLast) {
+          const lastMatch = govLast === sigLast
+          const firstMatch = !govFirst || !sigFirst || govFirst.includes(sigFirst) || sigFirst.includes(govFirst)
+          dirigeantNameMatch = lastMatch && firstMatch
+        }
+      }
+      return {
+        ...c,
+        inviteToken: undefined,
+        portalUrl: c.inviteToken ? buildPortalUrl(params.aoId, c.inviteToken) : null,
+        companyUser: u,
+        dirigeantNameMatch,
+      }
+    })
 
     return NextResponse.json(result, { status: 200 })
   } catch (error) {

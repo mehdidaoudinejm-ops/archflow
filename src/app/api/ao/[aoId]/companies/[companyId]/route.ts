@@ -58,6 +58,8 @@ export async function GET(
             phone: true,
             trade: true,
             signatoryQuality: true,
+            dirigeantNom: true,
+            dirigeantPrenoms: true,
           },
         },
       },
@@ -70,40 +72,26 @@ export async function GET(
       select: { id: true, action: true, module: true, createdAt: true, metadata: true },
     })
 
-    // Vérification dirigeant via data.gouv.fr
+    // Dirigeant : utiliser les données stockées lors de la vérification SIREN (pas de call live)
+    const agencyExt = companyUser?.agency as ({ name: string | null; siret?: string | null; siretVerified?: boolean; legalForm?: string | null; companyAddress?: string | null; postalCode?: string | null; city?: string | null; phone?: string | null; trade?: string | null; signatoryQuality?: string | null; dirigeantNom?: string | null; dirigeantPrenoms?: string | null } | null)
     let dirigeant: { nom: string; prenoms: string } | null = null
     let dirigeantNameMatch: boolean | null = null
-    const siret = (companyUser?.agency as { siret?: string | null } | null)?.siret ?? null
 
-    if (siret && siret.length >= 9) {
-      try {
-        const siren = siret.slice(0, 9)
-        const govRes = await fetch(
-          `https://recherche-entreprises.api.gouv.fr/search?q=${siren}&per_page=1`,
-          { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) }
-        )
-        if (govRes.ok) {
-          const govData = await govRes.json() as {
-            results?: Array<{ dirigeants?: Array<{ nom?: string; prenoms?: string }> }>
-          }
-          const firstDirigeant = govData.results?.[0]?.dirigeants?.[0]
-          if (firstDirigeant?.nom) {
-            dirigeant = { nom: firstDirigeant.nom, prenoms: firstDirigeant.prenoms ?? '' }
-            // Comparer avec prénom/nom enregistré (insensible à la casse, sans accents)
-            const normalize = (s: string) =>
-              s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
-            const registeredFirst = normalize(companyUser?.firstName ?? '')
-            const registeredLast = normalize(companyUser?.lastName ?? '')
-            const govFirst = normalize(dirigeant.prenoms)
-            const govLast = normalize(dirigeant.nom)
-            // Match si au moins le nom de famille correspond
-            dirigeantNameMatch = govLast.length > 0 && registeredLast.length > 0
-              ? govLast === registeredLast || govFirst.includes(registeredFirst) || registeredFirst.includes(govFirst)
-              : null
-          }
-        }
-      } catch {
-        // API indisponible — on ignore
+    if (agencyExt?.siretVerified && agencyExt.dirigeantNom) {
+      dirigeant = { nom: agencyExt.dirigeantNom, prenoms: agencyExt.dirigeantPrenoms ?? '' }
+      const normalize = (s: string) =>
+        s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+      const signatoryFirst = normalize(companyUser?.firstName ?? '')
+      const signatoryLast = normalize(companyUser?.lastName ?? '')
+      const govFirst = normalize(dirigeant.prenoms)
+      const govLast = normalize(dirigeant.nom)
+      dirigeantNameMatch =
+        govLast.length > 0 && signatoryLast.length > 0
+          ? govLast === signatoryLast
+          : null
+      // Si nom identique, vérifier aussi le prénom (tolérance partielle)
+      if (dirigeantNameMatch && govFirst && signatoryFirst) {
+        dirigeantNameMatch = govFirst.includes(signatoryFirst) || signatoryFirst.includes(govFirst)
       }
     }
 

@@ -136,6 +136,18 @@ export async function PUT(
       return NextResponse.json({ error: 'Cet AO est clôturé' }, { status: 400 })
     }
 
+    // Vérifier que le profil entreprise est complet
+    const companyAgency = await prisma.agency.findFirst({
+      where: { users: { some: { id: companyUser.id } } },
+      select: { name: true, siret: true, phone: true, trade: true, companyAddress: true, city: true },
+    })
+    if (!companyAgency?.name || !companyAgency?.siret || !companyAgency?.phone || !companyAgency?.trade || !companyAgency?.companyAddress || !companyAgency?.city) {
+      return NextResponse.json(
+        { error: 'Profil entreprise incomplet. Complétez votre profil avant de soumettre votre offre.' },
+        { status: 422 }
+      )
+    }
+
     // Vérifier les documents administratifs obligatoires
     if (Array.isArray(ao.requiredDocs)) {
       type RequiredDocItem = { type: string; label: string; required: boolean }

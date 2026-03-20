@@ -37,6 +37,7 @@ interface Company {
   paymentStatus: string | null
   tokenUsedAt: Date | null
   portalUrl: string | null
+  dirigeantNameMatch: boolean | null
   offer: { id: string; submittedAt: Date | null; isComplete: boolean } | null
   companyUser: {
     id: string
@@ -364,6 +365,30 @@ function CompanySheet({
                 </span>
               )}
             </section>
+
+            {/* Alerte signataire ≠ dirigeant */}
+            {detail.dirigeantNameMatch === false && detail.dirigeant && (
+              <div
+                className="flex items-start gap-3 px-4 py-3 rounded-[var(--radius)]"
+                style={{ background: 'var(--amber-light)', border: '1px solid var(--amber)' }}
+              >
+                <ShieldAlert size={16} style={{ color: 'var(--amber)', flexShrink: 0, marginTop: 1 }} />
+                <div>
+                  <p className="text-sm font-medium" style={{ color: 'var(--amber)' }}>
+                    Signataire différent du dirigeant enregistré
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text2)' }}>
+                    Personne ayant rempli l&apos;offre :{' '}
+                    <strong>{[detail.companyUser.firstName, detail.companyUser.lastName].filter(Boolean).join(' ') || '—'}</strong>
+                    {' '}· Dirigeant data.gouv.fr :{' '}
+                    <strong>{detail.dirigeant.prenoms} {detail.dirigeant.nom}</strong>
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text2)' }}>
+                    Demandez une délégation de pouvoir si ce n&apos;est pas le représentant légal.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Fiabilité */}
             <section>
@@ -716,6 +741,7 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
           portalUrl: data.portalUrl ?? null,
           offer: null,
           companyUser: { id: '', email: emailInput.trim(), firstName: null, lastName: null, agency: null },
+          dirigeantNameMatch: null,
         },
       ])
       setEmailInput('')
@@ -984,7 +1010,16 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
                       {c.companyUser?.email}
                     </p>
                   </td>
-                  <td className="px-4 py-3">{statusBadge(c.status)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      {statusBadge(c.status)}
+                      {c.dirigeantNameMatch === false && (
+                        <span title="Signataire différent du dirigeant data.gouv.fr">
+                          <ShieldAlert size={14} style={{ color: 'var(--amber)' }} />
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3">
                     {c.offer?.submittedAt ? (
                       <span style={{ color: 'var(--green)' }}>

@@ -42,21 +42,41 @@ export default async function AOTrackingPage({ params }: Props) {
       email: true,
       firstName: true,
       lastName: true,
-      agency: { select: { name: true } },
+      agency: { select: { name: true, siretVerified: true, dirigeantNom: true, dirigeantPrenoms: true } },
     },
   })
 
   const companyUsersMap = new Map(companyUsers.map((u) => [u.id, u]))
 
-  const companies = ao.aoCompanies.map((c) => ({
-    id: c.id,
-    status: c.status,
-    paymentStatus: c.paymentStatus,
-    tokenUsedAt: c.tokenUsedAt,
-    portalUrl: c.inviteToken ? buildPortalUrl(params.aoId, c.inviteToken) : null,
-    offer: c.offer,
-    companyUser: companyUsersMap.get(c.companyUserId) ?? null,
-  }))
+  const normalize = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+
+  const companies = ao.aoCompanies.map((c) => {
+    const u = companyUsersMap.get(c.companyUserId) ?? null
+    const agency = u?.agency as ({ name: string; siretVerified?: boolean; dirigeantNom?: string | null; dirigeantPrenoms?: string | null } | null | undefined)
+    let dirigeantNameMatch: boolean | null = null
+    if (agency?.siretVerified && agency.dirigeantNom) {
+      const sigLast = normalize(u?.lastName ?? '')
+      const sigFirst = normalize(u?.firstName ?? '')
+      const govLast = normalize(agency.dirigeantNom)
+      const govFirst = normalize(agency.dirigeantPrenoms ?? '')
+      if (govLast && sigLast) {
+        const lastMatch = govLast === sigLast
+        const firstMatch = !govFirst || !sigFirst || govFirst.includes(sigFirst) || sigFirst.includes(govFirst)
+        dirigeantNameMatch = lastMatch && firstMatch
+      }
+    }
+    return {
+      id: c.id,
+      status: c.status,
+      paymentStatus: c.paymentStatus,
+      tokenUsedAt: c.tokenUsedAt,
+      portalUrl: c.inviteToken ? buildPortalUrl(params.aoId, c.inviteToken) : null,
+      dirigeantNameMatch,
+      offer: c.offer,
+      companyUser: u,
+    }
+  })
 
   const lotsMap = new Map(ao.dpgf.lots.map((l) => [l.id, l]))
   const selectedLots = ao.lotIds

@@ -84,6 +84,8 @@ function FiabiliteScore({ checks }: { checks: { label: string; ok: boolean }[] }
 }
 
 export function PortalEntrepriseClient({ aoId, aoName, deadline, token, user, agency }: Props) {
+  const [firstName, setFirstName] = useState(user.firstName ?? '')
+  const [lastName, setLastName] = useState(user.lastName ?? '')
   const [companyName, setCompanyName] = useState(agency?.name ?? '')
   const [siret, setSiret] = useState(agency?.siret ?? '')
   const [siretVerified, setSiretVerified] = useState(agency?.siretVerified ?? false)
@@ -162,7 +164,7 @@ export function PortalEntrepriseClient({ aoId, aoName, deadline, token, user, ag
       const res = await fetch(`/api/portal/${aoId}/company`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'X-Portal-Token': token },
-        body: JSON.stringify({ companyName, siret: siret || null, legalForm: legalForm || null, companyAddress, postalCode, city, country, phone, trade, signatoryQuality }),
+        body: JSON.stringify({ firstName: firstName || null, lastName: lastName || null, companyName, siret: siret || null, legalForm: legalForm || null, companyAddress, postalCode, city, country, phone, trade, signatoryQuality }),
       })
       if (res.ok) setSaved(true)
       else {
@@ -313,13 +315,15 @@ export function PortalEntrepriseClient({ aoId, aoName, deadline, token, user, ag
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label style={{ color: 'var(--text)' }}>Prénom</Label>
-                  <Input value={user.firstName ?? ''} readOnly
-                    style={{ borderColor: 'var(--border)', color: 'var(--text2)', background: 'var(--surface2)', cursor: 'not-allowed' }} />
+                  <Input value={firstName} onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="Jean"
+                    style={{ borderColor: 'var(--border)', color: 'var(--text)' }} />
                 </div>
                 <div className="space-y-1.5">
                   <Label style={{ color: 'var(--text)' }}>Nom</Label>
-                  <Input value={user.lastName ?? ''} readOnly
-                    style={{ borderColor: 'var(--border)', color: 'var(--text2)', background: 'var(--surface2)', cursor: 'not-allowed' }} />
+                  <Input value={lastName} onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Dupont"
+                    style={{ borderColor: 'var(--border)', color: 'var(--text)' }} />
                 </div>
               </div>
               <div className="space-y-1.5">

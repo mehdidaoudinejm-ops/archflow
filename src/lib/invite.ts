@@ -16,7 +16,7 @@ function formatDeadline(date: Date): string {
 
 export function buildPortalUrl(aoId: string, token: string): string {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  return `${appUrl}/portal/${aoId}?token=${token}`
+  return `${appUrl}/portal/${aoId}/entreprise?token=${token}`
 }
 
 export async function inviteCompany({

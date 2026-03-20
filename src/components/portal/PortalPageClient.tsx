@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState, Suspense } from 'react'
+import Link from 'next/link'
 import { PortalShell } from '@/components/portal/PortalShell'
 import { OfferTable, getAllPostIds } from '@/components/portal/OfferTable'
 import { useOffer } from '@/hooks/useOffer'
@@ -77,6 +78,7 @@ interface PortalPageClientProps {
   uploadedDocTypes: string[]
   diff: DpgfDiff | null
   newDocumentIds: string[]
+  profileIncomplete: boolean
 }
 
 function ConfirmModal({
@@ -399,6 +401,7 @@ function PortalPageClientInner({
   uploadedDocTypes,
   diff,
   newDocumentIds,
+  profileIncomplete,
 }: PortalPageClientProps) {
   const { posts, updatePost, saveStatus, save, submit, isSubmitted } = useOffer({
     aoId: ao.id,
@@ -512,6 +515,28 @@ function PortalPageClientInner({
           </div>
         )}
 
+        {profileIncomplete && !isSubmitted && (
+          <div
+            className="mx-6 mt-4 px-4 py-3 rounded-[var(--radius)]"
+            style={{ background: 'var(--amber-light)', border: '1px solid var(--amber)' }}
+          >
+            <p className="text-sm font-medium flex items-center gap-1.5 mb-1" style={{ color: 'var(--amber)' }}>
+              <AlertCircle size={15} />
+              Profil entreprise incomplet
+            </p>
+            <p className="text-xs mb-2" style={{ color: 'var(--text2)' }}>
+              Complétez votre profil avant de soumettre votre offre (raison sociale, SIRET, téléphone, corps de métier, adresse, ville).
+            </p>
+            <Link
+              href={`/portal/${ao.id}/entreprise${token ? `?token=${token}` : ''}`}
+              className="inline-flex items-center text-xs font-medium px-3 py-1.5 rounded-[var(--radius)] transition-colors"
+              style={{ background: 'var(--amber)', color: '#fff' }}
+            >
+              Compléter mon entreprise
+            </Link>
+          </div>
+        )}
+
         {missingMandatoryDocs.length > 0 && !isSubmitted && (
           <div
             className="mx-6 mt-4 px-4 py-3 rounded-[var(--radius)]"
@@ -560,7 +585,7 @@ function PortalPageClientInner({
           aoStatus={ao.status}
           isSubmitted={isSubmitted}
           onSubmitRequest={handleSubmitRequest}
-          submitDisabled={missingMandatoryDocs.length > 0}
+          submitDisabled={missingMandatoryDocs.length > 0 || profileIncomplete}
           diffMap={diff?.postDiffs ?? null}
           removedPosts={diff?.removedPosts ?? []}
           newDocumentIds={newDocumentIds}

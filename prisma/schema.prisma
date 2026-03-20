@@ -21,6 +21,8 @@ model Agency {
   siret            String?
   siretVerified    Boolean   @default(false)
   legalForm        String?
+  dirigeantNom     String?
+  dirigeantPrenoms String?
   companyAddress   String?
   postalCode       String?
   city             String?
