@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 import {
   Users, Building2, TrendingUp, FolderOpen, FileText,
-  Briefcase, UserCheck, Activity, Clock,
+  Briefcase, UserCheck, Activity, Clock, Send,
 } from 'lucide-react'
 import { COLLABORATOR_LIMITS, AI_IMPORT_LIMITS } from '@/lib/project-limits'
 import { WeeklySignupsChart } from '@/components/shell/WeeklySignupsChart'
@@ -52,6 +52,7 @@ export default async function AdminDashboardPage() {
   let activeProjects = 0
   let activeAOs = 0
   let newUsersLast30Days = 0
+  let invitedCompanies = 0
 
   // ── Tables ────────────────────────────────────────────────────────────────
   let recentUsers: {
@@ -107,6 +108,7 @@ export default async function AdminDashboardPage() {
       projectsActive,
       aosActive,
       usersNew,
+      companiesInvited,
       usersRecent,
       agenciesRecent,
       projectsRecent,
@@ -118,6 +120,7 @@ export default async function AdminDashboardPage() {
       prisma.project.count({ where: { status: 'ACTIVE' } }),
       prisma.aO.count({ where: { status: { in: ['SENT', 'IN_PROGRESS'] } } }),
       prisma.user.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+      prisma.user.count({ where: { role: 'COMPANY' } }),
       prisma.user.findMany({
         orderBy: { createdAt: 'desc' },
         take: 10,
@@ -170,6 +173,7 @@ export default async function AdminDashboardPage() {
 
     totalUsers = usersTotal
     activeArchitects = architectsActive
+    invitedCompanies = companiesInvited
     // Agences archi = activeModules contient "dpgf" | Entreprises construction = activeModules vide
     totalArchAgencies = agenciesAll.filter((a) => a.activeModules.includes('dpgf')).length
     totalCompanyAgencies = agenciesAll.filter((a) => !a.activeModules.includes('dpgf')).length
@@ -272,6 +276,13 @@ export default async function AdminDashboardPage() {
             iconBg="#FEF3E2" iconColor="#B45309"
             label="AO en cours"
             value={activeAOs}
+          />
+          <StatCard
+            icon={<Send size={20} />}
+            iconBg="#EEF2FF" iconColor="#4338CA"
+            label="Entreprises invitées"
+            value={invitedCompanies}
+            sub="emails uniques"
           />
         </div>
 

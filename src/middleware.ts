@@ -51,11 +51,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login?error=lien_invalide', request.url))
   }
 
-  // Routes espace client
+  // Routes espace client — token opaque vérifié par la page elle-même
   if (pathname.startsWith('/client/')) {
-    if (!session) {
-      return NextResponse.redirect(new URL('/login', request.url))
-    }
     return response
   }
 

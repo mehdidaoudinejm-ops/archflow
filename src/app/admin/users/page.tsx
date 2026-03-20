@@ -355,9 +355,9 @@ export default function AdminUsersPage() {
           onClick={() => void purgeOrphans()}
           className="text-xs px-3 py-1.5 rounded-lg transition-colors"
           style={{ background: '#FEF3E2', color: '#B45309', border: '1px solid #FCD34D' }}
-          title="Supprimer les utilisateurs Prisma sans compte Supabase Auth"
+          title="⚠️ Supprime les utilisateurs Prisma sans Supabase Auth — N'utilisez PAS si des COMPANY ou CLIENT sont présents"
         >
-          Purger les orphelins
+          Purger les orphelins ⚠️
         </button>
       </div>
       <p className="text-sm mb-4" style={{ color: '#6B6B65' }}>
@@ -378,9 +378,15 @@ export default function AdminUsersPage() {
         </div>
       )}
 
+      {/* Note auth par token */}
+      <div className="mb-4 px-4 py-3 rounded-[14px] text-xs" style={{ background: '#EEF2FF', border: '1px solid #C7D2FE', color: '#4338CA' }}>
+        <strong>COMPANY</strong> et <strong>CLIENT</strong> n&apos;ont pas de compte Supabase Auth — ils s&apos;authentifient par token opaque (lien email). Leur absence dans Supabase est normale et attendue. Ne pas les inclure dans une purge d&apos;orphelins.
+      </div>
+
       {/* Vérificateur Prisma / Supabase */}
       <div className="mb-5 p-4 rounded-[14px]" style={{ background: '#F8F8F6', border: '1px solid #E8E8E3' }}>
         <p className="text-xs font-medium mb-2" style={{ color: '#6B6B65' }}>Vérifier l&apos;état d&apos;un compte (Prisma + Supabase Auth)</p>
+        <p className="text-xs mb-3" style={{ color: '#9B9B94' }}>Note : COMPANY et CLIENT n&apos;apparaissent pas dans Supabase — c&apos;est normal.</p>
         <div className="flex gap-2">
           <input
             type="email"
@@ -419,6 +425,10 @@ export default function AdminUsersPage() {
               {checkResult.supabase.exists
                 ? <span className="px-2 py-0.5 rounded font-medium" style={{ background: '#EAF3ED', color: '#1A5C3A' }}>
                     ✓ Existe — id : {checkResult.supabase.id}
+                  </span>
+                : (checkResult.prisma.role === 'COMPANY' || checkResult.prisma.role === 'CLIENT')
+                ? <span className="px-2 py-0.5 rounded font-medium" style={{ background: '#EEF2FF', color: '#4338CA' }}>
+                    — Absent (normal — auth par token)
                   </span>
                 : <span className="px-2 py-0.5 rounded font-medium" style={{ background: '#F3F4F6', color: '#9B9B94' }}>
                     ✗ Absent
