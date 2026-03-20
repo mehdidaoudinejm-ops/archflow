@@ -11,6 +11,7 @@ interface RechercheResult {
   nom_raison_sociale?: string
   nature_juridique?: string
   libelle_nature_juridique?: string
+  date_creation?: string  // date d'immatriculation INSEE (YYYY-MM-DD)
   siege?: {
     siret?: string
     numero_voie?: string
@@ -83,6 +84,7 @@ export async function GET(
 
     const companyName = result.nom_complet ?? result.nom_raison_sociale ?? ''
     const legalForm = result.libelle_nature_juridique ?? null
+    const dateCreationInsee = result.date_creation ? new Date(result.date_creation) : null
 
     const siege = result.siege
     const companyAddress = [siege?.numero_voie, siege?.type_voie, siege?.libelle_voie].filter(Boolean).join(' ') || null
@@ -91,34 +93,27 @@ export async function GET(
 
     const dirigeant = result.dirigeants?.[0] ?? null
 
-    // Sauvegarder le SIRET vérifié + dirigeant (non-bloquant si erreur)
+    const agencyData = {
+      siret: siretToFetch,
+      siretVerified: true,
+      legalForm: legalForm ?? undefined,
+      dateCreationInsee: dateCreationInsee ?? undefined,
+      dirigeantNom: dirigeant?.nom ?? null,
+      dirigeantPrenoms: dirigeant?.prenoms ?? null,
+    }
+
+    // Sauvegarder le SIRET vérifié + date INSEE + dirigeant (non-bloquant si erreur)
     try {
       if (companyUser.agencyId) {
         await prisma.agency.update({
           where: { id: companyUser.agencyId },
-          data: {
-            siret: siretToFetch,
-            siretVerified: true,
-            name: companyName || undefined,
-            legalForm: legalForm ?? undefined,
-            dirigeantNom: dirigeant?.nom ?? null,
-            dirigeantPrenoms: dirigeant?.prenoms ?? null,
-          },
+          data: { ...agencyData, name: companyName || undefined },
         })
       } else {
-        // Pas encore d'agence (profil jamais sauvegardé) — on en crée une minimale
-        // pour que siretVerified soit bien persisté en base dès maintenant.
-        // Le PATCH /company l'enrichira ensuite avec nom, adresse, etc.
+        // Pas encore d'agence — on en crée une minimale pour persister siretVerified.
+        // Le PATCH /company l'enrichira ensuite avec le reste du profil.
         const agency = await prisma.agency.create({
-          data: {
-            name: companyName || 'Entreprise',
-            siret: siretToFetch,
-            siretVerified: true,
-            legalForm: legalForm ?? undefined,
-            dirigeantNom: dirigeant?.nom ?? null,
-            dirigeantPrenoms: dirigeant?.prenoms ?? null,
-            activeModules: [],
-          },
+          data: { ...agencyData, name: companyName || 'Entreprise', activeModules: [] },
         })
         await prisma.user.update({ where: { id: companyUser.id }, data: { agencyId: agency.id } })
       }
@@ -131,6 +126,7 @@ export async function GET(
       siret: siretToFetch,
       companyName,
       legalForm,
+      dateCreationInsee: result.date_creation ?? null,
       companyAddress,
       postalCode,
       city,

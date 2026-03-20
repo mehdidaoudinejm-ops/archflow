@@ -30,7 +30,7 @@ export interface ScoringCompanyInput {
   pricedPosts: number              // Nombre de postes effectivement chiffrés
   adminDocs: AdminDocInfo[]        // Documents fournis
   siretVerified: boolean           // SIRET vérifié par INSEE
-  agencyCreatedAt: string | null   // Date création entreprise
+  agencyCreatedAt: string | null   // Date d'immatriculation INSEE (null si non vérifié)
   divergences: number              // Nb postes avec métrés modifiés
   submittedAt: string | null       // Date soumission
   invitedAt: string                // Date invitation (AOCompany.createdAt)

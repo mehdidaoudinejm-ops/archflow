@@ -114,7 +114,7 @@ export default async function AnalysePage({ params }: Props) {
         id: true,
         firstName: true,
         lastName: true,
-        agency: { select: { name: true, siret: true, siretVerified: true, createdAt: true } },
+        agency: { select: { name: true, siret: true, siretVerified: true, dateCreationInsee: true } },
       },
     }),
     prisma.adminDoc.findMany({
@@ -265,7 +265,7 @@ export default async function AnalysePage({ params }: Props) {
       invitedAt: ao.createdAt.toISOString(),
       adminDocs: adminDocsMap.get(company.id) ?? [],
       siretVerified: u?.agency?.siretVerified ?? false,
-      agencyCreatedAt: null, // agency.createdAt = date d'inscription ArchFlow, pas la date de fondation réelle
+      agencyCreatedAt: u?.agency?.dateCreationInsee?.toISOString() ?? null,
       divergences,
       totalPosts,
       pricedPosts,
