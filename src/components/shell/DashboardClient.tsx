@@ -243,6 +243,7 @@ export function DashboardClient({
     if (res.ok) {
       setProjects((prev) => prev.filter((p) => p.id !== project.id))
       setArchivedProjects((prev) => prev.filter((p) => p.id !== project.id))
+      router.push('/dashboard')
     } else {
       const data = await res.json() as { error?: string }
       alert(data.error ?? 'Impossible de supprimer ce projet.')
