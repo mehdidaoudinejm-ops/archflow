@@ -409,6 +409,9 @@ function PortalPageClientInner({
     token,
   })
 
+  // Offre précédemment soumise, ré-ouverte suite à un amendement de l'architecte
+  const offerReopened = !isSubmitted && !!initialOffer?.submittedAt
+
   const handleImportSuccess = useCallback(() => {
     // Recharger la page pour afficher les prix importés depuis la DB
     window.location.reload()
@@ -481,15 +484,32 @@ function PortalPageClientInner({
         isSubmitted={isSubmitted}
         onSave={save}
       >
+        {/* Banner ré-ouverture après amendement */}
+        {offerReopened && (
+          <div
+            className="mx-6 mt-6 px-4 py-3 rounded-[var(--radius)]"
+            style={{ background: 'var(--red-light)', border: '1px solid var(--red)' }}
+          >
+            <p className="text-sm font-medium flex items-center gap-1.5 mb-1" style={{ color: 'var(--red)' }}>
+              <RefreshCw size={14} />
+              Votre offre a été rouverte suite à une modification du dossier
+            </p>
+            <p className="text-xs" style={{ color: 'var(--text2)' }}>
+              Vos prix sont conservés. Vérifiez les postes marqués <strong>Modifié</strong> ou <strong>Nouveau</strong> et re-soumettez votre offre.
+            </p>
+          </div>
+        )}
+
         {/* Banner modifications DPGF */}
         {diff && diff.total > 0 && (
           <div
-            className="mx-6 mt-6 px-4 py-3 rounded-[var(--radius)]"
+            className="mx-6 mt-4 px-4 py-3 rounded-[var(--radius)]"
             style={{ background: 'var(--amber-light)', border: '1px solid var(--amber)' }}
           >
             <p className="text-sm font-medium flex items-center gap-1.5 mb-2" style={{ color: 'var(--amber)' }}>
               <RefreshCw size={14} />
-              {diff.total} modification{diff.total > 1 ? 's' : ''} apportée{diff.total > 1 ? 's' : ''} au dossier depuis votre invitation
+              {diff.total} modification{diff.total > 1 ? 's' : ''} apportée{diff.total > 1 ? 's' : ''}
+              {offerReopened ? ' depuis le dernier amendement' : ' au dossier depuis votre invitation'}
             </p>
             <ul className="text-xs space-y-0.5" style={{ color: 'var(--text2)' }}>
               {diff.addedCount > 0 && <li>• <strong>{diff.addedCount} poste{diff.addedCount > 1 ? 's' : ''} ajouté{diff.addedCount > 1 ? 's' : ''}</strong> — à chiffrer</li>}

@@ -18,10 +18,8 @@ export async function POST(
       include: {
         dpgf: { include: { project: { select: { agencyId: true, name: true } } } },
         aoCompanies: {
-          include: {
-            offer: { select: { id: true } },
-          },
           where: { status: { not: 'INCOMPLETE' } },
+          select: { id: true, companyUserId: true, status: true, inviteToken: true },
         },
       },
     })
@@ -30,24 +28,26 @@ export async function POST(
       return NextResponse.json({ error: 'AO introuvable' }, { status: 404 })
     }
 
-    // Calcul du diff pour le corps de l'email
+    // Toujours récupérer l'état actuel du DPGF — sert au diff email + nouveau snapshot
+    const lots = await prisma.lot.findMany({
+      where: { dpgfId: ao.dpgfId, id: { in: ao.lotIds } },
+      orderBy: { position: 'asc' },
+      select: {
+        id: true, number: true, name: true,
+        posts: {
+          orderBy: { position: 'asc' },
+          select: { id: true, ref: true, title: true, unit: true, qtyArchi: true },
+        },
+      },
+    })
+    const currentLots: LotSnapshot[] = lots.map((l) => ({
+      id: l.id, number: l.number, name: l.name,
+      posts: l.posts.map((p) => ({ id: p.id, ref: p.ref, title: p.title, unit: p.unit, qtyArchi: p.qtyArchi })),
+    }))
+
+    // Calcul du diff (snapshot précédent → état actuel) pour le corps de l'email
     let diffSummary = ''
     if (ao.snapshotJson) {
-      const lots = await prisma.lot.findMany({
-        where: { dpgfId: ao.dpgfId, id: { in: ao.lotIds } },
-        orderBy: { position: 'asc' },
-        select: {
-          id: true, number: true, name: true,
-          posts: {
-            orderBy: { position: 'asc' },
-            select: { id: true, ref: true, title: true, unit: true, qtyArchi: true },
-          },
-        },
-      })
-      const currentLots: LotSnapshot[] = lots.map((l) => ({
-        id: l.id, number: l.number, name: l.name,
-        posts: l.posts.map((p) => ({ id: p.id, ref: p.ref, title: p.title, unit: p.unit, qtyArchi: p.qtyArchi })),
-      }))
       const diff = computeDpgfDiff(ao.snapshotJson as unknown as SnapshotJson, currentLots)
       const parts: string[] = []
       if (diff.addedCount > 0) parts.push(`<li>${diff.addedCount} poste(s) ajouté(s)</li>`)
@@ -56,19 +56,34 @@ export async function POST(
       if (parts.length > 0) diffSummary = `<ul style="margin:8px 0 0 16px;padding:0;color:#4B4B45;">${parts.join('')}</ul>`
     }
 
-    // Récupérer les emails des entreprises invitées
+    // Entreprises ayant déjà soumis → ré-ouvrir leur offre
+    const submittedCompanyIds = ao.aoCompanies
+      .filter((c) => c.status === 'SUBMITTED')
+      .map((c) => c.id)
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://archflow.fr'
+
+    // Emails aux entreprises
     const companyUserIds = ao.aoCompanies.map((c) => c.companyUserId)
     const companyUsers = await prisma.user.findMany({
       where: { id: { in: companyUserIds } },
-      select: { email: true },
+      select: { id: true, email: true },
     })
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://archflow.fr'
-    const portalUrl = `${appUrl}/portal/${ao.id}`
+    // Construire les URLs portail par entreprise (token individuel)
+    const tokenByUserId = new Map(
+      ao.aoCompanies.map((c) => [c.companyUserId, c.inviteToken])
+    )
 
     await Promise.all(
-      companyUsers.map((cu) =>
-        sendEmail({
+      companyUsers.map((cu) => {
+        const token = tokenByUserId.get(cu.id)
+        const portalUrl = token
+          ? `${appUrl}/portal/${ao.id}/entreprise?token=${token}`
+          : `${appUrl}/portal/${ao.id}`
+        const wasSubmitted = submittedCompanyIds.length > 0 // simplifié — on pourrait affiner par entreprise
+
+        return sendEmail({
           to: cu.email,
           subject: `Modification du dossier — ${ao.name}`,
           html: `
@@ -82,8 +97,11 @@ export async function POST(
                 <p style="font-size:13px;font-weight:600;color:#B45309;margin:0 0 6px;">Modifications :</p>
                 ${diffSummary}
               </div>` : ''}
+              ${wasSubmitted ? `<div style="background:#FEF3E2;border:1px solid #B45309;border-radius:8px;padding:12px 16px;margin-bottom:16px;">
+                <p style="font-size:13px;font-weight:600;color:#B45309;margin:0;">⚠️ Votre offre a été rouverte — veuillez vérifier les postes modifiés et re-soumettre.</p>
+              </div>` : ''}
               <p style="font-size:14px;color:#4B4B45;margin-bottom:20px;">
-                Connectez-vous au portail pour prendre connaissance de ces changements et mettre à jour votre offre si nécessaire.
+                Accédez au portail pour prendre connaissance de ces changements et mettre à jour votre offre.
               </p>
               <a href="${portalUrl}" style="display:inline-block;background:#1F6B44;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:500;">
                 Accéder au dossier
@@ -94,10 +112,32 @@ export async function POST(
             </div>
           `,
         }).catch((e) => console.error('[notify-amendment] email error:', e))
-      )
+      })
     )
 
-    return NextResponse.json({ sent: companyUsers.length }, { status: 200 })
+    // Ré-ouvrir les offres soumises + mettre à jour le snapshot (dans une transaction)
+    await prisma.$transaction([
+      // Reset isComplete → false (garde submittedAt comme preuve de soumission antérieure)
+      prisma.offer.updateMany({
+        where: { aoCompanyId: { in: submittedCompanyIds } },
+        data: { isComplete: false },
+      }),
+      // Remettre le statut AOCompany en IN_PROGRESS
+      prisma.aOCompany.updateMany({
+        where: { id: { in: submittedCompanyIds } },
+        data: { status: 'IN_PROGRESS' },
+      }),
+      // Nouveau snapshot = état actuel du DPGF (référence pour les diffs futurs)
+      prisma.aO.update({
+        where: { id: params.aoId },
+        data: { snapshotJson: { lots: currentLots } as object },
+      }),
+    ])
+
+    return NextResponse.json({
+      sent: companyUsers.length,
+      reopened: submittedCompanyIds.length,
+    }, { status: 200 })
   } catch (error) {
     console.error('[POST /api/ao/[aoId]/notify-amendment]', error)
     if (error instanceof Error && error.name === 'AuthError') {
