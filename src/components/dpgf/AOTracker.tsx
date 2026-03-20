@@ -267,9 +267,14 @@ export function CompanySheet({
                 <Row label="Raison sociale" value={agency?.name ?? '—'} />
                 {/* Forme juridique : comparaison INSEE vs déclarée */}
                 {(() => {
-                  const insee = agency?.legalForm ?? null
-                  const declared = agency?.legalFormDeclared ?? null
-                  if (!insee && !declared) return <Row label="Forme juridique" value="—" />
+                  // legalForm n'est fiable comme source INSEE que si SIRET vérifié
+                  const isVerified = agency?.siretVerified === true
+                  const insee = isVerified ? (agency?.legalForm ?? null) : null
+                  const declared = agency?.legalFormDeclared ?? (!isVerified ? agency?.legalForm : null) ?? null
+
+                  const display = insee ?? declared
+                  if (!display) return <Row label="Forme juridique" value="—" />
+
                   if (insee && !declared) return (
                     <div className="flex items-start justify-between gap-4">
                       <span className="text-sm flex-shrink-0" style={{ color: 'var(--text2)' }}>Forme juridique</span>
@@ -279,20 +284,24 @@ export function CompanySheet({
                       </div>
                     </div>
                   )
+
                   if (!insee && declared) return <Row label="Forme juridique" value={declared} />
-                  // Les deux existent — on compare
+
+                  // Les deux existent (SIRET vérifié + valeur déclarée) — on compare
                   const match = insee!.toLowerCase().trim() === declared!.toLowerCase().trim()
                   return (
                     <div className="flex items-start justify-between gap-4">
                       <span className="text-sm flex-shrink-0" style={{ color: 'var(--text2)' }}>Forme juridique</span>
                       <div className="text-right space-y-0.5">
                         <div className="flex items-center gap-1.5 justify-end">
-                          <ShieldCheck size={12} style={{ color: 'var(--green)' }} />
+                          {match
+                            ? <ShieldCheck size={12} style={{ color: 'var(--green)' }} />
+                            : <ShieldAlert size={12} style={{ color: 'var(--amber)' }} />}
                           <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{insee}</span>
                         </div>
+                        <div className="text-xs mt-0.5" style={{ color: 'var(--text3)' }}>Source INSEE</div>
                         {!match && (
-                          <div className="flex items-center gap-1.5 justify-end">
-                            <ShieldAlert size={12} style={{ color: 'var(--amber)' }} />
+                          <div className="flex items-center gap-1.5 justify-end mt-0.5">
                             <span className="text-xs" style={{ color: 'var(--amber)' }}>Déclarée : {declared}</span>
                           </div>
                         )}
