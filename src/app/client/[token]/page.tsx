@@ -226,6 +226,7 @@ export default async function ClientPage({ params }: Props) {
         divergences, totalPosts, pricedPosts,
         hasAskedQuestion: (qaCountMap.get(company.id) ?? 0) > 0,
         directorNameMatch: directorMatchMap.get(company.companyUserId) ?? null,
+        legalFormMatch: null,
       }
     })
 

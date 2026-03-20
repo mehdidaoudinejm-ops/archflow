@@ -115,7 +115,7 @@ export default async function AnalysePage({ params }: Props) {
         id: true,
         firstName: true,
         lastName: true,
-        agency: { select: { name: true, siret: true, siretVerified: true, dateCreationInsee: true } },
+        agency: { select: { name: true, siret: true, siretVerified: true, dateCreationInsee: true, legalForm: true, legalFormDeclared: true } },
       },
     }),
     prisma.adminDoc.findMany({
@@ -267,6 +267,12 @@ export default async function AnalysePage({ params }: Props) {
       adminDocs: adminDocsMap.get(company.id) ?? [],
       siretVerified: u?.agency?.siretVerified ?? false,
       agencyCreatedAt: u?.agency?.dateCreationInsee?.toISOString() ?? null,
+      legalFormMatch: (() => {
+        const agency = u?.agency as ({ siretVerified?: boolean; legalForm?: string | null; legalFormDeclared?: string | null } | null)
+        if (!agency?.siretVerified || !agency.legalForm || !agency.legalFormDeclared) return null
+        const normalize = (s: string) => s.toLowerCase().trim()
+        return normalize(agency.legalForm) === normalize(agency.legalFormDeclared)
+      })(),
       divergences,
       totalPosts,
       pricedPosts,

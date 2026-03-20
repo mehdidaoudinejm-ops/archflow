@@ -57,6 +57,7 @@ interface CompanyData {
   pricedPosts: number
   hasAskedQuestion: boolean
   directorNameMatch: boolean | null
+  legalFormMatch: boolean | null
 }
 
 interface AnalysisData {
@@ -108,6 +109,8 @@ const FLAG_LABELS: Record<string, string> = {
   ENTREPRISE_INACTIVE: '⚠ Entreprise inactive',
   ENTREPRISE_RECENTE: '⚠ Entreprise récente (< 1 an)',
   METRES_FORTEMENT_MODIFIES: '⚠ Métrés fortement modifiés',
+  DIRIGEANT_NOM_DIFFERENT: '⚠ Dirigeant différent (data.gouv)',
+  FORME_JURIDIQUE_DIFFERENTE: '⚠ Forme juridique différente (INSEE)',
 }
 
 const CRITERIA_LABELS = [
@@ -767,6 +770,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
           invitedAt: c.invitedAt,
           hasAskedQuestion: c.hasAskedQuestion,
           directorNameMatch: c.directorNameMatch,
+          legalFormMatch: c.legalFormMatch,
         },
         weights
       )

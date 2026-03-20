@@ -37,6 +37,7 @@ export interface ScoringCompanyInput {
   invitedAt: string                // Date invitation (AOCompany.createdAt)
   hasAskedQuestion: boolean        // A posé au moins une question Q&A
   directorNameMatch: boolean | null // null = pas de SIRET pour vérifier
+  legalFormMatch: boolean | null    // null = pas de comparaison possible
 }
 
 export type AlertFlag =
@@ -47,6 +48,7 @@ export type AlertFlag =
   | 'ENTREPRISE_RECENTE'
   | 'METRES_FORTEMENT_MODIFIES'
   | 'DIRIGEANT_NOM_DIFFERENT'
+  | 'FORME_JURIDIQUE_DIFFERENTE'
 
 export type Recommendation = 'RECOMMANDEE' | 'A_ETUDIER' | 'RISQUEE'
 
@@ -173,6 +175,12 @@ function scoreReliability(input: ScoringCompanyInput): { score: number; flags: A
   if (input.directorNameMatch === false) {
     reliabilityScore = Math.max(0, reliabilityScore - 20)
     flags.push('DIRIGEANT_NOM_DIFFERENT')
+  }
+
+  // Pénalité si forme juridique déclarée ≠ forme juridique INSEE
+  if (input.legalFormMatch === false) {
+    reliabilityScore = Math.max(0, reliabilityScore - 10)
+    flags.push('FORME_JURIDIQUE_DIFFERENTE')
   }
 
   // Bonus ancienneté

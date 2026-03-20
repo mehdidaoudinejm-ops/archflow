@@ -448,6 +448,35 @@ export function CompanySheet({
               </div>
             )}
 
+            {/* Alerte forme juridique ≠ INSEE */}
+            {(() => {
+              const isVerified = agency?.siretVerified === true
+              const insee = isVerified ? (agency?.legalForm ?? null) : null
+              const declared = agency?.legalFormDeclared ?? null
+              if (!insee || !declared) return null
+              const match = insee.toLowerCase().trim() === declared.toLowerCase().trim()
+              if (match) return null
+              return (
+                <div
+                  className="flex items-start gap-3 px-4 py-3 rounded-[var(--radius)]"
+                  style={{ background: 'var(--amber-light)', border: '1px solid var(--amber)' }}
+                >
+                  <ShieldAlert size={16} style={{ color: 'var(--amber)', flexShrink: 0, marginTop: 1 }} />
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: 'var(--amber)' }}>
+                      Forme juridique déclarée différente de l&apos;INSEE
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text2)' }}>
+                      INSEE : <strong>{insee}</strong> · Déclarée : <strong>{declared}</strong>
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--text2)' }}>
+                      Vérifiez la cohérence avec le KBIS fourni.
+                    </p>
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Fiabilité */}
             <section>
               <h3 className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--text3)' }}>
@@ -460,6 +489,7 @@ export function CompanySheet({
                   { label: 'SIRET renseigné', ok: !!(agency?.siret) },
                   { label: 'SIRET vérifié', ok: !!(agency?.siretVerified) },
                   { label: 'Dirigeant correspond au signataire', ok: detail.dirigeantNameMatch === true },
+                  { label: 'Forme juridique cohérente (INSEE)', ok: (() => { const iv = agency?.siretVerified === true; const i = iv ? (agency?.legalForm ?? null) : null; const d = agency?.legalFormDeclared ?? null; if (!i || !d) return true; return i.toLowerCase().trim() === d.toLowerCase().trim() })() },
                   { label: 'Documents admin déposés', ok: detail.adminDocs.filter((d) => d.status === 'VALID').length >= 2 },
                   { label: 'Offre soumise sur cet AO', ok: !!(detail.offer?.submittedAt) },
                 ]

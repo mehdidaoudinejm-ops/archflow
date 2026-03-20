@@ -142,7 +142,7 @@ export function PortalEntrepriseClient({ aoId, aoName, deadline, token, user, ag
       }
       if (data.siret) setSiret(data.siret)
       if (data.companyName && !companyName) setCompanyName(data.companyName)
-      if (data.legalForm) setLegalForm(data.legalForm)
+      if (data.legalForm && !legalForm) setLegalForm(data.legalForm)
       if (data.companyAddress && !companyAddress) setCompanyAddress(data.companyAddress)
       if (data.postalCode && !postalCode) setPostalCode(data.postalCode)
       if (data.city && !city) setCity(data.city)
