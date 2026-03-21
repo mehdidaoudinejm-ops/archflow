@@ -183,9 +183,17 @@ export async function PUT(
       )
     }
 
-    // Récupérer tous les postes de l'AO pour validation
+    // Récupérer la sélection de lots de l'entreprise
+    const aoCompanyWithLots = await prisma.aOCompany.findUnique({
+      where: { id: aoCompany.id },
+      select: { selectedLotIds: true },
+    })
+    const selectedLotIds = aoCompanyWithLots?.selectedLotIds ?? []
+    const lotIdsToValidate = selectedLotIds.length > 0 ? selectedLotIds : ao.lotIds
+
+    // Récupérer les postes des lots retenus uniquement
     const lots = await prisma.lot.findMany({
-      where: { id: { in: ao.lotIds }, dpgfId: ao.dpgfId },
+      where: { id: { in: lotIdsToValidate }, dpgfId: ao.dpgfId },
       select: {
         posts: { select: { id: true, isOptional: true, ref: true, title: true } },
       },

@@ -16,7 +16,7 @@ export default async function PortalPage({ params, searchParams }: Props) {
 
   const aoCompanyRecord = await prisma.aOCompany.findFirst({
     where: { inviteToken: token, aoId: params.aoId },
-    select: { id: true, companyUserId: true, status: true },
+    select: { id: true, companyUserId: true, status: true, selectedLotIds: true },
   })
 
   if (!aoCompanyRecord) redirect('/login?error=lien_invalide')
@@ -212,6 +212,7 @@ export default async function PortalPage({ params, searchParams }: Props) {
         companyName: companyUser?.agency?.name ?? null,
       }}
       aoCompanyId={aoCompanyId!}
+      initialSelectedLotIds={aoCompanyRecord.selectedLotIds}
       diff={diff}
       newDocumentIds={newDocumentIds}
       profileIncomplete={profileIncomplete}

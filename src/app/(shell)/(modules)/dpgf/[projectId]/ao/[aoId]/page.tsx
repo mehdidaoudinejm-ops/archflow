@@ -73,6 +73,7 @@ export default async function AOTrackingPage({ params }: Props) {
       tokenUsedAt: c.tokenUsedAt,
       portalUrl: c.inviteToken ? buildPortalUrl(params.aoId, c.inviteToken) : null,
       dirigeantNameMatch,
+      selectedLotIds: c.selectedLotIds,
       offer: c.offer,
       companyUser: u,
     }

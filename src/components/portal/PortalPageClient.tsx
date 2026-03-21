@@ -6,7 +6,7 @@ import { PortalShell } from '@/components/portal/PortalShell'
 import { OfferTable, getAllPostIds } from '@/components/portal/OfferTable'
 import { useOffer } from '@/hooks/useOffer'
 import { Button } from '@/components/ui/button'
-import { AlertCircle, X, RefreshCw, Download, Upload, FileSpreadsheet, CheckCircle2 } from 'lucide-react'
+import { AlertCircle, X, RefreshCw, Download, Upload, FileSpreadsheet, CheckCircle2, ChevronRight, Pencil } from 'lucide-react'
 import type { DpgfDiff } from '@/lib/dpgf-diff'
 
 interface Post {
@@ -74,6 +74,7 @@ interface PortalPageClientProps {
   token: string | null
   companyUser: CompanyUser
   aoCompanyId: string
+  initialSelectedLotIds: string[]
   requiredDocs: RequiredDoc[] | null
   uploadedDocTypes: string[]
   diff: DpgfDiff | null
@@ -83,6 +84,7 @@ interface PortalPageClientProps {
 
 function ConfirmModal({
   lots,
+  skippedLots,
   posts: offerPosts,
   allowCustomQty,
   onConfirm,
@@ -91,6 +93,7 @@ function ConfirmModal({
   errors,
 }: {
   lots: Lot[]
+  skippedLots: Lot[]
   posts: Map<string, { unitPrice: number | null; qtyCompany: number | null }>
   allowCustomQty: boolean
   onConfirm: () => void
@@ -196,6 +199,18 @@ function ConfirmModal({
             </span>
           </div>
         </div>
+
+        {/* Lots non retenus */}
+        {skippedLots.length > 0 && (
+          <div className="mb-4 px-3 py-2.5 rounded-[var(--radius)]" style={{ background: 'var(--surface2)' }}>
+            <p className="text-xs font-medium mb-1" style={{ color: 'var(--text3)' }}>
+              Lots non retenus par votre entreprise :
+            </p>
+            <p className="text-xs" style={{ color: 'var(--text3)' }}>
+              {skippedLots.map((l) => `Lot ${l.number} — ${l.name}`).join(' · ')}
+            </p>
+          </div>
+        )}
 
         {/* Checkbox confirmation documents */}
         <label className="flex items-start gap-3 mb-5 cursor-pointer">
@@ -397,6 +412,7 @@ function PortalPageClientInner({
   initialOffer,
   token,
   companyUser,
+  initialSelectedLotIds,
   requiredDocs,
   uploadedDocTypes,
   diff,
@@ -409,11 +425,67 @@ function PortalPageClientInner({
     token,
   })
 
+  // ── Sélection des lots ────────────────────────────────────────────────────
+  const [selectedLotIds, setSelectedLotIds] = useState<string[]>(initialSelectedLotIds)
+  const [editingSelection, setEditingSelection] = useState(false)
+  const [pendingLotIds, setPendingLotIds] = useState<string[]>([])
+  const [savingSelection, setSavingSelection] = useState(false)
+  const [selectionError, setSelectionError] = useState<string | null>(null)
+
+  // L'entreprise n'a pas encore fait sa sélection et l'offre n'est pas soumise
+  const needsLotSelection = selectedLotIds.length === 0 && !isSubmitted
+
+  // Lots effectivement retenus pour le chiffrage
+  const selectedLots = selectedLotIds.length > 0
+    ? lots.filter((l) => selectedLotIds.includes(l.id))
+    : lots  // si pas de sélection (offre déjà soumise avant la feature), on affiche tout
+
+  const skippedLots = lots.filter((l) => !selectedLots.some((s) => s.id === l.id))
+
+  function openSelectionEdit() {
+    setPendingLotIds(selectedLotIds.length > 0 ? [...selectedLotIds] : lots.map((l) => l.id))
+    setSelectionError(null)
+    setEditingSelection(true)
+  }
+
+  function togglePendingLot(lotId: string) {
+    setPendingLotIds((prev) =>
+      prev.includes(lotId) ? prev.filter((id) => id !== lotId) : [...prev, lotId]
+    )
+  }
+
+  async function saveSelection() {
+    if (pendingLotIds.length === 0) {
+      setSelectionError('Sélectionnez au moins un lot')
+      return
+    }
+    setSavingSelection(true)
+    setSelectionError(null)
+    const authHeaders: HeadersInit = token ? { 'X-Portal-Token': token } : {}
+    try {
+      const res = await fetch(`/api/portal/${ao.id}/selected-lots`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ selectedLotIds: pendingLotIds }),
+      })
+      const data = await res.json() as { error?: string; selectedLotIds?: string[] }
+      if (!res.ok) {
+        setSelectionError(data.error ?? 'Erreur lors de la sauvegarde')
+      } else {
+        setSelectedLotIds(data.selectedLotIds ?? pendingLotIds)
+        setEditingSelection(false)
+      }
+    } catch {
+      setSelectionError('Erreur réseau. Réessayez.')
+    }
+    setSavingSelection(false)
+  }
+
+  // ── Reste de la logique ───────────────────────────────────────────────────
   // Offre précédemment soumise, ré-ouverte suite à un amendement de l'architecte
   const offerReopened = !isSubmitted && !!initialOffer?.submittedAt
 
   const handleImportSuccess = useCallback(() => {
-    // Recharger la page pour afficher les prix importés depuis la DB
     window.location.reload()
   }, [])
 
@@ -422,11 +494,10 @@ function PortalPageClientInner({
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
 
-  const allPosts = lots.flatMap((l) => l.posts)
-  const allPostIds = getAllPostIds(lots)
-
-  // Calcul progression
-  const nonOptional = allPosts.filter((p) => !p.isOptional)
+  // Calcul progression sur les lots sélectionnés uniquement
+  const selectedPosts = selectedLots.flatMap((l) => l.posts)
+  const selectedPostIds = getAllPostIds(selectedLots)
+  const nonOptional = selectedPosts.filter((p) => !p.isOptional)
   const filled = nonOptional.filter((p) => {
     const op = posts.get(p.id)
     return op?.comment === '__SKIP__' || (op?.unitPrice !== null && op?.unitPrice !== undefined)
@@ -438,12 +509,10 @@ function PortalPageClientInner({
     [companyUser.firstName, companyUser.lastName].filter(Boolean).join(' ') ??
     companyUser.email
 
-  // Calcul des documents obligatoires manquants
   const missingMandatoryDocs = (requiredDocs ?? [])
     .filter((d) => d.required && !uploadedDocTypes.includes(d.type))
 
   function handleSubmitRequest() {
-    // Validation côté client
     const errors: string[] = []
     for (const post of nonOptional) {
       const op = posts.get(post.id)
@@ -460,7 +529,7 @@ function PortalPageClientInner({
     setSubmitting(true)
     setSubmitError(null)
 
-    const result = await submit(allPostIds)
+    const result = await submit(selectedPostIds)
 
     if (result.success) {
       setShowModal(false)
@@ -469,6 +538,109 @@ function PortalPageClientInner({
       if (result.details) setValidationErrors(result.details)
     }
     setSubmitting(false)
+  }
+
+  // ── Écran sélection lots (première visite) ───────────────────────────────
+  if (needsLotSelection || editingSelection) {
+    const pending = editingSelection ? pendingLotIds : lots.map((l) => l.id)
+    const setPending = editingSelection
+      ? (ids: string[]) => setPendingLotIds(ids)
+      : (ids: string[]) => setPendingLotIds(ids)
+
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12" style={{ background: 'var(--bg)' }}>
+        <div
+          className="w-full max-w-lg rounded-[var(--radius-lg)] p-8"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }}
+        >
+          <h1 className="text-2xl mb-1" style={{ fontFamily: '"DM Serif Display", serif', color: 'var(--text)' }}>
+            Sélection des lots
+          </h1>
+          <p className="text-sm mb-6" style={{ color: 'var(--text2)' }}>
+            Choisissez les lots sur lesquels vous souhaitez remettre une offre.
+            Vous ne serez invité à chiffrer que les lots sélectionnés.
+          </p>
+
+          <div className="space-y-2 mb-6">
+            {lots.map((lot) => {
+              const checked = needsLotSelection
+                ? pendingLotIds.length > 0 ? pendingLotIds.includes(lot.id) : true
+                : pendingLotIds.includes(lot.id)
+              return (
+                <label
+                  key={lot.id}
+                  className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius)] cursor-pointer transition-colors"
+                  style={{
+                    background: checked ? 'var(--green-light)' : 'var(--surface2)',
+                    border: `1px solid ${checked ? 'var(--green)' : 'var(--border)'}`,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => {
+                      const current = needsLotSelection && pendingLotIds.length === 0
+                        ? lots.map((l) => l.id)
+                        : pendingLotIds
+                      const next = current.includes(lot.id)
+                        ? current.filter((id) => id !== lot.id)
+                        : [...current, lot.id]
+                      setPendingLotIds(next)
+                    }}
+                    style={{ width: 16, height: 16, accentColor: 'var(--green)', flexShrink: 0 }}
+                  />
+                  <span className="text-sm font-medium" style={{ color: checked ? 'var(--green)' : 'var(--text)' }}>
+                    Lot {lot.number} — {lot.name}
+                  </span>
+                  <span className="text-xs ml-auto" style={{ color: checked ? 'var(--green-mid)' : 'var(--text3)' }}>
+                    {lot.posts.length} poste{lot.posts.length > 1 ? 's' : ''}
+                  </span>
+                </label>
+              )
+            })}
+          </div>
+
+          {selectionError && (
+            <p className="text-sm mb-3 flex items-center gap-1" style={{ color: 'var(--red)' }}>
+              <AlertCircle size={14} /> {selectionError}
+            </p>
+          )}
+
+          <div className="flex items-center justify-between">
+            <p className="text-xs" style={{ color: 'var(--text3)' }}>
+              {(pendingLotIds.length > 0 ? pendingLotIds : lots.map((l) => l.id)).length} lot{lots.length > 1 ? 's' : ''} sélectionné{lots.length > 1 ? 's' : ''} sur {lots.length}
+            </p>
+            <div className="flex gap-2">
+              {editingSelection && (
+                <Button
+                  variant="outline"
+                  onClick={() => setEditingSelection(false)}
+                  disabled={savingSelection}
+                  style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+                >
+                  Annuler
+                </Button>
+              )}
+              <Button
+                onClick={() => {
+                  if (needsLotSelection && pendingLotIds.length === 0) {
+                    setPendingLotIds(lots.map((l) => l.id))
+                  }
+                  saveSelection()
+                }}
+                disabled={savingSelection}
+                className="flex items-center gap-1.5"
+                style={{ background: 'var(--green-btn)', color: '#fff', border: 'none' }}
+              >
+                {savingSelection ? 'Enregistrement...' : (
+                  <>Valider ma sélection <ChevronRight size={15} /></>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -589,6 +761,35 @@ function PortalPageClientInner({
           </div>
         )}
 
+        {/* Récapitulatif sélection lots */}
+        {!isSubmitted && selectedLots.length > 0 && (
+          <div
+            className="mx-6 mt-5 flex items-center justify-between px-4 py-2.5 rounded-[var(--radius)]"
+            style={{ background: 'var(--green-light)', border: '1px solid #C5DFD0' }}
+          >
+            <div>
+              <span className="text-xs font-medium" style={{ color: 'var(--green)' }}>
+                Lots retenus :
+              </span>{' '}
+              <span className="text-xs" style={{ color: 'var(--green-mid)' }}>
+                {selectedLots.map((l) => `Lot ${l.number}`).join(', ')}
+              </span>
+              {skippedLots.length > 0 && (
+                <span className="text-xs ml-2" style={{ color: 'var(--text3)' }}>
+                  · Non retenus : {skippedLots.map((l) => `Lot ${l.number}`).join(', ')}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={openSelectionEdit}
+              className="flex items-center gap-1 text-xs font-medium ml-4 flex-shrink-0"
+              style={{ color: 'var(--green)' }}
+            >
+              <Pencil size={11} /> Modifier
+            </button>
+          </div>
+        )}
+
         {/* Mode Excel */}
         <ExcelPanel
           aoId={ao.id}
@@ -598,7 +799,7 @@ function PortalPageClientInner({
         />
 
         <OfferTable
-          lots={lots}
+          lots={selectedLots}
           posts={posts}
           updatePost={updatePost}
           allowCustomQty={ao.allowCustomQty}
@@ -614,7 +815,8 @@ function PortalPageClientInner({
 
       {showModal && (
         <ConfirmModal
-          lots={lots}
+          lots={selectedLots}
+          skippedLots={skippedLots}
           posts={posts}
           allowCustomQty={ao.allowCustomQty}
           onConfirm={handleConfirmSubmit}

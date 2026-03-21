@@ -145,6 +145,12 @@ export async function GET(
               }
             }
           }
+        } else {
+          // Réponse non-OK : fallback DB
+          legalFormInsee = agencyExt?.legalForm ?? null
+          if (agencyExt?.siretVerified && agencyExt.dirigeantNom) {
+            dirigeant = { nom: agencyExt.dirigeantNom, prenoms: agencyExt.dirigeantPrenoms ?? '' }
+          }
         }
       } catch {
         // Non-bloquant — on utilise les données DB en fallback
@@ -153,12 +159,17 @@ export async function GET(
         }
         legalFormInsee = agencyExt?.legalForm ?? null
       }
+      // Sécurité : si le fetch a réussi mais sans libelle_nature_juridique, fallback DB
+      legalFormInsee = legalFormInsee ?? agencyExt?.legalForm ?? null
     } else if (agencyExt?.siretVerified && agencyExt.dirigeantNom) {
       // Pas de SIRET mais données stockées
       dirigeant = { nom: agencyExt.dirigeantNom, prenoms: agencyExt.dirigeantPrenoms ?? '' }
+      legalFormInsee = agencyExt?.legalForm ?? null
     }
 
-    // Comparaison forme juridique : INSEE (live) vs déclarée
+    // Comparaison forme juridique : INSEE (live) vs déclarée par l'entreprise
+    // legalFormDeclared = ce que l'entreprise a saisi dans son profil portail
+    // legalFormInsee   = valeur officielle data.gouv.fr (via SIREN live ou cache DB)
     const declared = agencyExt?.legalFormDeclared ?? null
     const legalFormMatch: boolean | null =
       legalFormInsee && declared ? legalFormsMatch(legalFormInsee, declared) : null
@@ -166,6 +177,7 @@ export async function GET(
     return NextResponse.json({
       id: aoCompany.id,
       status: aoCompany.status,
+      selectedLotIds: aoCompany.selectedLotIds,
       tokenUsedAt: aoCompany.tokenUsedAt?.toISOString() ?? null,
       offer: aoCompany.offer
         ? {

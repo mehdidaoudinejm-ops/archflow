@@ -298,18 +298,19 @@ model AOScoringConfig {
 }
 
 model AOCompany {
-  id            String          @id @default(cuid())
-  aoId          String
-  companyUserId String
-  inviteToken   String?         @unique
-  tokenUsedAt   DateTime?
-  status        AOCompanyStatus @default(INVITED)
-  paymentStatus String?
-  ao            AO              @relation(fields: [aoId], references: [id])
-  offer         Offer?
-  adminDocs     AdminDoc[]
-  documentReads DocumentRead[]
-  qas           QA[]
+  id              String          @id @default(cuid())
+  aoId            String
+  companyUserId   String
+  inviteToken     String?         @unique
+  tokenUsedAt     DateTime?
+  status          AOCompanyStatus @default(INVITED)
+  paymentStatus   String?
+  selectedLotIds  String[]        @default([]) // lots choisis par l'entreprise pour chiffrer
+  ao              AO              @relation(fields: [aoId], references: [id])
+  offer           Offer?
+  adminDocs       AdminDoc[]
+  documentReads   DocumentRead[]
+  qas             QA[]
 
   @@index([aoId])
   @@index([companyUserId])

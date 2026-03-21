@@ -38,6 +38,7 @@ interface Company {
   tokenUsedAt: Date | null
   portalUrl: string | null
   dirigeantNameMatch: boolean | null
+  selectedLotIds: string[]
   offer: { id: string; submittedAt: Date | null; isComplete: boolean } | null
   companyUser: {
     id: string
@@ -123,6 +124,7 @@ interface CompanyDetail {
   legalFormMatch: boolean | null
   dirigeant: { nom: string; prenoms: string } | null
   dirigeantNameMatch: boolean | null
+  selectedLotIds: string[]
   activityLogs: Array<{ id: string; action: string; module: string; createdAt: string }>
 }
 
@@ -213,11 +215,13 @@ function Countdown({ deadline }: { deadline: string }) {
 export function CompanySheet({
   aoId,
   companyId,
+  allLots,
   open,
   onClose,
 }: {
   aoId: string
   companyId: string
+  allLots: { id: string; number: number; name: string }[]
   open: boolean
   onClose: () => void
 }) {
@@ -260,6 +264,44 @@ export function CompanySheet({
 
         {!loading && detail && (
           <div className="space-y-6">
+            {/* Lots retenus */}
+            {allLots.length > 0 && (
+              <section>
+                <h3 className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--text3)' }}>
+                  Lots retenus
+                </h3>
+                <div className="space-y-1.5">
+                  {allLots.map((lot) => {
+                    const retained = detail.selectedLotIds.length === 0 || detail.selectedLotIds.includes(lot.id)
+                    return (
+                      <div
+                        key={lot.id}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius)]"
+                        style={{ background: retained ? 'var(--green-light)' : 'var(--surface2)' }}
+                      >
+                        {retained ? (
+                          <CheckCircle2 size={13} style={{ color: 'var(--green)', flexShrink: 0 }} />
+                        ) : (
+                          <Circle size={13} style={{ color: 'var(--text3)', flexShrink: 0 }} />
+                        )}
+                        <span className="text-sm" style={{ color: retained ? 'var(--green)' : 'var(--text3)' }}>
+                          Lot {lot.number} — {lot.name}
+                        </span>
+                        {!retained && detail.selectedLotIds.length > 0 && (
+                          <span className="text-xs ml-auto" style={{ color: 'var(--text3)' }}>Non retenu</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+                {detail.selectedLotIds.length === 0 && (
+                  <p className="text-xs mt-2" style={{ color: 'var(--text3)' }}>
+                    L&apos;entreprise n&apos;a pas encore sélectionné ses lots.
+                  </p>
+                )}
+              </section>
+            )}
+
             {/* Identité */}
             <section>
               <h3 className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--text3)' }}>
@@ -279,9 +321,15 @@ export function CompanySheet({
                           <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{detail.legalFormInsee}</span>
                         </div>
                         <div className="text-xs" style={{ color: 'var(--text3)' }}>Source data.gouv.fr</div>
-                        {agency?.legalFormDeclared && agency.legalFormDeclared !== detail.legalFormInsee && (
-                          <div className="text-xs" style={{ color: detail.legalFormMatch === false ? 'var(--amber)' : 'var(--text3)' }}>
-                            Déclarée : {agency.legalFormDeclared}
+                        {agency?.legalFormDeclared ? (
+                          agency.legalFormDeclared !== detail.legalFormInsee && (
+                            <div className="text-xs" style={{ color: detail.legalFormMatch === false ? 'var(--amber)' : 'var(--text3)' }}>
+                              Déclarée : {agency.legalFormDeclared}
+                            </div>
+                          )
+                        ) : (
+                          <div className="text-xs" style={{ color: 'var(--amber)' }}>
+                            Non déclarée par l&apos;entreprise
                           </div>
                         )}
                       </>
@@ -450,6 +498,27 @@ export function CompanySheet({
                   </p>
                   <p className="text-xs mt-1" style={{ color: 'var(--text2)' }}>
                     Vérifiez la cohérence avec le KBIS fourni.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Notice forme juridique non déclarée */}
+            {detail.legalFormMatch === null && detail.legalFormInsee && !agency?.legalFormDeclared && (
+              <div
+                className="flex items-start gap-3 px-4 py-3 rounded-[var(--radius)]"
+                style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}
+              >
+                <ShieldAlert size={16} style={{ color: 'var(--text3)', flexShrink: 0, marginTop: 1 }} />
+                <div>
+                  <p className="text-sm font-medium" style={{ color: 'var(--text2)' }}>
+                    Forme juridique non déclarée par l&apos;entreprise
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text3)' }}>
+                    data.gouv.fr indique : <strong style={{ color: 'var(--text2)' }}>{detail.legalFormInsee}</strong>
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text3)' }}>
+                    L&apos;entreprise n&apos;a pas renseigné sa forme juridique dans son profil.
                   </p>
                 </div>
               </div>
@@ -830,6 +899,7 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
           offer: null,
           companyUser: { id: '', email: emailInput.trim(), firstName: null, lastName: null, agency: null },
           dirigeantNameMatch: null,
+          selectedLotIds: [],
         },
       ])
       setEmailInput('')
@@ -1093,9 +1163,20 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
                     <p className="font-medium" style={{ color: 'var(--text)' }}>
                       {c.companyUser?.agency?.name ?? c.companyUser?.email ?? '—'}
                     </p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text3)' }}>
-                      {c.companyUser?.email}
-                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-xs" style={{ color: 'var(--text3)' }}>
+                        {c.companyUser?.email}
+                      </p>
+                      {c.selectedLotIds.length > 0 && c.selectedLotIds.length < ao.lotIds.length && (
+                        <span
+                          className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium"
+                          style={{ background: 'var(--amber-light)', color: 'var(--amber)' }}
+                          title={`Répond sur ${c.selectedLotIds.length} lot${c.selectedLotIds.length > 1 ? 's' : ''} sur ${ao.lotIds.length}`}
+                        >
+                          {c.selectedLotIds.length}/{ao.lotIds.length} lots
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -1180,6 +1261,7 @@ export function AOTracker({ ao, projectId, projectName, selectedLots, companies:
         <CompanySheet
           aoId={ao.id}
           companyId={selectedCompanyId}
+          allLots={selectedLots}
           open={!!selectedCompanyId}
           onClose={() => setSelectedCompanyId(null)}
         />

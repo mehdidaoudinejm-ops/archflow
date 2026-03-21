@@ -1463,6 +1463,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
         <CompanySheet
           aoId={ao.id}
           companyId={sheetCompanyId}
+          allLots={lots.map((l) => ({ id: l.id, number: l.number, name: l.name }))}
           open={!!sheetCompanyId}
           onClose={() => setSheetCompanyId(null)}
         />
