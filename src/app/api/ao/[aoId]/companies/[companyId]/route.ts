@@ -13,8 +13,8 @@ function normalizeLF(s: string): string {
 // Abréviations → fragment attendu dans la valeur INSEE complète
 const LEGAL_ABBREV: Record<string, string> = {
   sarl: 'responsabilitelimitee',
-  sas:  'actionsimplifiee',
-  sasu: 'actionsimplifieeunipersonnelle',
+  sas:  'actionssimplifiee',       // "par actions simplifiée" → double-s à la jonction
+  sasu: 'actionssimplifieeassocieunique',
   sa:   'societeanonyme',
   eurl: 'unipersonnelleresponsabilitelimitee',
   sci:  'civilimmobiliere',
@@ -116,7 +116,7 @@ export async function GET(
       try {
         const res = await fetch(
           `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(siren)}&per_page=1`,
-          { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(3000) }
+          { headers: { Accept: 'application/json' }, cache: 'no-store', signal: AbortSignal.timeout(5000) }
         )
         if (res.ok) {
           const data = await res.json() as {
