@@ -340,8 +340,8 @@ export default async function AnalysePage({ params }: Props) {
       legalFormInsee: legalFormInseeMap.get(u?.id ?? '') ?? null,
       legalFormMatch: (() => {
         const inseeVal = legalFormInseeMap.get(u?.id ?? '') ?? null
-        const agency = u?.agency as ({ legalFormDeclared?: string | null } | null)
-        const declared = agency?.legalFormDeclared ?? null
+        const agency = u?.agency as ({ legalFormDeclared?: string | null; legalForm?: string | null } | null)
+        const declared = agency?.legalFormDeclared ?? agency?.legalForm ?? null
         if (!inseeVal || !declared) return null
         return legalFormsMatch(inseeVal, declared)
       })(),

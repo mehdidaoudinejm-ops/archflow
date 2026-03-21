@@ -142,7 +142,7 @@ export function PortalEntrepriseClient({ aoId, aoName, deadline, token, user, ag
       }
       if (data.siret) setSiret(data.siret)
       if (data.companyName && !companyName) setCompanyName(data.companyName)
-      if (data.legalForm && !legalForm) setLegalForm(data.legalForm)
+      if (data.legalForm) setLegalForm(data.legalForm)  // toujours remplir depuis data.gouv
       if (data.companyAddress && !companyAddress) setCompanyAddress(data.companyAddress)
       if (data.postalCode && !postalCode) setPostalCode(data.postalCode)
       if (data.city && !city) setCity(data.city)
@@ -272,7 +272,7 @@ export function PortalEntrepriseClient({ aoId, aoName, deadline, token, user, ag
                   </p>
                 )}
                 <p className="text-xs" style={{ color: 'var(--text3)' }}>
-                  Vérification via annuaire-entreprises.data.gouv.fr — complète automatiquement adresse et forme juridique
+                  Vérification via data.gouv.fr — complète automatiquement adresse et forme juridique
                 </p>
               </div>
 

@@ -321,15 +321,9 @@ export function CompanySheet({
                           <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{detail.legalFormInsee}</span>
                         </div>
                         <div className="text-xs" style={{ color: 'var(--text3)' }}>Source data.gouv.fr</div>
-                        {agency?.legalFormDeclared ? (
-                          agency.legalFormDeclared !== detail.legalFormInsee && (
-                            <div className="text-xs" style={{ color: detail.legalFormMatch === false ? 'var(--amber)' : 'var(--text3)' }}>
-                              Déclarée : {agency.legalFormDeclared}
-                            </div>
-                          )
-                        ) : (
-                          <div className="text-xs" style={{ color: 'var(--amber)' }}>
-                            Non déclarée par l&apos;entreprise
+                        {agency?.legalFormDeclared && agency.legalFormDeclared !== detail.legalFormInsee && (
+                          <div className="text-xs" style={{ color: detail.legalFormMatch === false ? 'var(--amber)' : 'var(--text3)' }}>
+                            Déclarée : {agency.legalFormDeclared}
                           </div>
                         )}
                       </>
@@ -503,26 +497,6 @@ export function CompanySheet({
               </div>
             )}
 
-            {/* Notice forme juridique non déclarée */}
-            {detail.legalFormMatch === null && detail.legalFormInsee && !agency?.legalFormDeclared && (
-              <div
-                className="flex items-start gap-3 px-4 py-3 rounded-[var(--radius)]"
-                style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}
-              >
-                <ShieldAlert size={16} style={{ color: 'var(--text3)', flexShrink: 0, marginTop: 1 }} />
-                <div>
-                  <p className="text-sm font-medium" style={{ color: 'var(--text2)' }}>
-                    Forme juridique non déclarée par l&apos;entreprise
-                  </p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--text3)' }}>
-                    data.gouv.fr indique : <strong style={{ color: 'var(--text2)' }}>{detail.legalFormInsee}</strong>
-                  </p>
-                  <p className="text-xs mt-1" style={{ color: 'var(--text3)' }}>
-                    L&apos;entreprise n&apos;a pas renseigné sa forme juridique dans son profil.
-                  </p>
-                </div>
-              </div>
-            )}
 
             {/* Fiabilité */}
             <section>

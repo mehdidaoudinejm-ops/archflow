@@ -4,11 +4,13 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-// Normalise une forme juridique pour comparaison
+// ── Normalisation forme juridique ────────────────────────────────────────────
+
 function normalizeLF(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '')
 }
 
+// Abréviations → fragment attendu dans la valeur INSEE complète
 const LEGAL_ABBREV: Record<string, string> = {
   sarl: 'responsabilitelimitee',
   sas:  'actionsimplifiee',
@@ -18,17 +20,23 @@ const LEGAL_ABBREV: Record<string, string> = {
   sci:  'civilimmobiliere',
   snc:  'nomcollectif',
   ei:   'entrepreneurindividuel',
+  scp:  'civileprofessionnelle',
+  sel:  'exerciceliberal',
 }
 
 function legalFormsMatch(insee: string, declared: string): boolean {
   const ni = normalizeLF(insee)
   const nd = normalizeLF(declared)
   if (ni === nd) return true
+  // Contient seulement pour les chaînes longues (évite les faux positifs sur "sa", "ei"…)
   if (nd.length >= 8 && (ni.includes(nd) || nd.includes(ni))) return true
+  // Résolution d'abréviation
   const fragment = LEGAL_ABBREV[nd]
   if (fragment && ni.includes(fragment)) return true
   return false
 }
+
+// ── GET ──────────────────────────────────────────────────────────────────────
 
 export async function GET(
   _req: Request,
@@ -37,14 +45,10 @@ export async function GET(
   try {
     const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
 
-    // Vérifier que l'AO appartient à l'agence
     const ao = await prisma.aO.findUnique({
       where: { id: params.aoId },
-      include: {
-        dpgf: { include: { project: { select: { agencyId: true } } } },
-      },
+      include: { dpgf: { include: { project: { select: { agencyId: true } } } } },
     })
-
     if (!ao || ao.dpgf.project.agencyId !== user.agencyId) {
       return NextResponse.json({ error: 'AO introuvable' }, { status: 404 })
     }
@@ -59,7 +63,6 @@ export async function GET(
         },
       },
     })
-
     if (!aoCompany || aoCompany.aoId !== params.aoId) {
       return NextResponse.json({ error: 'Entreprise introuvable' }, { status: 404 })
     }
@@ -73,21 +76,11 @@ export async function GET(
         lastName: true,
         agency: {
           select: {
-            id: true,
-            name: true,
-            siret: true,
-            siretVerified: true,
-            legalForm: true,
-            legalFormDeclared: true,
-            dateCreationInsee: true,
-            companyAddress: true,
-            postalCode: true,
-            city: true,
-            phone: true,
-            trade: true,
-            signatoryQuality: true,
-            dirigeantNom: true,
-            dirigeantPrenoms: true,
+            id: true, name: true, siret: true, siretVerified: true,
+            legalForm: true, legalFormDeclared: true,
+            dateCreationInsee: true, companyAddress: true, postalCode: true,
+            city: true, phone: true, trade: true, signatoryQuality: true,
+            dirigeantNom: true, dirigeantPrenoms: true,
           },
         },
       },
@@ -100,77 +93,84 @@ export async function GET(
       select: { id: true, action: true, module: true, createdAt: true, metadata: true },
     })
 
-    const agencyExt = companyUser?.agency as ({
-      siret?: string | null; siretVerified?: boolean
-      legalForm?: string | null; legalFormDeclared?: string | null
-      dirigeantNom?: string | null; dirigeantPrenoms?: string | null
-    } | null)
+    // Typage étendu de l'agence
+    type AgencyExt = {
+      siret?: string | null
+      siretVerified?: boolean
+      legalForm?: string | null
+      legalFormDeclared?: string | null
+      dirigeantNom?: string | null
+      dirigeantPrenoms?: string | null
+    }
+    const agency = companyUser?.agency as (AgencyExt | null)
 
-    // ── Fetch live data.gouv.fr (non-bloquant) ──────────────────────────────
+    // ── Fetch data.gouv.fr (non-bloquant, timeout 3s) ────────────────────────
     let legalFormInsee: string | null = null
     let dirigeant: { nom: string; prenoms: string } | null = null
     let dirigeantNameMatch: boolean | null = null
 
-    const siret = agencyExt?.siret ?? null
+    const siret = agency?.siret ?? null
+
     if (siret && siret.length >= 9) {
+      const siren = siret.slice(0, 9)
       try {
-        const siren = siret.slice(0, 9)
-        const govRes = await fetch(
-          `https://recherche-entreprises.api.gouv.fr/search?q=${siren}&per_page=1`,
+        const res = await fetch(
+          `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(siren)}&per_page=1`,
           { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(3000) }
         )
-        if (govRes.ok) {
-          const govData = await govRes.json() as {
+        if (res.ok) {
+          const data = await res.json() as {
             results?: Array<{
               libelle_nature_juridique?: string
               dirigeants?: Array<{ nom?: string; prenoms?: string }>
             }>
           }
-          const result = govData.results?.[0]
+          const result = data.results?.[0]
           legalFormInsee = result?.libelle_nature_juridique ?? null
 
-          const govDirigeant = result?.dirigeants?.[0]
-          if (govDirigeant?.nom) {
-            dirigeant = { nom: govDirigeant.nom, prenoms: govDirigeant.prenoms ?? '' }
-            const normalize = (s: string) =>
-              s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
-            const govLast = normalize(dirigeant.nom)
-            const signatoryLast = normalize(companyUser?.lastName ?? '')
-            dirigeantNameMatch = govLast.length > 0 && signatoryLast.length > 0 ? govLast === signatoryLast : null
-            if (dirigeantNameMatch) {
-              const govFirst = normalize(dirigeant.prenoms)
-              const signatoryFirst = normalize(companyUser?.firstName ?? '')
-              if (govFirst && signatoryFirst) {
-                dirigeantNameMatch = govFirst.includes(signatoryFirst) || signatoryFirst.includes(govFirst)
+          const govDir = result?.dirigeants?.[0]
+          if (govDir?.nom) {
+            dirigeant = { nom: govDir.nom, prenoms: govDir.prenoms ?? '' }
+            const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+            const govLast = norm(dirigeant.nom)
+            const sigLast = norm(companyUser?.lastName ?? '')
+            if (govLast && sigLast) {
+              const lastMatch = govLast === sigLast
+              if (lastMatch) {
+                const govFirst = norm(dirigeant.prenoms)
+                const sigFirst = norm(companyUser?.firstName ?? '')
+                dirigeantNameMatch = !govFirst || !sigFirst
+                  ? true
+                  : govFirst.includes(sigFirst) || sigFirst.includes(govFirst)
+              } else {
+                dirigeantNameMatch = false
               }
             }
           }
-        } else {
-          // Réponse non-OK : fallback DB
-          legalFormInsee = agencyExt?.legalForm ?? null
-          if (agencyExt?.siretVerified && agencyExt.dirigeantNom) {
-            dirigeant = { nom: agencyExt.dirigeantNom, prenoms: agencyExt.dirigeantPrenoms ?? '' }
-          }
         }
       } catch {
-        // Non-bloquant — on utilise les données DB en fallback
-        if (agencyExt?.siretVerified && agencyExt.dirigeantNom) {
-          dirigeant = { nom: agencyExt.dirigeantNom, prenoms: agencyExt.dirigeantPrenoms ?? '' }
-        }
-        legalFormInsee = agencyExt?.legalForm ?? null
+        // Timeout ou erreur réseau — fallback silencieux sur les données DB
       }
-      // Sécurité : si le fetch a réussi mais sans libelle_nature_juridique, fallback DB
-      legalFormInsee = legalFormInsee ?? agencyExt?.legalForm ?? null
-    } else if (agencyExt?.siretVerified && agencyExt.dirigeantNom) {
-      // Pas de SIRET mais données stockées
-      dirigeant = { nom: agencyExt.dirigeantNom, prenoms: agencyExt.dirigeantPrenoms ?? '' }
-      legalFormInsee = agencyExt?.legalForm ?? null
+
+      // Fallback DB si le fetch n'a rien retourné
+      if (!legalFormInsee) {
+        legalFormInsee = agency?.legalForm ?? null
+      }
+      if (!dirigeant && agency?.siretVerified && agency.dirigeantNom) {
+        dirigeant = { nom: agency.dirigeantNom, prenoms: agency.dirigeantPrenoms ?? '' }
+      }
+    } else if (agency?.siretVerified) {
+      // Pas de SIRET renseigné, mais données vérifiées stockées en DB
+      legalFormInsee = agency?.legalForm ?? null
+      if (agency.dirigeantNom) {
+        dirigeant = { nom: agency.dirigeantNom, prenoms: agency.dirigeantPrenoms ?? '' }
+      }
     }
 
-    // Comparaison forme juridique : INSEE (live) vs déclarée par l'entreprise
-    // legalFormDeclared = ce que l'entreprise a saisi dans son profil portail
-    // legalFormInsee   = valeur officielle data.gouv.fr (via SIREN live ou cache DB)
-    const declared = agencyExt?.legalFormDeclared ?? null
+    // ── Comparaison forme juridique ──────────────────────────────────────────
+    // declared = ce que l'entreprise a déclaré sur le portail
+    //            (legalFormDeclared en priorité, sinon legalForm comme fallback)
+    const declared = agency?.legalFormDeclared ?? agency?.legalForm ?? null
     const legalFormMatch: boolean | null =
       legalFormInsee && declared ? legalFormsMatch(legalFormInsee, declared) : null
 
