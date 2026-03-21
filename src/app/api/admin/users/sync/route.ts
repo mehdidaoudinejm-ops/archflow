@@ -52,7 +52,10 @@ export async function GET(req: Request) {
       SELECT email FROM auth.users
     `
     const authEmails = new Set(authRows.map((r) => r.email))
-    const orphans = allUsers.filter((u) => !authEmails.has(u.email))
+    // COMPANY et CLIENT n'ont jamais de compte Supabase Auth — les exclure impérativement
+    const orphans = allUsers.filter(
+      (u) => !authEmails.has(u.email) && u.role !== 'COMPANY' && u.role !== 'CLIENT'
+    )
 
     return NextResponse.json({ orphans })
   } catch (error) {
@@ -85,6 +88,15 @@ export async function POST(req: Request) {
 
     // 1. Supprimer de Prisma
     const prismaUser = await prisma.user.findUnique({ where: { email } })
+
+    // Refuser la suppression des COMPANY et CLIENT via cet endpoint — ils n'ont pas de Supabase Auth
+    if (prismaUser && (prismaUser.role === 'COMPANY' || prismaUser.role === 'CLIENT')) {
+      return NextResponse.json(
+        { error: `Impossible de supprimer un utilisateur ${prismaUser.role} via la purge d'orphelins` },
+        { status: 400 }
+      )
+    }
+
     if (prismaUser) {
       await prisma.$transaction([
         prisma.projectPermission.deleteMany({ where: { userId: prismaUser.id } }),
@@ -132,7 +144,10 @@ export async function DELETE() {
       SELECT email FROM auth.users
     `
     const authEmails = new Set(authRows.map((r) => r.email))
-    const orphans = allUsers.filter((u) => !authEmails.has(u.email))
+    // COMPANY et CLIENT n'ont jamais de compte Supabase Auth — les exclure impérativement
+    const orphans = allUsers.filter(
+      (u) => !authEmails.has(u.email) && u.role !== 'COMPANY' && u.role !== 'CLIENT'
+    )
 
     let deleted = 0
     for (const orphan of orphans) {
