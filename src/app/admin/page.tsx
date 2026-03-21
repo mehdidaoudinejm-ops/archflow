@@ -9,6 +9,7 @@ import { WeeklySignupsChart } from '@/components/shell/WeeklySignupsChart'
 import { SetupStorageButton } from '@/components/shell/SetupStorageButton'
 import { BackfillAnnuaireButton } from '@/components/shell/BackfillAnnuaireButton'
 import { AdminSuspendButton } from '@/components/shell/AdminSuspendButton'
+import { AdminRefreshButton } from '@/components/shell/AdminRefreshButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -222,6 +223,7 @@ export default async function AdminDashboardPage() {
               {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
           </div>
+          <AdminRefreshButton />
         </div>
 
         {dbError && (
