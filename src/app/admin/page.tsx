@@ -47,13 +47,14 @@ export default async function AdminDashboardPage() {
   // ── Stats ─────────────────────────────────────────────────────────────────
   let totalUsers = 0
   let activeArchitects = 0
-  let totalArchAgencies = 0
-  let totalCompanyAgencies = 0
+  let totalArchAgencies = 0       // agences archi avec ≥1 utilisateur actif
+  let uniqueInvitedCompanies = 0  // entreprises distinctes invitées (source : AOCompany)
+  let totalInvitations = 0        // total participations AO toutes entreprises confondues
+  let submittedOffers = 0         // offres déposées (soumises)
   let mrr = 0
   let activeProjects = 0
   let activeAOs = 0
   let newUsersLast30Days = 0
-  let invitedCompanies = 0
 
   // ── Tables ────────────────────────────────────────────────────────────────
   let recentUsers: {
@@ -105,11 +106,14 @@ export default async function AdminDashboardPage() {
     const [
       usersTotal,
       architectsActive,
-      agenciesAll,
+      agenciesArchi,
+      agenciesMrr,
       projectsActive,
       aosActive,
       usersNew,
-      companiesInvited,
+      distinctCompanies,
+      invitationsTotal,
+      offersSubmitted,
       usersRecent,
       agenciesRecent,
       projectsRecent,
@@ -117,11 +121,22 @@ export default async function AdminDashboardPage() {
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { role: 'ARCHITECT', suspended: false } }),
-      prisma.agency.findMany({ select: { plan: true, activeModules: true } }),
+      // Agences archi avec au moins 1 utilisateur (évite de compter les agences vides/tests)
+      prisma.agency.count({
+        where: { activeModules: { has: 'dpgf' }, users: { some: {} } },
+      }),
+      // Pour le MRR on a besoin du plan de chaque agence archi active
+      prisma.agency.findMany({
+        where: { activeModules: { has: 'dpgf' }, users: { some: {} } },
+        select: { plan: true },
+      }),
       prisma.project.count({ where: { status: 'ACTIVE' } }),
       prisma.aO.count({ where: { status: { in: ['SENT', 'IN_PROGRESS'] } } }),
       prisma.user.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
-      prisma.user.count({ where: { role: 'COMPANY' } }),
+      // Entreprises distinctes : source de vérité = AOCompany (résistant à la purge users)
+      prisma.aOCompany.groupBy({ by: ['companyUserId'] }),
+      prisma.aOCompany.count(),
+      prisma.offer.count({ where: { submittedAt: { not: null } } }),
       prisma.user.findMany({
         orderBy: { createdAt: 'desc' },
         take: 10,
@@ -174,13 +189,11 @@ export default async function AdminDashboardPage() {
 
     totalUsers = usersTotal
     activeArchitects = architectsActive
-    invitedCompanies = companiesInvited
-    // Agences archi = activeModules contient "dpgf" | Entreprises construction = activeModules vide
-    totalArchAgencies = agenciesAll.filter((a) => a.activeModules.includes('dpgf')).length
-    totalCompanyAgencies = agenciesAll.filter((a) => !a.activeModules.includes('dpgf')).length
-    mrr = agenciesAll
-      .filter((a) => a.activeModules.includes('dpgf'))
-      .reduce((sum, a) => sum + (MRR_BY_PLAN[a.plan] ?? 0), 0)
+    totalArchAgencies = agenciesArchi
+    uniqueInvitedCompanies = distinctCompanies.length
+    totalInvitations = invitationsTotal
+    submittedOffers = offersSubmitted
+    mrr = agenciesMrr.reduce((sum, a) => sum + (MRR_BY_PLAN[a.plan] ?? 0), 0)
     activeProjects = projectsActive
     activeAOs = aosActive
     newUsersLast30Days = usersNew
@@ -257,8 +270,9 @@ export default async function AdminDashboardPage() {
           <StatCard
             icon={<Briefcase size={20} />}
             iconBg="#F3F4F6" iconColor="#6B7280"
-            label="Entreprises construction"
-            value={totalCompanyAgencies}
+            label="Entreprises BTP"
+            value={uniqueInvitedCompanies}
+            sub="entreprises distinctes"
           />
           <StatCard
             icon={<TrendingUp size={20} />}
@@ -282,9 +296,9 @@ export default async function AdminDashboardPage() {
           <StatCard
             icon={<Send size={20} />}
             iconBg="#EEF2FF" iconColor="#4338CA"
-            label="Entreprises invitées"
-            value={invitedCompanies}
-            sub="emails uniques"
+            label="Invitations AO"
+            value={totalInvitations}
+            sub={`${submittedOffers} offre${submittedOffers > 1 ? 's' : ''} déposée${submittedOffers > 1 ? 's' : ''}`}
           />
         </div>
 
