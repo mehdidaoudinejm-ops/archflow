@@ -7,6 +7,18 @@ import { DEFAULT_WEIGHTS } from '@/lib/scoring'
 
 // ── Helpers data.gouv (cached 24h) ────────────────────────────────────────────
 
+// L'API recherche-entreprises retourne nature_juridique (code INSEE) mais PAS libelle_nature_juridique
+const NATURE_JURIDIQUE_LABELS: Record<string, string> = {
+  '1000': 'Entrepreneur individuel',
+  '5202': 'Société en nom collectif (SNC)',
+  '5498': 'Société à responsabilité limitée',
+  '5499': 'Société à responsabilité limitée',
+  '5599': 'Société anonyme',
+  '5710': 'Société par actions simplifiée',
+  '5720': 'Société par actions simplifiée à associé unique',
+  '6540': 'Société civile',
+}
+
 type GovCompanyData = {
   legalForm: string | null
   dirigeantNom: string | null
@@ -22,13 +34,14 @@ const fetchGovCompanyData = unstable_cache(
       if (!res.ok) return { legalForm: null, dirigeantNom: null }
       const govData = await res.json() as {
         results?: Array<{
-          libelle_nature_juridique?: string
+          nature_juridique?: string
           dirigeants?: Array<{ nom?: string }>
         }>
       }
       const result = govData.results?.[0]
+      const njCode = result?.nature_juridique ?? null
       return {
-        legalForm: result?.libelle_nature_juridique ?? null,
+        legalForm: njCode ? (NATURE_JURIDIQUE_LABELS[njCode] ?? null) : null,
         dirigeantNom: result?.dirigeants?.[0]?.nom ?? null,
       }
     } catch {

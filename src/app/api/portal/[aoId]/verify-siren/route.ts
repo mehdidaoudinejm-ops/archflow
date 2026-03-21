@@ -5,12 +5,23 @@ import { AuthError } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
+// L'API recherche-entreprises retourne nature_juridique (code INSEE) mais PAS libelle_nature_juridique
+const NATURE_JURIDIQUE_LABELS: Record<string, string> = {
+  '1000': 'Entrepreneur individuel',
+  '5202': 'Société en nom collectif (SNC)',
+  '5498': 'Société à responsabilité limitée',
+  '5499': 'Société à responsabilité limitée',
+  '5599': 'Société anonyme',
+  '5710': 'Société par actions simplifiée',
+  '5720': 'Société par actions simplifiée à associé unique',
+  '6540': 'Société civile',
+}
+
 interface RechercheResult {
   siren?: string
   nom_complet?: string
   nom_raison_sociale?: string
   nature_juridique?: string
-  libelle_nature_juridique?: string
   date_creation?: string  // date d'immatriculation INSEE (YYYY-MM-DD)
   siege?: {
     siret?: string
@@ -83,7 +94,8 @@ export async function GET(
     }
 
     const companyName = result.nom_complet ?? result.nom_raison_sociale ?? ''
-    const legalForm = result.libelle_nature_juridique ?? null
+    const njCode = result.nature_juridique ?? null
+    const legalForm = njCode ? (NATURE_JURIDIQUE_LABELS[njCode] ?? null) : null
     const dateCreationInsee = result.date_creation ? new Date(result.date_creation) : null
 
     const siege = result.siege

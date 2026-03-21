@@ -10,6 +10,18 @@ function normalizeLF(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '')
 }
 
+// L'API recherche-entreprises retourne nature_juridique (code INSEE) mais PAS libelle_nature_juridique
+const NATURE_JURIDIQUE_LABELS: Record<string, string> = {
+  '1000': 'Entrepreneur individuel',
+  '5202': 'Société en nom collectif (SNC)',
+  '5498': 'Société à responsabilité limitée',
+  '5499': 'Société à responsabilité limitée',
+  '5599': 'Société anonyme',
+  '5710': 'Société par actions simplifiée',
+  '5720': 'Société par actions simplifiée à associé unique',
+  '6540': 'Société civile',
+}
+
 // Abréviations → fragment attendu dans la valeur INSEE complète
 const LEGAL_ABBREV: Record<string, string> = {
   sarl: 'responsabilitelimitee',
@@ -121,12 +133,13 @@ export async function GET(
         if (res.ok) {
           const data = await res.json() as {
             results?: Array<{
-              libelle_nature_juridique?: string
+              nature_juridique?: string
               dirigeants?: Array<{ nom?: string; prenoms?: string }>
             }>
           }
           const result = data.results?.[0]
-          legalFormInsee = result?.libelle_nature_juridique ?? null
+          const njCode = result?.nature_juridique ?? null
+          legalFormInsee = njCode ? (NATURE_JURIDIQUE_LABELS[njCode] ?? null) : null
 
           const govDir = result?.dirigeants?.[0]
           if (govDir?.nom) {
