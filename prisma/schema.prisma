@@ -22,6 +22,7 @@ model Agency {
   siretVerified    Boolean   @default(false)
   legalForm         String?   // Forme juridique INSEE (via vérification SIRET)
   legalFormDeclared String?   // Forme juridique déclarée par l'entreprise dans son profil
+  ape               String?   // Code APE/NAF INSEE (via vérification SIRET, ex: "43.31Z")
   dirigeantNom     String?
   dirigeantPrenoms  String?
   dateCreationInsee DateTime?

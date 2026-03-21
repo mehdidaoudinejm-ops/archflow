@@ -105,6 +105,7 @@ export function PortalEntrepriseClient({ aoId, aoName, deadline, token, user, ag
 
   const [verifying, setVerifying] = useState(false)
   const [verifyMsg, setVerifyMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [ape, setApe] = useState<string | null>(null)
   const [dirigeant, setDirigeant] = useState<{ nom: string; prenoms: string } | null>(null)
 
   function handleSiretChange(v: string) {
@@ -131,6 +132,7 @@ export function PortalEntrepriseClient({ aoId, aoName, deadline, token, user, ag
         siret?: string
         companyName?: string
         legalForm?: string
+        ape?: string | null
         companyAddress?: string
         postalCode?: string
         city?: string
@@ -142,7 +144,8 @@ export function PortalEntrepriseClient({ aoId, aoName, deadline, token, user, ag
       }
       if (data.siret) setSiret(data.siret)
       if (data.companyName && !companyName) setCompanyName(data.companyName)
-      if (data.legalForm) setLegalForm(data.legalForm)  // toujours remplir depuis data.gouv
+      if (data.legalForm) setLegalForm(data.legalForm)
+      if (data.ape) setApe(data.ape)
       if (data.companyAddress && !companyAddress) setCompanyAddress(data.companyAddress)
       if (data.postalCode && !postalCode) setPostalCode(data.postalCode)
       if (data.city && !city) setCity(data.city)
@@ -269,6 +272,11 @@ export function PortalEntrepriseClient({ aoId, aoName, deadline, token, user, ag
                 {dirigeant && (
                   <p className="text-xs" style={{ color: 'var(--text2)' }}>
                     Dirigeant enregistré : <strong>{dirigeant.prenoms} {dirigeant.nom}</strong>
+                  </p>
+                )}
+                {ape && (
+                  <p className="text-xs" style={{ color: 'var(--text2)' }}>
+                    Code APE : <strong className="font-mono">{ape}</strong>
                   </p>
                 )}
                 <p className="text-xs" style={{ color: 'var(--text3)' }}>

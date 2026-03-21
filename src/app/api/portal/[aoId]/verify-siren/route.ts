@@ -22,6 +22,7 @@ interface RechercheResult {
   nom_complet?: string
   nom_raison_sociale?: string
   nature_juridique?: string
+  activite_principale?: string  // code APE/NAF (ex: "43.31Z")
   date_creation?: string  // date d'immatriculation INSEE (YYYY-MM-DD)
   siege?: {
     siret?: string
@@ -96,6 +97,7 @@ export async function GET(
     const companyName = result.nom_complet ?? result.nom_raison_sociale ?? ''
     const njCode = result.nature_juridique ?? null
     const legalForm = njCode ? (NATURE_JURIDIQUE_LABELS[njCode] ?? null) : null
+    const ape = result.activite_principale ?? null
     const dateCreationInsee = result.date_creation ? new Date(result.date_creation) : null
 
     const siege = result.siege
@@ -109,6 +111,7 @@ export async function GET(
       siret: siretToFetch,
       siretVerified: true,
       legalForm: legalForm ?? undefined,
+      ape: ape ?? undefined,
       dateCreationInsee: dateCreationInsee ?? undefined,
       dirigeantNom: dirigeant?.nom ?? null,
       dirigeantPrenoms: dirigeant?.prenoms ?? null,
@@ -138,6 +141,7 @@ export async function GET(
       siret: siretToFetch,
       companyName,
       legalForm,
+      ape,
       dateCreationInsee: result.date_creation ?? null,
       companyAddress,
       postalCode,

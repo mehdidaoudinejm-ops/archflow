@@ -122,6 +122,7 @@ interface CompanyDetail {
   }
   legalFormInsee: string | null
   legalFormMatch: boolean | null
+  apeInsee: string | null
   dirigeant: { nom: string; prenoms: string } | null
   dirigeantNameMatch: boolean | null
   selectedLotIds: string[]
@@ -334,7 +335,21 @@ export function CompanySheet({
                     )}
                   </div>
                 </div>
-                <Row label="Corps de métier" value={agency?.trade ?? '—'} />
+                {/* Corps de métier + APE côte à côte pour vérification cohérence */}
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-sm flex-shrink-0" style={{ color: 'var(--text2)' }}>Corps de métier</span>
+                  <div className="text-right space-y-0.5">
+                    <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                      {agency?.trade ?? '—'}
+                    </span>
+                    {detail.apeInsee && (
+                      <div className="text-xs" style={{ color: 'var(--text3)' }}>
+                        Code APE : <span className="font-mono font-medium" style={{ color: 'var(--text2)' }}>{detail.apeInsee}</span>
+                        <span className="ml-1" style={{ color: 'var(--text3)' }}>· data.gouv.fr</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <Row label="Email" value={detail.companyUser.email} />
                 <Row
                   label="Signataire"

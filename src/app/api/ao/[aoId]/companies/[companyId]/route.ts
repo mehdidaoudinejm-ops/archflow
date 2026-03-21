@@ -89,7 +89,7 @@ export async function GET(
         agency: {
           select: {
             id: true, name: true, siret: true, siretVerified: true,
-            legalForm: true, legalFormDeclared: true,
+            legalForm: true, legalFormDeclared: true, ape: true,
             dateCreationInsee: true, companyAddress: true, postalCode: true,
             city: true, phone: true, trade: true, signatoryQuality: true,
             dirigeantNom: true, dirigeantPrenoms: true,
@@ -116,8 +116,9 @@ export async function GET(
     }
     const agency = companyUser?.agency as (AgencyExt | null)
 
-    // ── Fetch data.gouv.fr (non-bloquant, timeout 3s) ────────────────────────
+    // ── Fetch data.gouv.fr (non-bloquant, timeout 5s) ────────────────────────
     let legalFormInsee: string | null = null
+    let apeInsee: string | null = null
     let dirigeant: { nom: string; prenoms: string } | null = null
     let dirigeantNameMatch: boolean | null = null
 
@@ -134,12 +135,14 @@ export async function GET(
           const data = await res.json() as {
             results?: Array<{
               nature_juridique?: string
+              activite_principale?: string
               dirigeants?: Array<{ nom?: string; prenoms?: string }>
             }>
           }
           const result = data.results?.[0]
           const njCode = result?.nature_juridique ?? null
           legalFormInsee = njCode ? (NATURE_JURIDIQUE_LABELS[njCode] ?? null) : null
+          if (result?.activite_principale) apeInsee = result.activite_principale
 
           const govDir = result?.dirigeants?.[0]
           if (govDir?.nom) {
@@ -166,15 +169,15 @@ export async function GET(
       }
 
       // Fallback DB si le fetch n'a rien retourné
-      if (!legalFormInsee) {
-        legalFormInsee = agency?.legalForm ?? null
-      }
+      if (!legalFormInsee) legalFormInsee = agency?.legalForm ?? null
+      if (!apeInsee) apeInsee = (agency as { ape?: string | null } | null)?.ape ?? null
       if (!dirigeant && agency?.siretVerified && agency.dirigeantNom) {
         dirigeant = { nom: agency.dirigeantNom, prenoms: agency.dirigeantPrenoms ?? '' }
       }
     } else if (agency?.siretVerified) {
       // Pas de SIRET renseigné, mais données vérifiées stockées en DB
       legalFormInsee = agency?.legalForm ?? null
+      apeInsee = (agency as { ape?: string | null } | null)?.ape ?? null
       if (agency.dirigeantNom) {
         dirigeant = { nom: agency.dirigeantNom, prenoms: agency.dirigeantPrenoms ?? '' }
       }
@@ -215,6 +218,7 @@ export async function GET(
       },
       legalFormInsee,
       legalFormMatch,
+      apeInsee,
       dirigeant,
       dirigeantNameMatch,
       activityLogs: activityLogs.map((l) => ({
