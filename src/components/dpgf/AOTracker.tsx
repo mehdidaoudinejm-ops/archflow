@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { getNafLabel } from '@/lib/naf'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -345,6 +346,9 @@ export function CompanySheet({
                     {detail.apeInsee && (
                       <div className="text-xs" style={{ color: 'var(--text3)' }}>
                         Code APE : <span className="font-mono font-medium" style={{ color: 'var(--text2)' }}>{detail.apeInsee}</span>
+                        {getNafLabel(detail.apeInsee) && (
+                          <span className="ml-1" style={{ color: 'var(--text3)' }}>— {getNafLabel(detail.apeInsee)}</span>
+                        )}
                         <span className="ml-1" style={{ color: 'var(--text3)' }}>· data.gouv.fr</span>
                       </div>
                     )}

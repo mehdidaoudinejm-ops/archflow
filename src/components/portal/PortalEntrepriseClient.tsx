@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Check, ShieldCheck, ShieldAlert, ShieldOff, AlertCircle } from 'lucide-react'
 import { PortalShell } from '@/components/portal/PortalShell'
+import { getNafLabel } from '@/lib/naf'
 
 interface AgencyData {
   id: string
@@ -144,7 +145,6 @@ export function PortalEntrepriseClient({ aoId, aoName, deadline, token, user, ag
       }
       if (data.siret) setSiret(data.siret)
       if (data.companyName && !companyName) setCompanyName(data.companyName)
-      if (data.legalForm) setLegalForm(data.legalForm)
       if (data.ape) setApe(data.ape)
       if (data.companyAddress && !companyAddress) setCompanyAddress(data.companyAddress)
       if (data.postalCode && !postalCode) setPostalCode(data.postalCode)
@@ -277,10 +277,11 @@ export function PortalEntrepriseClient({ aoId, aoName, deadline, token, user, ag
                 {ape && (
                   <p className="text-xs" style={{ color: 'var(--text2)' }}>
                     Code APE : <strong className="font-mono">{ape}</strong>
+                    {getNafLabel(ape) && <span className="ml-1">— {getNafLabel(ape)}</span>}
                   </p>
                 )}
                 <p className="text-xs" style={{ color: 'var(--text3)' }}>
-                  Vérification via data.gouv.fr — complète automatiquement adresse et forme juridique
+                  Vérification via data.gouv.fr — complète automatiquement l&apos;adresse
                 </p>
               </div>
 
