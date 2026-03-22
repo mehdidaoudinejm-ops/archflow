@@ -12,18 +12,29 @@ export async function GET(req: Request) {
     const search = searchParams.get('search') ?? ''
     const lot    = searchParams.get('lot')    ?? ''
 
-    const items = await prisma.libraryItem.findMany({
-      where: {
-        validated: true,
-        ...(lot    ? { lot: { equals: lot, mode: 'insensitive' } } : {}),
-        ...(search ? { intitule: { contains: search, mode: 'insensitive' } } : {}),
-      },
-      orderBy: [{ usageCount: 'desc' }, { createdAt: 'desc' }],
-      take: 200,
-      select: { id: true, intitule: true, unite: true, lot: true, sousLot: true, usageCount: true },
-    })
+    const [items, lotGroups] = await Promise.all([
+      prisma.libraryItem.findMany({
+        where: {
+          validated: true,
+          ...(lot    ? { lot: { equals: lot, mode: 'insensitive' } } : {}),
+          ...(search ? { intitule: { contains: search, mode: 'insensitive' } } : {}),
+        },
+        orderBy: [{ usageCount: 'desc' }, { createdAt: 'desc' }],
+        take: 200,
+        select: { id: true, intitule: true, unite: true, lot: true, sousLot: true, usageCount: true },
+      }),
+      // Lots distincts réellement présents en BDD (items validés uniquement)
+      prisma.libraryItem.findMany({
+        where:    { validated: true },
+        distinct: ['lot'],
+        orderBy:  { lot: 'asc' },
+        select:   { lot: true },
+      }),
+    ])
 
-    return NextResponse.json(items)
+    const lots = lotGroups.map((g) => g.lot)
+
+    return NextResponse.json({ items, lots })
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json({ error: error.message }, { status: error.statusCode })

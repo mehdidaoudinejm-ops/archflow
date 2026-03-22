@@ -36,6 +36,7 @@ export function LibrarySheet({ open, onClose, dpgfId, lots, onInserted }: Librar
   const [lot, setLot]                     = useState('')
   const [selectedLotId, setSelectedLotId] = useState('')
   const [items, setItems]                 = useState<LibraryItem[]>([])
+  const [availableLots, setAvailableLots] = useState<string[]>([])
   const [loading, setLoading]             = useState(false)
   const [inserting, setInserting]         = useState<string | null>(null)
 
@@ -53,8 +54,11 @@ export function LibrarySheet({ open, onClose, dpgfId, lots, onInserted }: Librar
       if (search) params.set('search', search)
       if (lot)    params.set('lot', lot)
       const res  = await fetch(`/api/library/items?${params.toString()}`)
-      const data = await res.json() as LibraryItem[]
-      setItems(Array.isArray(data) ? data : [])
+      const data = await res.json() as { items: LibraryItem[]; lots: string[] }
+      setItems(Array.isArray(data.items) ? data.items : [])
+      if (Array.isArray(data.lots) && data.lots.length > 0) {
+        setAvailableLots(data.lots)
+      }
     } catch {
       setItems([])
     } finally {
@@ -147,7 +151,7 @@ export function LibrarySheet({ open, onClose, dpgfId, lots, onInserted }: Librar
             />
           </div>
 
-          {/* Lot filter — select pour éviter que les pills n'écrasent la hauteur */}
+          {/* Lot filter — valeurs réelles de la BDD */}
           <select
             value={lot}
             onChange={(e) => setLot(e.target.value)}
@@ -159,7 +163,7 @@ export function LibrarySheet({ open, onClose, dpgfId, lots, onInserted }: Librar
             }}
           >
             <option value="">Tous les lots</option>
-            {STANDARD_LOTS.map((l) => (
+            {availableLots.map((l) => (
               <option key={l} value={l}>{l}</option>
             ))}
           </select>
@@ -228,18 +232,3 @@ export function LibrarySheet({ open, onClose, dpgfId, lots, onInserted }: Librar
   )
 }
 
-function LotBtn({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="px-2.5 py-1 rounded-full text-xs font-medium transition-colors"
-      style={{
-        background: active ? 'var(--green)'      : 'var(--surface2)',
-        color:      active ? '#fff'              : 'var(--text2)',
-        border:     `1px solid ${active ? 'var(--green)' : 'var(--border)'}`,
-      }}
-    >
-      {label}
-    </button>
-  )
-}
