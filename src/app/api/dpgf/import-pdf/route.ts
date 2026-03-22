@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole, AuthError } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-// Import direct du lib pour éviter le chargement du fichier de test au démarrage (bug serverless)
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
-const pdfParse: (buf: Buffer) => Promise<{ text: string }> = require('pdf-parse/lib/pdf-parse.js')
+import { PDFParse } from 'pdf-parse'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -11,17 +9,7 @@ export const maxDuration = 60
 
 const MAX_SIZE = 20 * 1024 * 1024 // 20 Mo
 
-// ─── Parsing du texte PDF ────────────────────────────────────────────────────
-//
-// Un DPGF PDF a typiquement des lignes de la forme :
-//   [ref]  Désignation ...........  unité   qté   prix_unitaire
-//
-// Stratégie :
-//  1. Extraire le texte brut avec pdf-parse
-//  2. Découper ligne par ligne
-//  3. Détecter les lignes "poste" : celles qui contiennent du texte + au
-//     moins un nombre (prix ou quantité)
-//  4. Extraire designation / unite / quantite / prixUnitaire avec des regex
+// ─── Types internes ──────────────────────────────────────────────────────────
 
 interface ParsedPost {
   title: string
@@ -30,64 +18,44 @@ interface ParsedPost {
   prix:  number | null
 }
 
-// Unités courantes dans un DPGF
-const UNITS = ['m²', 'm2', 'm³', 'm3', 'ml', 'ml.', 'ml,', 'mL', 'u', 'ens', 'ens.', 'ff', 'ft', 'kg', 'h', 'jrs', 'jour', 'forfait', 'fft']
-const UNITS_RE = new RegExp(`\\b(${UNITS.map(u => u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'i')
+// ─── Parsing depuis tables (getTable) ────────────────────────────────────────
 
-// Nombre décimal (peut contenir espace ou virgule comme séparateur)
-const NUM_RE = /[\d\s]+(?:[.,]\d+)?/
+const UNITS_RE = /\b(m²|m2|m³|m3|ml|mL|ens|ens\.|ff|fft|kg|h|jrs?|jour|forfait|u)\b/i
 
-function parseLines(text: string): ParsedPost[] {
+function parseNum(s: string): number | null {
+  const clean = s.replace(/\s/g, '').replace(',', '.')
+  const n = parseFloat(clean)
+  return isNaN(n) || n <= 0 ? null : n
+}
+
+function postsFromTables(tables: string[][][]): ParsedPost[] {
   const results: ParsedPost[] = []
 
-  const lines = text
-    .split('\n')
-    .map(l => l.trim())
-    .filter(l => l.length > 3)
+  for (const table of tables) {
+    if (table.length < 2) continue
 
-  for (const line of lines) {
-    // Ignorer les lignes de séparation, titres sans contenu chiffré
-    // On cherche au moins un nombre dans la ligne
-    if (!/\d/.test(line)) continue
+    // Détecter les colonnes via la première ligne
+    const header = table[0].map(h => h.toLowerCase().trim())
+    const colDesignation  = header.findIndex(h => /design|descri|libel|intit/.test(h))
+    const colUnite        = header.findIndex(h => /unit[eé]|\bu\b/.test(h))
+    const colQte          = header.findIndex(h => /qt[eé]|quant|nb\b/.test(h))
+    const colPrix         = header.findIndex(h => /pu\b|prix u|unit price/.test(h))
 
-    // Extraire les nombres de fin de ligne (prix, quantité)
-    // Format typique : "... désignation   m²   120   25,00"
-    const numbers: number[] = []
-    const numMatches = Array.from(line.matchAll(/(\d[\d\s]*(?:[.,]\d+)?)/g))
-    for (const m of numMatches) {
-      const val = parseFloat(m[1].replace(/\s/g, '').replace(',', '.'))
-      if (!isNaN(val) && val > 0) numbers.push(val)
-    }
+    for (let r = 1; r < table.length; r++) {
+      const row = table[r]
+      if (!row || row.length === 0) continue
 
-    if (numbers.length === 0) continue
+      let title = colDesignation >= 0 ? row[colDesignation] : row[0]
+      title = title?.replace(/^\d+[\d.]*\s+/, '').trim() ?? ''
+      if (title.length < 3) continue
 
-    // Détecter l'unité
-    const unitMatch = line.match(UNITS_RE)
-    const unit = unitMatch ? unitMatch[1].toLowerCase() : 'u'
+      const unitCell = colUnite >= 0 ? row[colUnite] : ''
+      const unitMatch = unitCell?.match(UNITS_RE)
+      const unit = unitMatch ? unitMatch[1].toLowerCase() : 'u'
 
-    // Extraire la désignation : tout ce qui précède l'unité ou les premiers chiffres
-    let title = line
-    if (unitMatch?.index !== undefined) {
-      title = line.slice(0, unitMatch.index).trim()
-    } else {
-      // Prendre tout jusqu'au premier gros bloc de chiffres
-      const firstNum = line.search(/\s{2,}\d/)
-      if (firstNum > 0) title = line.slice(0, firstNum).trim()
-    }
+      const qty  = colQte  >= 0 ? parseNum(row[colQte]  ?? '') : null
+      const prix = colPrix >= 0 ? parseNum(row[colPrix] ?? '') : null
 
-    // Nettoyer la désignation : retirer la référence de début (ex: "01.02 ")
-    title = title.replace(/^\d+[\d.]*\s+/, '').trim()
-
-    // Si la désignation est vide ou trop courte, ignorer
-    if (title.length < 3) continue
-
-    // Quantité = avant-dernier nombre, Prix = dernier nombre
-    // S'il n'y a qu'un nombre, c'est probablement le prix unitaire
-    const prix = numbers.length >= 1 ? numbers[numbers.length - 1] : null
-    const qty  = numbers.length >= 2 ? numbers[numbers.length - 2] : null
-
-    // Ignorer les lignes où le "prix" semble être juste un numéro de page/ref
-    if (prix !== null && prix > 0 && title.length >= 3) {
       results.push({ title, unit, qty, prix })
     }
   }
@@ -95,7 +63,46 @@ function parseLines(text: string): ParsedPost[] {
   return results
 }
 
-// ─── Route ──────────────────────────────────────────────────────────────────
+// ─── Parsing depuis texte brut (getText) fallback ────────────────────────────
+
+function postsFromText(text: string): ParsedPost[] {
+  const results: ParsedPost[] = []
+
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 3)
+
+  for (const line of lines) {
+    if (!/\d/.test(line)) continue
+
+    const numbers: number[] = []
+    for (const m of Array.from(line.matchAll(/(\d[\d\s]*(?:[.,]\d+)?)/g))) {
+      const val = parseNum(m[1])
+      if (val !== null) numbers.push(val)
+    }
+    if (numbers.length === 0) continue
+
+    const unitMatch = line.match(UNITS_RE)
+    const unit = unitMatch ? unitMatch[1].toLowerCase() : 'u'
+
+    let title = line
+    if (unitMatch?.index !== undefined) {
+      title = line.slice(0, unitMatch.index).trim()
+    } else {
+      const firstNum = line.search(/\s{2,}\d/)
+      if (firstNum > 0) title = line.slice(0, firstNum).trim()
+    }
+    title = title.replace(/^\d+[\d.]*\s+/, '').trim()
+    if (title.length < 3) continue
+
+    const prix = numbers.length >= 1 ? numbers[numbers.length - 1] : null
+    const qty  = numbers.length >= 2 ? numbers[numbers.length - 2] : null
+
+    if (prix !== null) results.push({ title, unit, qty, prix })
+  }
+
+  return results
+}
+
+// ─── Route ───────────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
   try {
@@ -122,14 +129,32 @@ export async function POST(req: Request) {
     })
     if (!dpgf) return NextResponse.json({ error: 'DPGF introuvable' }, { status: 404 })
 
-    // ── 1. Extraction du texte PDF ─────────────────────────────────────────
+    // ── 1. Extraction du PDF ───────────────────────────────────────────────
     let posts: ParsedPost[]
     try {
       const pdfBuffer = Buffer.from(await file.arrayBuffer())
-      const data = await pdfParse(pdfBuffer) as { text: string }
-      posts = parseLines(data.text)
+      const parser = new PDFParse({ data: pdfBuffer })
 
-      if (posts.length === 0) {
+      // Essai 1 : extraction par tableaux (meilleur résultat sur DPGF)
+      let usedTable = false
+      try {
+        const tableResult = await parser.getTable()
+        const allTables = tableResult.pages.flatMap(p => p.tables)
+        if (allTables.length > 0) {
+          posts = postsFromTables(allTables)
+          usedTable = posts.length > 0
+        }
+      } catch { /* pas de tables détectées */ }
+
+      // Essai 2 : fallback texte brut
+      if (!usedTable!) {
+        const textResult = await parser.getText()
+        posts = postsFromText(textResult.text)
+      }
+
+      await parser.destroy()
+
+      if (posts!.length === 0) {
         return NextResponse.json({ error: 'parsing_failed' }, { status: 422 })
       }
     } catch (err) {
@@ -153,8 +178,8 @@ export async function POST(req: Request) {
     let imported = 0
     let skipped  = 0
 
-    for (let i = 0; i < posts.length; i++) {
-      const { title, unit, qty, prix } = posts[i]
+    for (let i = 0; i < posts!.length; i++) {
+      const { title, unit, qty, prix } = posts![i]
       if (!title) { skipped++; continue }
 
       const position = i + 1
