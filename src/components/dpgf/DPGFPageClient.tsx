@@ -11,6 +11,7 @@ import { DPGFToolbar } from './DPGFToolbar'
 import { DPGFTable } from './DPGFTable'
 import { LibrarySheet } from './LibrarySheet'
 import { ImportDialog } from './ImportDialog'
+import { AiGenerateModal } from './AiGenerateModal'
 import {
   Dialog,
   DialogContent,
@@ -37,6 +38,7 @@ export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo, init
   const [importOpen, setImportOpen]     = useState(false)
   const [showUnlockModal, setShowUnlockModal] = useState(false)
   const [unlocking, setUnlocking]       = useState(false)
+  const [aiGenerateOpen, setAiGenerateOpen] = useState(false)
 
   // Statut courant (se met à jour après refresh)
   const dpgfStatus = dpgfState.dpgf?.status ?? 'DRAFT'
@@ -179,6 +181,7 @@ export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo, init
             onLaunchAO={handleLaunchAO}
             onOpenLibrary={() => setLibraryOpen(true)}
             aoButtonVariant={aoButtonVariant}
+            onAiGenerate={() => setAiGenerateOpen(true)}
           />
         </div>
 
@@ -224,6 +227,14 @@ export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo, init
         onClose={() => setImportOpen(false)}
         dpgfId={dpgfId}
         projectId={projectId}
+      />
+
+      {/* Génération IA */}
+      <AiGenerateModal
+        open={aiGenerateOpen}
+        onClose={() => setAiGenerateOpen(false)}
+        dpgfId={dpgfId}
+        onImported={() => dpgfState.refresh()}
       />
 
       {/* Modale unlock */}

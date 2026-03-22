@@ -1,6 +1,6 @@
 'use client'
 
-import { Search } from 'lucide-react'
+import { Search, Sparkles } from 'lucide-react'
 
 interface DPGFToolbarProps {
   search: string
@@ -10,6 +10,7 @@ interface DPGFToolbarProps {
   onLaunchAO: () => void
   onOpenLibrary: () => void
   aoButtonVariant: 'draft' | 'active' | 'closed'
+  onAiGenerate?: () => void
 }
 
 export function DPGFToolbar({
@@ -20,6 +21,7 @@ export function DPGFToolbar({
   onLaunchAO,
   onOpenLibrary,
   aoButtonVariant,
+  onAiGenerate,
 }: DPGFToolbarProps) {
   const aoBtn =
     aoButtonVariant === 'draft'
@@ -59,6 +61,14 @@ export function DPGFToolbar({
 
       {/* Actions */}
       <div className="flex items-center gap-2">
+        <button
+          onClick={onAiGenerate}
+          className="px-3 py-1.5 text-sm rounded-md font-medium flex items-center gap-1.5"
+          style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid var(--green)' }}
+        >
+          <Sparkles size={14} />
+          Générer avec l&apos;IA
+        </button>
         <button
           onClick={onOpenLibrary}
           className="px-3 py-1.5 text-sm rounded-md border font-medium"
