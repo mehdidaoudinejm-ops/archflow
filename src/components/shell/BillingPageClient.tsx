@@ -6,48 +6,33 @@ import { CheckCircle, Loader2, CreditCard } from 'lucide-react'
 
 type Plan = 'SOLO' | 'STUDIO' | 'AGENCY'
 
-interface PlanConfig {
-  key: Plan
-  label: string
-  price: string
-  priceId: string
-  description: string
-  features: string[]
+interface PlanLimitConfig {
+  collaboratorLimit: number
+  aiImportLimit:     number
+  price:             number
+  label:             string
+  description:       string
+  features:          string[]
 }
 
-const PLANS: PlanConfig[] = [
-  {
-    key: 'SOLO',
-    label: 'Solo',
-    price: 'Gratuit',
-    priceId: '',
-    description: 'Pour les indépendants',
-    features: ['1 utilisateur', '3 projets actifs', 'Module DPGF', 'Import IA (5/mois)'],
-  },
-  {
-    key: 'STUDIO',
-    label: 'Studio',
-    price: '49 €/mois',
-    priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_STUDIO ?? 'price_studio',
-    description: 'Pour les petits cabinets',
-    features: ['3 utilisateurs', '20 projets actifs', 'Tous les modules', 'Import IA illimité', 'Support prioritaire'],
-  },
-  {
-    key: 'AGENCY',
-    label: 'Agence',
-    price: '99 €/mois',
-    priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_AGENCY ?? 'price_agency',
-    description: 'Pour les agences',
-    features: ['Utilisateurs illimités', 'Projets illimités', 'Tous les modules', 'Import IA illimité', 'API accès', 'SLA 99.9%'],
-  },
-]
+const PRICE_IDS: Record<Plan, string> = {
+  SOLO:   '',
+  STUDIO: process.env.NEXT_PUBLIC_STRIPE_PRICE_STUDIO ?? 'price_studio',
+  AGENCY: process.env.NEXT_PUBLIC_STRIPE_PRICE_AGENCY ?? 'price_agency',
+}
+
+function formatPrice(price: number): string {
+  if (price === 0) return 'Gratuit'
+  return `${price} €/mois`
+}
 
 interface BillingPageClientProps {
-  currentPlan: Plan
+  currentPlan:  Plan
   hasStripeCustomer: boolean
+  planConfigs: Record<Plan, PlanLimitConfig>
 }
 
-export function BillingPageClient({ currentPlan, hasStripeCustomer }: BillingPageClientProps) {
+export function BillingPageClient({ currentPlan, hasStripeCustomer, planConfigs }: BillingPageClientProps) {
   const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -134,11 +119,13 @@ export function BillingPageClient({ currentPlan, hasStripeCustomer }: BillingPag
 
       {/* Grille des plans */}
       <div className="grid grid-cols-3 gap-4">
-        {PLANS.map((plan) => {
-          const isCurrent = plan.key === currentPlan
+        {(['SOLO', 'STUDIO', 'AGENCY'] as Plan[]).map((planKey) => {
+          const plan = planConfigs[planKey]
+          const priceId = PRICE_IDS[planKey]
+          const isCurrent = planKey === currentPlan
           return (
             <div
-              key={plan.key}
+              key={planKey}
               className="flex flex-col p-5 rounded-[var(--radius-lg)]"
               style={{
                 background: 'var(--surface)',
@@ -163,7 +150,7 @@ export function BillingPageClient({ currentPlan, hasStripeCustomer }: BillingPag
                 {plan.description}
               </p>
               <p className="text-xl font-bold mb-4" style={{ color: 'var(--text)' }}>
-                {plan.price}
+                {formatPrice(plan.price)}
               </p>
 
               <ul className="flex-1 space-y-2 mb-5">
@@ -175,19 +162,19 @@ export function BillingPageClient({ currentPlan, hasStripeCustomer }: BillingPag
                 ))}
               </ul>
 
-              {!isCurrent && plan.priceId && (
+              {!isCurrent && priceId && (
                 <button
-                  onClick={() => handleUpgrade(plan.priceId)}
+                  onClick={() => handleUpgrade(priceId)}
                   disabled={!!loading}
                   className="flex items-center justify-center gap-2 w-full py-2 text-sm rounded-[var(--radius)] font-medium"
                   style={{
-                    background: loading === plan.priceId ? 'var(--surface2)' : 'var(--green-btn)',
-                    color: loading === plan.priceId ? 'var(--text3)' : '#fff',
+                    background: loading === priceId ? 'var(--surface2)' : 'var(--green-btn)',
+                    color: loading === priceId ? 'var(--text3)' : '#fff',
                     border: 'none',
                   }}
                 >
-                  {loading === plan.priceId && <Loader2 size={13} className="animate-spin" />}
-                  {plan.key === 'SOLO' ? 'Rétrograder' : 'Passer à ce plan'}
+                  {loading === priceId && <Loader2 size={13} className="animate-spin" />}
+                  {planKey === 'SOLO' ? 'Rétrograder' : 'Passer à ce plan'}
                 </button>
               )}
               {isCurrent && (

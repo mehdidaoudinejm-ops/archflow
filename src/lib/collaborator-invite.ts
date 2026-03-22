@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from 'jose'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { CollaboratorInviteEmail } from '@/emails/CollaboratorInviteEmail'
-import { COLLABORATOR_LIMITS } from '@/lib/project-limits'
+import { getPlanLimits } from '@/lib/project-limits'
 
 export interface CollaboratorTokenPayload {
   email: string
@@ -48,7 +48,8 @@ export async function inviteCollaborator({
   const agency = await prisma.agency.findUnique({ where: { id: agencyId } })
   if (!agency) throw new Error('AGENCY_NOT_FOUND')
 
-  const limit = COLLABORATOR_LIMITS[agency.plan] ?? 0
+  const planLimits = await getPlanLimits()
+  const limit = planLimits[agency.plan as keyof typeof planLimits]?.collaboratorLimit ?? 0
   const currentCount = await prisma.user.count({
     where: { agencyId, role: 'COLLABORATOR', suspended: false },
   })

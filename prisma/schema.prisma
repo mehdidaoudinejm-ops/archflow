@@ -242,6 +242,17 @@ model Library {
   @@index([agencyId])
 }
 
+model PlanConfig {
+  plan              String   @id   // "SOLO" | "STUDIO" | "AGENCY"
+  collaboratorLimit Int      @default(0)
+  aiImportLimit     Int      @default(3)
+  price             Float    @default(0)
+  label             String
+  description       String   @default("")
+  features          Json     @default("[]")  // string[]
+  updatedAt         DateTime @updatedAt
+}
+
 model LibraryItem {
   id         String   @id @default(cuid())
   lot        String

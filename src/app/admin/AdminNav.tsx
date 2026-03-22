@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, Clock, Megaphone, Mail, BookOpen, ArrowLeft } from 'lucide-react'
+import { LayoutDashboard, Users, Clock, Megaphone, Mail, BookOpen, ArrowLeft, Package } from 'lucide-react'
 
 const links = [
   { href: '/admin',                label: 'Dashboard',         icon: <LayoutDashboard size={18} />, exact: true },
   { href: '/admin/users',          label: 'Utilisateurs',      icon: <Users size={18} />,           exact: false },
+  { href: '/admin/plans',          label: 'Packages',          icon: <Package size={18} />,         exact: false },
   { href: '/admin/waitlist',       label: "Liste d'attente",   icon: <Clock size={18} />,           exact: false },
   { href: '/admin/announcements',  label: 'Annonces',          icon: <Megaphone size={18} />,       exact: false },
   { href: '/admin/emails',         label: 'Emails',            icon: <Mail size={18} />,            exact: false },

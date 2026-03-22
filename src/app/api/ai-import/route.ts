@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireRole, AuthError } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { analyzeExcel, analyzePDF } from '@/lib/ai-import'
-import { AI_IMPORT_LIMITS } from '@/lib/project-limits'
+import { getPlanLimits } from '@/lib/project-limits'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +26,8 @@ export async function POST(req: Request) {
       where: { id: user.agencyId! },
       select: { plan: true },
     })
-    const planLimit = AI_IMPORT_LIMITS[agency?.plan ?? 'SOLO'] ?? 3
+    const planLimits = await getPlanLimits()
+    const planLimit = planLimits[agency?.plan as keyof typeof planLimits ?? 'SOLO']?.aiImportLimit ?? 3
     const limit = user.aiImportLimit ?? planLimit
 
     const startOfMonth = new Date()
