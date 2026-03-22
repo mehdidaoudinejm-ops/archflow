@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { prisma } from '@/lib/prisma'
 import { AdminAuthError, requireAdmin } from '@/lib/admin-auth'
+import { logActivity } from '@/lib/activity-log'
 import { z } from 'zod'
 
 const ROLES = ['ARCHITECT', 'COLLABORATOR', 'COMPANY', 'CLIENT', 'ADMIN'] as const
@@ -17,7 +18,7 @@ const schema = z.object({
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
-    await requireAdmin()
+    const session = await requireAdmin()
 
     const body = await req.json()
     const data = schema.parse(body)
@@ -27,24 +28,31 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       data,
     })
 
+    await logActivity({
+      userId:   session.user.id,
+      module:   'admin',
+      action:   'update_user',
+      metadata: { targetUserId: params.id, changes: data },
+    })
+
     return NextResponse.json(user)
   } catch (error) {
     if (error instanceof AdminAuthError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
-    console.error(error)
+    console.error('[PATCH admin/users]', error instanceof Error ? error.message : error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   try {
-    await requireAdmin()
+    const session = await requireAdmin()
 
     const userId = params.id
 
     // Récupérer l'email avant suppression (pour nettoyer la waitlist)
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } })
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, role: true } })
     if (!user) {
       return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 404 })
     }
@@ -79,12 +87,19 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
       })
     }
 
+    await logActivity({
+      userId:   session.user.id,
+      module:   'admin',
+      action:   'delete_user',
+      metadata: { targetUserId: userId, targetEmail: user.email, role: user.role },
+    })
+
     return NextResponse.json({ ok: true })
   } catch (error) {
     if (error instanceof AdminAuthError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
-    console.error('[DELETE user]', error)
+    console.error('[DELETE admin/users]', error instanceof Error ? error.message : error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

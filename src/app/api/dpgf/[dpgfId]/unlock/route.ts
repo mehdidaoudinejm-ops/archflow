@@ -3,6 +3,7 @@ import { requireRole, AuthError } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { DPGFModifiedEmail } from '@/emails/DPGFModifiedEmail'
+import { logActivity } from '@/lib/activity-log'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,9 +100,17 @@ export async function POST(
       }
     }
 
+    await logActivity({
+      userId:    user.id,
+      module:    'dpgf',
+      action:    'unlock_dpgf',
+      projectId: dpgf.projectId,
+      metadata:  { dpgfId: params.dpgfId, projectName, companiesNotified: companyUserIds.length },
+    })
+
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {
-    console.error('[POST /api/dpgf/[dpgfId]/unlock]', error)
+    console.error('[POST /api/dpgf/[dpgfId]/unlock]', error instanceof Error ? error.message : error)
     if (error instanceof AuthError) {
       return NextResponse.json({ error: error.message }, { status: 401 })
     }

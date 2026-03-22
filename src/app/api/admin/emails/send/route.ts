@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { AdminAuthError, requireAdmin } from '@/lib/admin-auth'
+import { logActivity } from '@/lib/activity-log'
 import { sendEmail } from '@/lib/email'
 import { z } from 'zod'
 
@@ -134,6 +135,13 @@ export async function POST(req: Request) {
         recipientCount: sent,
         sentBy: session.user.email,
       },
+    })
+
+    await logActivity({
+      userId:   session.user.id,
+      module:   'admin',
+      action:   'broadcast_email',
+      metadata: { subject, segment, recipientCount: sent },
     })
 
     return NextResponse.json({ ok: true, recipientCount: sent })

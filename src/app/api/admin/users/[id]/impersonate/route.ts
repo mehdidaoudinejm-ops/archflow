@@ -4,10 +4,11 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { prisma } from '@/lib/prisma'
 import { AdminAuthError, requireAdmin } from '@/lib/admin-auth'
+import { logActivity } from '@/lib/activity-log'
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   try {
-    await requireAdmin()
+    const session = await requireAdmin()
 
     const user = await prisma.user.findUnique({
       where: { id: params.id },
@@ -36,12 +37,19 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: 'Impossible de générer le lien' }, { status: 500 })
     }
 
+    await logActivity({
+      userId:   session.user.id,
+      module:   'admin',
+      action:   'impersonate_user',
+      metadata: { targetUserId: params.id, targetEmail: user.email },
+    })
+
     return NextResponse.json({ url: data.properties.action_link })
   } catch (error) {
     if (error instanceof AdminAuthError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
-    console.error(error)
+    console.error('[impersonate]', error instanceof Error ? error.message : error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
