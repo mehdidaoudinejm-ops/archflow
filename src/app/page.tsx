@@ -96,7 +96,7 @@ function HeroSection() {
             >
               <span>✨</span>
               <span style={{ fontSize: '13px', color: C.green, fontWeight: 500 }}>
-                Nouveau — Import DPGF par Intelligence Artificielle
+                Nouveau — Génération de DPGF assistée par Intelligence Artificielle
               </span>
             </div>
 
@@ -406,7 +406,7 @@ function ProblemSection() {
 function FeaturesSection() {
   const FEATURES = [
     { icon: '📋', title: 'DPGF intelligent', desc: "Tableau éditeur en ligne — lots, sous-lots, postes. Bibliothèque d'intitulés, calculs automatiques, glisser-déposer." },
-    { icon: '🤖', title: 'Import IA', desc: "Importez n'importe quel DPGF Excel ou PDF. L'IA reconstruit la structure en moins de 30 secondes avec revue avant import." },
+    { icon: '🤖', title: 'Génération IA', desc: "Décrivez votre projet en quelques questions et l'IA génère automatiquement la structure complète de votre DPGF — lots, sous-lots et postes types." },
     { icon: '📨', title: 'Appel d\'offre digital', desc: "Invitez les entreprises par email. Portail dédié par AO, DCE intégré, Q&A centralisée, traçabilité complète." },
     { icon: '⚖️', title: 'Analyse multicritères', desc: 'Score global /100 par entreprise : prix, documents admin, délai de réponse, divergences de métrés, fiabilité SIRET.' },
     { icon: '🔍', title: 'Vérification SIRET', desc: "Vérification automatique auprès de l'INSEE Sirene. Badge vert/orange/rouge selon la cohérence des informations." },
@@ -535,7 +535,7 @@ function PricingSection() {
       name: 'Solo',
       price: '49',
       desc: 'Pour les architectes indépendants',
-      features: ['1 utilisateur', '5 projets actifs', 'DPGF & AO illimités', 'Import IA (10/mois)', 'Support email'],
+      features: ['1 utilisateur', '5 projets actifs', 'DPGF & AO illimités', 'Génération IA (10/mois)', 'Support email'],
       cta: 'Commencer',
       highlighted: false,
     },
@@ -544,7 +544,7 @@ function PricingSection() {
       price: '99',
       desc: 'Pour les petits cabinets',
       badge: '⭐ Le plus populaire',
-      features: ['3 utilisateurs', 'Projets illimités', 'DPGF & AO illimités', 'Import IA illimité', 'Espace client', 'Support prioritaire'],
+      features: ['3 utilisateurs', 'Projets illimités', 'DPGF & AO illimités', 'Génération IA illimitée', 'Espace client', 'Support prioritaire'],
       cta: 'Commencer — 14 jours offerts',
       highlighted: true,
     },
@@ -552,7 +552,7 @@ function PricingSection() {
       name: 'Agence',
       price: '199',
       desc: 'Pour les grandes structures',
-      features: ['10 utilisateurs', 'Projets illimités', 'DPGF & AO illimités', 'Import IA illimité', 'Espace client', 'API & intégrations', 'Support dédié'],
+      features: ['10 utilisateurs', 'Projets illimités', 'DPGF & AO illimités', 'Génération IA illimitée', 'Espace client', 'API & intégrations', 'Support dédié'],
       cta: 'Nous contacter',
       highlighted: false,
     },
