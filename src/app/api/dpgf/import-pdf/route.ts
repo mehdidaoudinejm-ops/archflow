@@ -1,123 +1,112 @@
 import { NextResponse } from 'next/server'
 import { requireRole, AuthError } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import * as XLSX from 'xlsx'
-import jwt from 'jsonwebtoken'
-import FormData from 'form-data'
+import * as pdfParseModule from 'pdf-parse'
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const pdfParse: (buf: Buffer) => Promise<{ text: string }> = (pdfParseModule as any).default ?? pdfParseModule
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
 const MAX_SIZE = 20 * 1024 * 1024 // 20 Mo
-const ILOVEPDF_API = 'https://api.ilovepdf.com/v1'
 
-// ─── Helpers iLovePDF REST ───────────────────────────────────────────────────
+// ─── Parsing du texte PDF ────────────────────────────────────────────────────
+//
+// Un DPGF PDF a typiquement des lignes de la forme :
+//   [ref]  Désignation ...........  unité   qté   prix_unitaire
+//
+// Stratégie :
+//  1. Extraire le texte brut avec pdf-parse
+//  2. Découper ligne par ligne
+//  3. Détecter les lignes "poste" : celles qui contiennent du texte + au
+//     moins un nombre (prix ou quantité)
+//  4. Extraire designation / unite / quantite / prixUnitaire avec des regex
 
-/** Génère un JWT signé avec la secret key (identique au SDK officiel). */
-function getIlovePdfToken(): string {
-  const timeNow = Date.now() / 1000
-  return jwt.sign(
-    { jti: process.env.ILOVEPDF_PUBLIC_KEY, iss: 'api.ilovepdf.com', iat: timeNow - 5 },
-    process.env.ILOVEPDF_SECRET_KEY!,
-  )
+interface ParsedPost {
+  title: string
+  unit:  string
+  qty:   number | null
+  prix:  number | null
 }
 
-interface StartTaskResponse { server: string; task: string }
-interface UploadResponse    { server_filename: string }
+// Unités courantes dans un DPGF
+const UNITS = ['m²', 'm2', 'm³', 'm3', 'ml', 'ml.', 'ml,', 'mL', 'u', 'ens', 'ens.', 'ff', 'ft', 'kg', 'h', 'jrs', 'jour', 'forfait', 'fft']
+const UNITS_RE = new RegExp(`\\b(${UNITS.map(u => u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'i')
 
-async function ilovepdfConvert(pdfBuffer: Buffer, filename: string): Promise<Buffer> {
-  const token = getIlovePdfToken()
-  const authHeader = `Bearer ${token}`
+// Nombre décimal (peut contenir espace ou virgule comme séparateur)
+const NUM_RE = /[\d\s]+(?:[.,]\d+)?/
 
-  // 1. Démarrer la tâche pdftoxls
-  const startRes = await fetch(`${ILOVEPDF_API}/start/pdftoxls`, {
-    headers: { Authorization: authHeader },
-  })
-  if (!startRes.ok) {
-    const body = await startRes.text()
-    throw new Error(`iLovePDF start failed (${startRes.status}): ${body}`)
+function parseLines(text: string): ParsedPost[] {
+  const results: ParsedPost[] = []
+
+  const lines = text
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 3)
+
+  for (const line of lines) {
+    // Ignorer les lignes de séparation, titres sans contenu chiffré
+    // On cherche au moins un nombre dans la ligne
+    if (!/\d/.test(line)) continue
+
+    // Extraire les nombres de fin de ligne (prix, quantité)
+    // Format typique : "... désignation   m²   120   25,00"
+    const numbers: number[] = []
+    const numMatches = Array.from(line.matchAll(/(\d[\d\s]*(?:[.,]\d+)?)/g))
+    for (const m of numMatches) {
+      const val = parseFloat(m[1].replace(/\s/g, '').replace(',', '.'))
+      if (!isNaN(val) && val > 0) numbers.push(val)
+    }
+
+    if (numbers.length === 0) continue
+
+    // Détecter l'unité
+    const unitMatch = line.match(UNITS_RE)
+    const unit = unitMatch ? unitMatch[1].toLowerCase() : 'u'
+
+    // Extraire la désignation : tout ce qui précède l'unité ou les premiers chiffres
+    let title = line
+    if (unitMatch?.index !== undefined) {
+      title = line.slice(0, unitMatch.index).trim()
+    } else {
+      // Prendre tout jusqu'au premier gros bloc de chiffres
+      const firstNum = line.search(/\s{2,}\d/)
+      if (firstNum > 0) title = line.slice(0, firstNum).trim()
+    }
+
+    // Nettoyer la désignation : retirer la référence de début (ex: "01.02 ")
+    title = title.replace(/^\d+[\d.]*\s+/, '').trim()
+
+    // Si la désignation est vide ou trop courte, ignorer
+    if (title.length < 3) continue
+
+    // Quantité = avant-dernier nombre, Prix = dernier nombre
+    // S'il n'y a qu'un nombre, c'est probablement le prix unitaire
+    const prix = numbers.length >= 1 ? numbers[numbers.length - 1] : null
+    const qty  = numbers.length >= 2 ? numbers[numbers.length - 2] : null
+
+    // Ignorer les lignes où le "prix" semble être juste un numéro de page/ref
+    if (prix !== null && prix > 0 && title.length >= 3) {
+      results.push({ title, unit, qty, prix })
+    }
   }
-  const { server, task } = await startRes.json() as StartTaskResponse
 
-  // 2. Uploader le PDF
-  const uploadForm = new FormData()
-  uploadForm.append('task', task)
-  uploadForm.append('file', pdfBuffer, { filename, contentType: 'application/pdf' })
-
-  const uploadRes = await fetch(`https://${server}/v1/upload`, {
-    method: 'POST',
-    headers: { Authorization: authHeader, ...uploadForm.getHeaders() },
-    body: uploadForm.getBuffer(),
-  })
-  if (!uploadRes.ok) {
-    const body = await uploadRes.text()
-    throw new Error(`iLovePDF upload failed (${uploadRes.status}): ${body}`)
-  }
-  const { server_filename } = await uploadRes.json() as UploadResponse
-
-  // 3. Lancer la conversion
-  const processRes = await fetch(`https://${server}/v1/process`, {
-    method: 'POST',
-    headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      task,
-      tool: 'pdftoxls',
-      files: [{ server_filename, filename }],
-    }),
-  })
-  if (!processRes.ok) {
-    const body = await processRes.text()
-    throw new Error(`iLovePDF process failed (${processRes.status}): ${body}`)
-  }
-
-  // 4. Télécharger le résultat
-  const downloadRes = await fetch(`https://${server}/v1/download/${task}`, {
-    headers: { Authorization: authHeader },
-  })
-  if (!downloadRes.ok) {
-    const body = await downloadRes.text()
-    throw new Error(`iLovePDF download failed (${downloadRes.status}): ${body}`)
-  }
-
-  return Buffer.from(await downloadRes.arrayBuffer())
-}
-
-// ─── Détection de colonnes par mots-clés ────────────────────────────────────
-
-interface ColumnMap {
-  designation: string | null
-  unite: string | null
-  quantite: string | null
-  prixUnitaire: string | null
-}
-
-function detectColumns(headers: string[]): ColumnMap {
-  const find = (keywords: string[]) =>
-    headers.find((h) => keywords.some((k) => h.toLowerCase().includes(k))) ?? null
-
-  return {
-    designation:  find(['designation', 'description', 'libellé', 'libelle', 'intitulé', 'intitule', 'désignation']),
-    unite:        find([' u ', 'unité', 'unite', 'unit']),
-    quantite:     find(['qté', 'quantité', 'quantite', 'qte', ' nb ']),
-    prixUnitaire: find(['pu', 'prix unitaire', 'prix unit', 'unit price', 'prix u']),
-  }
+  return results
 }
 
 // ─── Route ──────────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
-  console.log('[import-pdf] Route atteinte')
   try {
     const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
-    console.log('[import-pdf] Auth OK, user:', user.id)
 
     const formData = await req.formData()
     const file   = formData.get('file')    as File   | null
     const dpgfId = formData.get('dpgfId') as string | null
 
-    if (!file)   return NextResponse.json({ error: 'Fichier manquant' }, { status: 400 })
-    if (!dpgfId) return NextResponse.json({ error: 'dpgfId manquant' }, { status: 400 })
+    if (!file)   return NextResponse.json({ error: 'Fichier manquant' },  { status: 400 })
+    if (!dpgfId) return NextResponse.json({ error: 'dpgfId manquant' },   { status: 400 })
 
     if (file.size > MAX_SIZE) {
       return NextResponse.json({ error: 'Fichier trop volumineux (max 20 Mo)' }, { status: 400 })
@@ -133,40 +122,22 @@ export async function POST(req: Request) {
     })
     if (!dpgf) return NextResponse.json({ error: 'DPGF introuvable' }, { status: 404 })
 
-    // ── 1. Conversion PDF → xlsx via iLovePDF REST ─────────────────────────
-    let xlsxBuffer: Buffer
+    // ── 1. Extraction du texte PDF ─────────────────────────────────────────
+    let posts: ParsedPost[]
     try {
-      console.log('[import-pdf] Démarrage conversion, fichier:', file.name, file.size, 'octets')
-      console.log('[import-pdf] PUBLIC_KEY:', process.env.ILOVEPDF_PUBLIC_KEY?.slice(0, 8) + '...')
-    console.log('[import-pdf] Clé publique présente:', !!process.env.ILOVEPDF_PUBLIC_KEY)
-      console.log('[import-pdf] Clé secrète présente:', !!process.env.ILOVEPDF_SECRET_KEY)
       const pdfBuffer = Buffer.from(await file.arrayBuffer())
-      xlsxBuffer = await ilovepdfConvert(pdfBuffer, file.name)
-      console.log('[import-pdf] Conversion réussie, buffer xlsx:', xlsxBuffer.length, 'octets')
+      const data = await pdfParse(pdfBuffer) as { text: string }
+      posts = parseLines(data.text)
+
+      if (posts.length === 0) {
+        return NextResponse.json({ error: 'parsing_failed' }, { status: 422 })
+      }
     } catch (err) {
-      console.error('[import-pdf] Conversion iLovePDF échouée:', err)
-      return NextResponse.json({ error: 'conversion_failed' }, { status: 502 })
+      console.error('[import-pdf] Extraction PDF échouée:', err)
+      return NextResponse.json({ error: 'conversion_failed' }, { status: 422 })
     }
 
-    // ── 2. Parsing xlsx ────────────────────────────────────────────────────
-    let rows: Record<string, unknown>[]
-    let cols: ColumnMap
-
-    try {
-      const workbook = XLSX.read(xlsxBuffer, { type: 'buffer' })
-      const sheet    = workbook.Sheets[workbook.SheetNames[0]]
-      rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
-
-      if (rows.length === 0) return NextResponse.json({ error: 'parsing_failed' }, { status: 422 })
-
-      cols = detectColumns(Object.keys(rows[0]))
-      if (!cols.designation) return NextResponse.json({ error: 'parsing_failed' }, { status: 422 })
-    } catch (err) {
-      console.error('[import-pdf] Parsing XLSX échoué:', err)
-      return NextResponse.json({ error: 'parsing_failed' }, { status: 422 })
-    }
-
-    // ── 3. Insertion dans la DPGF ──────────────────────────────────────────
+    // ── 2. Insertion dans la DPGF ──────────────────────────────────────────
     const existingNumbers = dpgf.lots.map((l) => l.number)
     const nextLotNumber   = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1
 
@@ -181,30 +152,20 @@ export async function POST(req: Request) {
 
     let imported = 0
     let skipped  = 0
-    let position = 0
 
-    for (const row of rows) {
-      const designation = cols.designation
-        ? String(row[cols.designation] ?? '').trim()
-        : ''
+    for (let i = 0; i < posts.length; i++) {
+      const { title, unit, qty, prix } = posts[i]
+      if (!title) { skipped++; continue }
 
-      if (!designation) { skipped++; continue }
-
-      const unite  = cols.unite  ? String(row[cols.unite]  ?? '').trim() || 'u' : 'u'
-      const qtyRaw = cols.quantite     ? row[cols.quantite]     : null
-      const prxRaw = cols.prixUnitaire ? row[cols.prixUnitaire] : null
-      const qty    = qtyRaw !== null && qtyRaw !== '' ? parseFloat(String(qtyRaw)) : null
-      const prix   = prxRaw !== null && prxRaw !== '' ? parseFloat(String(prxRaw)) : null
-
-      position++
+      const position = i + 1
       await prisma.post.create({
         data: {
           lotId:          lot.id,
           ref:            `${String(nextLotNumber).padStart(2, '0')}.${String(position).padStart(2, '0')}`,
-          title:          designation,
-          unit:           unite,
-          qtyArchi:       qty  !== null && !isNaN(qty)  ? qty  : undefined,
-          unitPriceArchi: prix !== null && !isNaN(prix) ? prix : undefined,
+          title,
+          unit,
+          qtyArchi:       qty  ?? undefined,
+          unitPriceArchi: prix ?? undefined,
           position,
         },
       })
