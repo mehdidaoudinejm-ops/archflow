@@ -118,7 +118,7 @@ export default function PlansAdminPage() {
           className="text-2xl font-semibold mb-1"
           style={{ fontFamily: 'var(--font-dm-serif)', color: 'var(--text)' }}
         >
-          Gestion des packages
+          Gestion des plans
         </h1>
         <p className="text-sm" style={{ color: 'var(--text2)' }}>
           Configurez les limites et fonctionnalités de chaque plan. Les modifications sont appliquées immédiatement.
