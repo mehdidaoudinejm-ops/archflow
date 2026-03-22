@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { requireRole, AuthError } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import * as pdfParseModule from 'pdf-parse'
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const pdfParse: (buf: Buffer) => Promise<{ text: string }> = (pdfParseModule as any).default ?? pdfParseModule
+// Import direct du lib pour éviter le chargement du fichier de test au démarrage (bug serverless)
+// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+const pdfParse: (buf: Buffer) => Promise<{ text: string }> = require('pdf-parse/lib/pdf-parse.js')
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
