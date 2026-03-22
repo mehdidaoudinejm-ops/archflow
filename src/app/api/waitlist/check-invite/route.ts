@@ -11,6 +11,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Token manquant' }, { status: 400 })
   }
 
+  // Validation basique du format UUID pour éviter des requêtes DB inutiles
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!UUID_RE.test(token)) {
+    return NextResponse.json({ error: 'Invitation invalide' }, { status: 404 })
+  }
+
   const entry = await prisma.waitlistEntry.findUnique({
     where: { inviteToken: token },
     select: { email: true, firstName: true, lastName: true, status: true, approvedAt: true },

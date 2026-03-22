@@ -29,6 +29,13 @@ export async function requirePortalAuth(req: Request, aoId: string): Promise<Por
 
   if (!token) throw new AuthError('Token requis', 401)
 
+  // Vérifier que l'AO existe et est encore ouvert
+  const ao = await prisma.aO.findUnique({ where: { id: aoId }, select: { status: true } })
+  if (!ao) throw new AuthError('Appel d\'offre introuvable', 404)
+  if (ao.status === 'CLOSED' || ao.status === 'ARCHIVED') {
+    throw new AuthError('Cet appel d\'offre est clôturé', 403)
+  }
+
   const aoCompany = await prisma.aOCompany.findFirst({
     where: { inviteToken: token, aoId },
   })
