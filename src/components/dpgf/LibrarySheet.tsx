@@ -92,8 +92,8 @@ export function LibrarySheet({ open, onClose, dpgfId, lots, onInserted }: Librar
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose() }}>
       <SheetContent
-        className="flex flex-col gap-0"
-        style={{ width: '440px', maxWidth: '100vw', background: 'var(--surface)' }}
+        className="flex flex-col gap-0 overflow-hidden"
+        style={{ width: '440px', maxWidth: '100vw', background: 'var(--surface)', height: '100%' }}
       >
         <SheetHeader className="px-6 pt-6 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
           <SheetTitle style={{ fontFamily: 'var(--font-dm-serif)', color: 'var(--text)', fontSize: '1.25rem' }}>
@@ -147,18 +147,22 @@ export function LibrarySheet({ open, onClose, dpgfId, lots, onInserted }: Librar
             />
           </div>
 
-          {/* Lot filter pills */}
-          <div className="flex flex-wrap gap-1.5">
-            <LotBtn label="Tous" active={lot === ''} onClick={() => setLot('')} />
+          {/* Lot filter — select pour éviter que les pills n'écrasent la hauteur */}
+          <select
+            value={lot}
+            onChange={(e) => setLot(e.target.value)}
+            className="w-full text-sm px-3 py-1.5 rounded-md outline-none"
+            style={{
+              border: '1px solid var(--border)',
+              color: 'var(--text)',
+              background: 'var(--surface2)',
+            }}
+          >
+            <option value="">Tous les lots</option>
             {STANDARD_LOTS.map((l) => (
-              <LotBtn
-                key={l}
-                label={l}
-                active={lot === l}
-                onClick={() => setLot(lot === l ? '' : l)}
-              />
+              <option key={l} value={l}>{l}</option>
             ))}
-          </div>
+          </select>
         </div>
 
         {/* List */}
