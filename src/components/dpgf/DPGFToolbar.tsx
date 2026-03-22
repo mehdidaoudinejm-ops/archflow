@@ -6,7 +6,6 @@ interface DPGFToolbarProps {
   search: string
   onSearchChange: (value: string) => void
   onImport: () => void
-  onExportPdf: () => void
   onLaunchAO: () => void
   onOpenLibrary: () => void
   aoButtonVariant: 'draft' | 'active' | 'closed'
@@ -17,7 +16,6 @@ export function DPGFToolbar({
   search,
   onSearchChange,
   onImport,
-  onExportPdf,
   onLaunchAO,
   onOpenLibrary,
   aoButtonVariant,
@@ -91,18 +89,7 @@ export function DPGFToolbar({
         >
           Importer
         </button>
-        <button
-          onClick={onExportPdf}
-          className="px-3 py-1.5 text-sm rounded-md border"
-          style={{
-            borderColor: 'var(--border)',
-            color: 'var(--text2)',
-            background: 'var(--surface)',
-          }}
-        >
-          Exporter PDF
-        </button>
-        <button
+<button
           onClick={onLaunchAO}
           className="px-4 py-1.5 text-sm rounded-md font-medium"
           style={{

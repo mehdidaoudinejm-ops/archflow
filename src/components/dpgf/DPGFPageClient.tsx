@@ -177,7 +177,6 @@ export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo, init
             search={search}
             onSearchChange={setSearch}
             onImport={() => setImportOpen(true)}
-            onExportPdf={() => {}}
             onLaunchAO={handleLaunchAO}
             onOpenLibrary={() => setLibraryOpen(true)}
             aoButtonVariant={aoButtonVariant}
