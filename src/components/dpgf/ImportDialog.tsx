@@ -26,13 +26,15 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
   const [dragging, setDragging] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [loadingMode, setLoadingMode] = useState<'ai' | 'direct' | null>(null)
+  const [loadingMode, setLoadingMode] = useState<'ai' | 'direct' | 'pdf' | null>(null)
+  const [importSuccess, setImportSuccess] = useState<{ imported: number; skipped: number } | null>(null)
   const loading = loadingMode !== null
 
   function handleClose() {
     if (loading) return
     setFile(null)
     setError(null)
+    setImportSuccess(null)
     onClose()
   }
 
@@ -86,7 +88,11 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
       const form = new FormData()
       form.append('file', file)
 
-      const endpoint = mode === 'direct' ? `/api/excel-import?dpgfId=${dpgfId}` : `/api/ai-import?dpgfId=${dpgfId}`
+      // [LEGACY - import IA] const endpoint = mode === 'direct' ? `/api/excel-import?dpgfId=${dpgfId}` : `/api/ai-import?dpgfId=${dpgfId}`
+      const endpoint = mode === 'direct'
+        ? `/api/excel-import?dpgfId=${dpgfId}`
+        : `/api/ai-import?dpgfId=${dpgfId}` // [LEGACY - import IA] — Excel uniquement désormais
+
       const res = await fetch(endpoint, { method: 'POST', body: form })
 
       let data: { importId?: string; error?: string } = {}
@@ -117,6 +123,49 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
     }
   }
 
+  // Nouveau flow PDF : conversion via iLovePDF (sans IA)
+  async function handlePdfImport() {
+    if (!file || loading) return
+    setLoadingMode('pdf')
+    setError(null)
+    setImportSuccess(null)
+
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('dpgfId', dpgfId)
+
+      const res = await fetch('/api/dpgf/import-pdf', { method: 'POST', body: form })
+
+      let data: { success?: boolean; imported?: number; skipped?: number; error?: string } = {}
+      try {
+        data = await res.json() as typeof data
+      } catch {
+        setError(`Erreur serveur (HTTP ${res.status}).`)
+        setLoadingMode(null)
+        return
+      }
+
+      if (!res.ok || data.error) {
+        const msg =
+          data.error === 'conversion_failed' ? 'La conversion du PDF a échoué. Vérifiez que le fichier est lisible.'
+          : data.error === 'parsing_failed'  ? 'Impossible de lire les données du fichier converti.'
+          : data.error ?? "Échec de l'import"
+        setError(msg)
+        setLoadingMode(null)
+        return
+      }
+
+      setImportSuccess({ imported: data.imported ?? 0, skipped: data.skipped ?? 0 })
+      setLoadingMode(null)
+      router.refresh()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erreur réseau'
+      setError(msg)
+      setLoadingMode(null)
+    }
+  }
+
   const isPDF = file?.name.toLowerCase().endsWith('.pdf')
   const isExcel = file ? !isPDF : false
 
@@ -137,7 +186,7 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
 
         <p className="text-sm" style={{ color: 'var(--text2)' }}>
           Importez un fichier Excel (xlsx, xls, csv) ou PDF. Pour Excel, vous pouvez importer
-          directement ou utiliser l&apos;IA pour une analyse plus intelligente.
+          directement ou utiliser l&apos;IA. Pour PDF, la conversion se fait via iLovePDF.
         </p>
 
         {/* Zone drop */}
@@ -213,6 +262,13 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
           </p>
         )}
 
+        {importSuccess && (
+          <p className="text-sm font-medium" style={{ color: 'var(--green)' }}>
+            {importSuccess.imported} ligne{importSuccess.imported > 1 ? 's' : ''} importée{importSuccess.imported > 1 ? 's' : ''}
+            {importSuccess.skipped > 0 && ` (${importSuccess.skipped} ignorée${importSuccess.skipped > 1 ? 's' : ''})`}
+          </p>
+        )}
+
         <div className="flex justify-end gap-2 mt-2">
           <button
             onClick={handleClose}
@@ -240,20 +296,56 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
             </button>
           )}
 
-          {/* Analyse IA */}
-          <button
-            onClick={() => handleImport('ai')}
-            disabled={!file || loading}
-            className="flex items-center gap-2 px-4 py-2 text-sm rounded-[var(--radius)] font-medium"
-            style={{
-              background: !file || loading ? 'var(--surface2)' : 'var(--green-btn)',
-              color: !file || loading ? 'var(--text3)' : '#fff',
-              border: 'none',
-            }}
-          >
-            {loadingMode === 'ai' && <Loader2 size={14} className="animate-spin" />}
-            {loadingMode === 'ai' ? 'Analyse IA en cours…' : isExcel ? "Analyser avec l'IA" : 'Analyser'}
-          </button>
+          {/* Analyse IA — Excel uniquement */}
+          {isExcel && (
+            <button
+              onClick={() => handleImport('ai')}
+              disabled={!file || loading}
+              className="flex items-center gap-2 px-4 py-2 text-sm rounded-[var(--radius)] font-medium"
+              style={{
+                background: !file || loading ? 'var(--surface2)' : 'var(--green-btn)',
+                color: !file || loading ? 'var(--text3)' : '#fff',
+                border: 'none',
+              }}
+            >
+              {loadingMode === 'ai' && <Loader2 size={14} className="animate-spin" />}
+              {loadingMode === 'ai' ? 'Analyse IA en cours…' : "Analyser avec l'IA"}
+            </button>
+          )}
+
+          {/* [LEGACY - import IA] Ancien bouton PDF → Claude :
+          {isPDF && (
+            <button onClick={() => handleImport('ai')} ...>
+              Analyser
+            </button>
+          )} */}
+
+          {/* Nouveau flow PDF → iLovePDF (sans IA) */}
+          {isPDF && !importSuccess && (
+            <button
+              onClick={handlePdfImport}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 text-sm rounded-[var(--radius)] font-medium"
+              style={{
+                background: loading ? 'var(--surface2)' : 'var(--green-btn)',
+                color: loading ? 'var(--text3)' : '#fff',
+                border: 'none',
+              }}
+            >
+              {loadingMode === 'pdf' && <Loader2 size={14} className="animate-spin" />}
+              {loadingMode === 'pdf' ? 'Conversion en cours…' : 'Importer'}
+            </button>
+          )}
+
+          {importSuccess && (
+            <button
+              onClick={handleClose}
+              className="px-4 py-2 text-sm rounded-[var(--radius)] font-medium"
+              style={{ background: 'var(--green-btn)', color: '#fff', border: 'none' }}
+            >
+              Fermer
+            </button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
