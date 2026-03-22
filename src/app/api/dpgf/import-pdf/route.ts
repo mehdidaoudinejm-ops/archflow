@@ -107,8 +107,10 @@ function detectColumns(headers: string[]): ColumnMap {
 // ─── Route ──────────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
+  console.log('[import-pdf] Route atteinte')
   try {
     const user = await requireRole(['ARCHITECT', 'COLLABORATOR'])
+    console.log('[import-pdf] Auth OK, user:', user.id)
 
     const formData = await req.formData()
     const file   = formData.get('file')    as File   | null
@@ -134,8 +136,13 @@ export async function POST(req: Request) {
     // ── 1. Conversion PDF → xlsx via iLovePDF REST ─────────────────────────
     let xlsxBuffer: Buffer
     try {
+      console.log('[import-pdf] Démarrage conversion, fichier:', file.name, file.size, 'octets')
+      console.log('[import-pdf] PUBLIC_KEY:', process.env.ILOVEPDF_PUBLIC_KEY?.slice(0, 8) + '...')
+    console.log('[import-pdf] Clé publique présente:', !!process.env.ILOVEPDF_PUBLIC_KEY)
+      console.log('[import-pdf] Clé secrète présente:', !!process.env.ILOVEPDF_SECRET_KEY)
       const pdfBuffer = Buffer.from(await file.arrayBuffer())
       xlsxBuffer = await ilovepdfConvert(pdfBuffer, file.name)
+      console.log('[import-pdf] Conversion réussie, buffer xlsx:', xlsxBuffer.length, 'octets')
     } catch (err) {
       console.error('[import-pdf] Conversion iLovePDF échouée:', err)
       return NextResponse.json({ error: 'conversion_failed' }, { status: 502 })
