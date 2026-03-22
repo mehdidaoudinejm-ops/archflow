@@ -18,43 +18,49 @@ interface ParsedPost {
   prix:  number | null
 }
 
-const UNITS_RE = /\b(m²|m2|m³|m3|ml|mL|ens\.?|ff|fft|kg|h|jrs?|jour|forfait|u)\b/i
+// Unités reconnues dans un DPGF (insensible à la casse)
+const UNITS_STR = 'm²|m2|m³|m3|ML|ml|ENS|FF|FFT|KG|H|U|FORFAIT|JRS?|jour|ens\\.?|ff|fft|kg|h|u|forfait'
+
+// Chaque poste a la forme :  [ref -] désignation  UNITÉ  nb nb ...
+// On cherche : du texte + une unité reconnue + au moins un nombre
+const POST_RE = new RegExp(
+  `([\\wÀ-öø-ÿ][\\wÀ-öø-ÿ\\s'',()\\[\\]\\-/]{2,120})` + // désignation
+  `\\s+(${UNITS_STR})` +                                    // unité
+  `\\s+([\\d][\\d\\s,.]{0,50})`,                            // nombres (qty, PU, total…)
+  'gi'
+)
 
 function parseNum(s: string): number | null {
   const n = parseFloat(s.replace(/\s/g, '').replace(',', '.'))
-  return isNaN(n) || n <= 0 ? null : n
+  return isNaN(n) ? null : n
 }
 
 function postsFromText(text: string): ParsedPost[] {
   const results: ParsedPost[] = []
 
-  for (const line of text.split('\n').map(l => l.trim()).filter(l => l.length > 3)) {
-    if (!/\d/.test(line)) continue
-
-    const numbers: number[] = []
-    for (const m of Array.from(line.matchAll(/(\d[\d\s]*(?:[.,]\d+)?)/g))) {
-      const val = parseNum(m[1])
-      if (val !== null) numbers.push(val)
-    }
-    if (numbers.length === 0) continue
-
-    const unitMatch = line.match(UNITS_RE)
-    const unit = unitMatch ? unitMatch[1].toLowerCase() : 'u'
-
-    let title = line
-    if (unitMatch?.index !== undefined) {
-      title = line.slice(0, unitMatch.index).trim()
-    } else {
-      const firstNum = line.search(/\s{2,}\d/)
-      if (firstNum > 0) title = line.slice(0, firstNum).trim()
-    }
-    title = title.replace(/^\d+[\d.]*\s+/, '').trim()
+  for (const match of Array.from(text.matchAll(POST_RE))) {
+    // Nettoyer la désignation : supprimer la référence de début (ex: "2.1.1 - ")
+    let title = match[1].trim().replace(/^\d[\d.\s]*[-–]\s*/, '').trim()
     if (title.length < 3) continue
 
-    const prix = numbers.length >= 1 ? numbers[numbers.length - 1] : null
-    const qty  = numbers.length >= 2 ? numbers[numbers.length - 2] : null
+    const unit = match[2].toLowerCase()
 
-    if (prix !== null) results.push({ title, unit, qty, prix })
+    // Extraire les nombres (qty / PU / total)
+    const nums = match[3]
+      .trim()
+      .split(/\s+/)
+      .map(s => parseNum(s))
+      .filter((n): n is number => n !== null)
+
+    // Format : qty  PU  Total  →  on prend qty + PU
+    //          qty  Total      →  on prend qty + Total comme PU
+    //          PU seul         →  on prend uniquement le prix
+    const qty  = nums.length >= 2 ? nums[0] : null
+    const prix = nums.length >= 3 ? nums[1]
+               : nums.length >= 1 ? nums[nums.length - 1]
+               : null
+
+    results.push({ title, unit, qty, prix })
   }
 
   return results
