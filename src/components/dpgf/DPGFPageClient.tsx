@@ -118,6 +118,17 @@ export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo, init
             DQE
           </h1>
         </div>
+        <button
+          onClick={handleLaunchAO}
+          className="px-4 py-2 text-sm rounded-lg font-medium"
+          style={{
+            background: aoButtonVariant === 'draft' ? 'var(--green-btn)' : aoButtonVariant === 'active' ? 'var(--amber)' : 'var(--surface2)',
+            color: aoButtonVariant === 'closed' ? 'var(--text2)' : '#fff',
+            border: aoButtonVariant === 'closed' ? '1px solid var(--border)' : 'none',
+          }}
+        >
+          {aoButtonVariant === 'draft' ? "Lancer l'AO" : aoButtonVariant === 'active' ? "Appel d'offre en cours" : 'AO clôturé'}
+        </button>
       </div>
 
       {/* Onglets de navigation */}
@@ -177,9 +188,7 @@ export function DPGFPageClient({ dpgfId, projectId, projectName, initialAo, init
             search={search}
             onSearchChange={setSearch}
             onImport={() => setImportOpen(true)}
-            onLaunchAO={handleLaunchAO}
             onOpenLibrary={() => setLibraryOpen(true)}
-            aoButtonVariant={aoButtonVariant}
             onAiGenerate={() => setAiGenerateOpen(true)}
           />
         </div>

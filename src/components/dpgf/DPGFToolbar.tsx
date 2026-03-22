@@ -6,9 +6,7 @@ interface DPGFToolbarProps {
   search: string
   onSearchChange: (value: string) => void
   onImport: () => void
-  onLaunchAO: () => void
   onOpenLibrary: () => void
-  aoButtonVariant: 'draft' | 'active' | 'closed'
   onAiGenerate?: () => void
 }
 
@@ -16,17 +14,9 @@ export function DPGFToolbar({
   search,
   onSearchChange,
   onImport,
-  onLaunchAO,
   onOpenLibrary,
-  aoButtonVariant,
   onAiGenerate,
 }: DPGFToolbarProps) {
-  const aoBtn =
-    aoButtonVariant === 'draft'
-      ? { label: "Lancer l\u2019AO", bg: 'var(--green-btn)', color: '#fff', border: 'none' }
-      : aoButtonVariant === 'active'
-      ? { label: "Appel d\u2019offre en cours", bg: 'var(--amber)', color: '#fff', border: 'none' }
-      : { label: 'AO clôturé', bg: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)' }
 
   return (
     <div
@@ -88,17 +78,6 @@ export function DPGFToolbar({
           }}
         >
           Importer
-        </button>
-<button
-          onClick={onLaunchAO}
-          className="px-4 py-1.5 text-sm rounded-md font-medium"
-          style={{
-            background: aoBtn.bg,
-            color: aoBtn.color,
-            border: aoBtn.border,
-          }}
-        >
-          {aoBtn.label}
         </button>
       </div>
     </div>
