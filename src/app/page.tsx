@@ -163,7 +163,7 @@ function HeroSection() {
               </div>
               <p style={{ fontSize: '14px', color: C.text2, margin: 0 }}>
                 Déjà utilisé par{' '}
-                <strong style={{ color: C.text }}>200+ cabinets</strong>{' '}
+                <strong style={{ color: C.text }}>XXX+ agences</strong>{' '}
                 d&apos;architecture
               </p>
             </div>
@@ -311,7 +311,7 @@ function HeroSection() {
 // ── LOGOS ─────────────────────────────────────────────────
 
 function LogosBand() {
-  const AGENCIES = ['Durand Architecture', 'Atelier Moreau', 'Studio Lefèvre', 'Cabinet Blanc', 'Haussmann & Co.']
+  const AGENCIES = ['Studio 1', 'Studio 2', 'Studio 3', 'Studio 4', 'Studio 5']
   return (
     <div style={{ background: C.surface, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, padding: '28px 0' }}>
       <div style={{ ...C.maxW, textAlign: 'center' }}>
