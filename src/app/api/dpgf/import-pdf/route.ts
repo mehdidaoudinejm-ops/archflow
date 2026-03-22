@@ -45,7 +45,7 @@ function postsFromText(text: string): ParsedPost[] {
     if (!unitMatch) continue // pas d'unité → en-tête de section, on ignore
 
     const unitIdx = unitMatch.index!
-    let title = chunk.slice(0, unitIdx).trim().replace(/^[-–]\s*/, '').trim()
+    const title = chunk.slice(0, unitIdx).trim().replace(/^[-–]\s*/, '').trim()
     if (title.length < 3) continue
 
     const unit = (unitMatch[1] ?? unitMatch[2]).toLowerCase().trim()
