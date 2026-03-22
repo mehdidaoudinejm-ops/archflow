@@ -18,46 +18,49 @@ interface ParsedPost {
   prix:  number | null
 }
 
-// Unités reconnues dans un DPGF (insensible à la casse)
-const UNITS_STR = 'm²|m2|m³|m3|ML|ml|ENS|FF|FFT|KG|H|U|FORFAIT|JRS?|jour|ens\\.?|ff|fft|kg|h|u|forfait'
-
-// Chaque poste a la forme :  [ref -] désignation  UNITÉ  nb nb ...
-// On cherche : du texte + une unité reconnue + au moins un nombre
-const POST_RE = new RegExp(
-  `([\\wÀ-öø-ÿ][\\wÀ-öø-ÿ\\s'',()\\[\\]\\-/]{2,120})` + // désignation
-  `\\s+(${UNITS_STR})` +                                    // unité
-  `\\s+([\\d][\\d\\s,.]{0,50})`,                            // nombres (qty, PU, total…)
-  'gi'
-)
+// Unités courantes dans un DPGF — les courtes (U, H) nécessitent un \b strict
+const UNIT_RE = /\b(m²|m2|m³|m3|ML|ENS|FF|FFT|KG|ml|ens\.?|ff|fft|kg|forfait|FORFAIT)\b|\s(H|U)\s/i
 
 function parseNum(s: string): number | null {
-  const n = parseFloat(s.replace(/\s/g, '').replace(',', '.'))
+  const n = parseFloat(s.replace(/[€\s]/g, '').replace(',', '.'))
   return isNaN(n) ? null : n
 }
 
 function postsFromText(text: string): ParsedPost[] {
   const results: ParsedPost[] = []
 
-  for (const match of Array.from(text.matchAll(POST_RE))) {
-    // Nettoyer la désignation : supprimer la référence de début (ex: "2.1.1 - ")
-    let title = match[1].trim().replace(/^\d[\d.\s]*[-–]\s*/, '').trim()
+  // Découper le texte à chaque référence numérique de type "2.1.1 -" ou "2. 1 -"
+  // Le séparateur doit être un POINT (pas un espace seul) pour éviter de gober les nombres
+  const REF_RE = /(?:^|\s)(\d+(?:\.\s*\d+)+)\s*[-–]\s*/g
+  const refMatches = Array.from(text.matchAll(REF_RE))
+
+  for (let i = 0; i < refMatches.length; i++) {
+    const m      = refMatches[i]
+    const start  = m.index! + m[0].length
+    const end    = refMatches[i + 1]?.index ?? text.length
+    const chunk  = text.slice(start, end).trim()
+
+    // Trouver l'unité dans le chunk
+    const unitMatch = chunk.match(UNIT_RE)
+    if (!unitMatch) continue // pas d'unité → en-tête de section, on ignore
+
+    const unitIdx = unitMatch.index!
+    let title = chunk.slice(0, unitIdx).trim().replace(/^[-–]\s*/, '').trim()
     if (title.length < 3) continue
 
-    const unit = match[2].toLowerCase()
+    const unit = (unitMatch[1] ?? unitMatch[2]).toLowerCase().trim()
 
-    // Extraire les nombres (qty / PU / total)
-    const nums = match[3]
-      .trim()
+    // Tout ce qui suit l'unité = les nombres (qty, PU, Total)
+    const afterUnit = chunk.slice(unitIdx + unitMatch[0].length).trim()
+    const nums = afterUnit
       .split(/\s+/)
       .map(s => parseNum(s))
       .filter((n): n is number => n !== null)
 
-    // Format : qty  PU  Total  →  on prend qty + PU
-    //          qty  Total      →  on prend qty + Total comme PU
-    //          PU seul         →  on prend uniquement le prix
+    // Format DPGF habituel : qty  PU  Total → on prend qty + PU
     const qty  = nums.length >= 2 ? nums[0] : null
     const prix = nums.length >= 3 ? nums[1]
-               : nums.length >= 1 ? nums[nums.length - 1]
+               : nums.length >= 1 ? nums[0]
                : null
 
     results.push({ title, unit, qty, prix })
