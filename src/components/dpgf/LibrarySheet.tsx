@@ -9,19 +9,19 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import type { LotWithChildren } from '@/types'
-import type { Library } from '@prisma/client'
+import { STANDARD_LOTS } from '@/lib/standard-lots'
 
-export const TRADES = [
-  'Démolition',
-  'Plâtrerie',
-  'Électricité',
-  'Plomberie',
-  'Peinture',
-  'Menuiserie',
-  'Revêtements',
-  'Mobilier',
-  'Divers',
-] as const
+// Ré-exporté pour compatibilité avec DPGFTable (dialog "Sauvegarder en bibliothèque")
+export const TRADES = STANDARD_LOTS
+
+interface LibraryItem {
+  id:         string
+  intitule:   string
+  unite:      string | null
+  lot:        string
+  sousLot:    string | null
+  usageCount: number
+}
 
 interface LibrarySheetProps {
   open: boolean
@@ -32,12 +32,12 @@ interface LibrarySheetProps {
 }
 
 export function LibrarySheet({ open, onClose, dpgfId, lots, onInserted }: LibrarySheetProps) {
-  const [search, setSearch]         = useState('')
-  const [trade, setTrade]           = useState('')
+  const [search, setSearch]               = useState('')
+  const [lot, setLot]                     = useState('')
   const [selectedLotId, setSelectedLotId] = useState('')
-  const [items, setItems]           = useState<Library[]>([])
-  const [loading, setLoading]       = useState(false)
-  const [inserting, setInserting]   = useState<string | null>(null)
+  const [items, setItems]                 = useState<LibraryItem[]>([])
+  const [loading, setLoading]             = useState(false)
+  const [inserting, setInserting]         = useState<string | null>(null)
 
   // Default to first lot
   useEffect(() => {
@@ -51,37 +51,37 @@ export function LibrarySheet({ open, onClose, dpgfId, lots, onInserted }: Librar
     try {
       const params = new URLSearchParams()
       if (search) params.set('search', search)
-      if (trade)  params.set('trade', trade)
-      const res = await fetch(`/api/library?${params.toString()}`)
-      const data = await res.json() as Library[]
+      if (lot)    params.set('lot', lot)
+      const res  = await fetch(`/api/library/items?${params.toString()}`)
+      const data = await res.json() as LibraryItem[]
       setItems(Array.isArray(data) ? data : [])
     } catch {
       setItems([])
     } finally {
       setLoading(false)
     }
-  }, [search, trade])
+  }, [search, lot])
 
   useEffect(() => {
     if (open) fetchItems()
   }, [open, fetchItems])
 
-  async function handleInsert(libraryId: string) {
+  async function handleInsert(libraryItemId: string) {
     if (!selectedLotId) return
-    setInserting(libraryId)
+    setInserting(libraryItemId)
     try {
       const res = await fetch(
-        `/api/dpgf/${dpgfId}/lots/${selectedLotId}/posts/from-library`,
+        `/api/dpgf/${dpgfId}/lots/${selectedLotId}/posts/from-library-item`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ libraryId }),
+          body: JSON.stringify({ libraryItemId }),
         }
       )
       if (res.ok) {
         onInserted()
         setItems((prev) =>
-          prev.map((i) => (i.id === libraryId ? { ...i, usageCount: i.usageCount + 1 } : i))
+          prev.map((i) => (i.id === libraryItemId ? { ...i, usageCount: i.usageCount + 1 } : i))
         )
       }
     } finally {
@@ -118,9 +118,9 @@ export function LibrarySheet({ open, onClose, dpgfId, lots, onInserted }: Librar
                   background: 'var(--surface2)',
                 }}
               >
-                {lots.map((lot) => (
-                  <option key={lot.id} value={lot.id}>
-                    {lot.number} — {lot.name}
+                {lots.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.number} — {l.name}
                   </option>
                 ))}
               </select>
@@ -147,15 +147,15 @@ export function LibrarySheet({ open, onClose, dpgfId, lots, onInserted }: Librar
             />
           </div>
 
-          {/* Trade pills */}
+          {/* Lot filter pills */}
           <div className="flex flex-wrap gap-1.5">
-            <TradeBtn label="Tous" active={trade === ''} onClick={() => setTrade('')} />
-            {TRADES.map((t) => (
-              <TradeBtn
-                key={t}
-                label={t}
-                active={trade === t}
-                onClick={() => setTrade(trade === t ? '' : t)}
+            <LotBtn label="Tous" active={lot === ''} onClick={() => setLot('')} />
+            {STANDARD_LOTS.map((l) => (
+              <LotBtn
+                key={l}
+                label={l}
+                active={lot === l}
+                onClick={() => setLot(lot === l ? '' : l)}
               />
             ))}
           </div>
@@ -169,7 +169,7 @@ export function LibrarySheet({ open, onClose, dpgfId, lots, onInserted }: Librar
             </p>
           ) : items.length === 0 ? (
             <p className="text-sm text-center py-10" style={{ color: 'var(--text3)' }}>
-              Aucun intitulé{search || trade ? ' pour cette recherche' : ''}
+              Aucun intitulé{search || lot ? ' pour cette recherche' : ''}
             </p>
           ) : (
             items.map((item) => (
@@ -180,30 +180,25 @@ export function LibrarySheet({ open, onClose, dpgfId, lots, onInserted }: Librar
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
-                    {item.title}
+                    {item.intitule}
                   </p>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <span className="text-xs" style={{ color: 'var(--text3)' }}>
-                      {item.unit}
-                    </span>
-                    {item.avgPrice != null && (
+                    {item.unite && (
+                      <span className="text-xs" style={{ color: 'var(--text3)' }}>
+                        {item.unite}
+                      </span>
+                    )}
+                    {item.sousLot && (
                       <span className="text-xs" style={{ color: 'var(--text2)' }}>
-                        ~
-                        {item.avgPrice.toLocaleString('fr-FR', {
-                          style: 'currency',
-                          currency: 'EUR',
-                          maximumFractionDigits: 0,
-                        })}
+                        {item.sousLot}
                       </span>
                     )}
-                    {item.trade && (
-                      <span
-                        className="text-xs px-1.5 py-0.5 rounded font-medium"
-                        style={{ background: 'var(--green-light)', color: 'var(--green)' }}
-                      >
-                        {item.trade}
-                      </span>
-                    )}
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded font-medium"
+                      style={{ background: 'var(--green-light)', color: 'var(--green)' }}
+                    >
+                      {item.lot}
+                    </span>
                     {item.usageCount > 0 && (
                       <span className="text-xs" style={{ color: 'var(--text3)' }}>
                         ×{item.usageCount}
@@ -229,15 +224,7 @@ export function LibrarySheet({ open, onClose, dpgfId, lots, onInserted }: Librar
   )
 }
 
-function TradeBtn({
-  label,
-  active,
-  onClick,
-}: {
-  label: string
-  active: boolean
-  onClick: () => void
-}) {
+function LotBtn({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
