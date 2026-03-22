@@ -12,6 +12,7 @@ export const offerPostSchema = z.object({
 
 export const saveOfferSchema = z.object({
   posts: z.array(offerPostSchema),
+  lotVatRates: z.record(z.string(), z.number().min(0).max(100)).optional(),
 })
 
 export const adminDocSchema = z.object({

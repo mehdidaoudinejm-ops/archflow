@@ -23,10 +23,15 @@ interface Lot {
   posts: Post[]
 }
 
+const VAT_OPTIONS = [5.5, 10, 20]
+
 interface OfferTableProps {
   lots: Lot[]
   posts: Map<string, OfferPostData>
   updatePost: (postId: string, data: Partial<OfferPostData>) => void
+  lotVatRates: Record<string, number>
+  onUpdateLotVatRate: (lotId: string, rate: number) => void
+  defaultLotVatRates: Record<string, number>
   allowCustomQty: boolean
   aoStatus: string
   isSubmitted: boolean
@@ -129,6 +134,9 @@ export function OfferTable({
   lots,
   posts,
   updatePost,
+  lotVatRates,
+  onUpdateLotVatRate,
+  defaultLotVatRates,
   allowCustomQty,
   aoStatus,
   isSubmitted,
@@ -150,10 +158,13 @@ export function OfferTable({
   })
   const progress = nonOptional.length ? Math.round((filled.length / nonOptional.length) * 100) : 100
 
-  // Grand total
+  // Grand total HT + TVA (per-lot)
   let grandTotal = 0
+  let grandTvA = 0
   let grandComplete = true
   for (const lot of lots) {
+    const vatRate = lotVatRates[lot.id] ?? defaultLotVatRates[lot.id] ?? 20
+    let lotHt = 0
     for (const post of lot.posts) {
       const op = posts.get(post.id)
       if (op?.comment === '__SKIP__') continue
@@ -162,8 +173,10 @@ export function OfferTable({
         if (!post.isOptional) grandComplete = false
       } else {
         grandTotal += t
+        lotHt += t
       }
     }
+    grandTvA += lotHt * (vatRate / 100)
   }
 
   return (
@@ -231,7 +244,9 @@ export function OfferTable({
             </tr>
           </thead>
           <tbody>
-            {lots.map((lot, li) => (
+            {lots.map((lot, li) => {
+              const vatRate = lotVatRates[lot.id] ?? defaultLotVatRates[lot.id] ?? 20
+              return (
               <>
                 {/* Ligne lot */}
                 <tr
@@ -242,11 +257,36 @@ export function OfferTable({
                   }}
                 >
                   <td
-                    colSpan={allowCustomQty ? 5 : 4}
+                    colSpan={allowCustomQty ? 3 : 2}
                     className="px-3 py-2 font-semibold text-sm"
                     style={{ color: 'var(--text)' }}
                   >
                     Lot {lot.number} — {lot.name}
+                  </td>
+                  <td colSpan={2} className="px-3 py-2 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span className="text-xs" style={{ color: 'var(--text3)' }}>TVA</span>
+                      {isReadonly ? (
+                        <span className="text-xs font-medium tabular-nums" style={{ color: 'var(--text2)' }}>
+                          {vatRate}%
+                        </span>
+                      ) : (
+                        <select
+                          value={vatRate}
+                          onChange={(e) => onUpdateLotVatRate(lot.id, parseFloat(e.target.value))}
+                          className="text-xs rounded px-1 py-0.5 outline-none"
+                          style={{
+                            border: '1px solid var(--border)',
+                            color: 'var(--text)',
+                            background: 'var(--surface)',
+                          }}
+                        >
+                          {VAT_OPTIONS.map((v) => (
+                            <option key={v} value={v}>{v}%</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
                   </td>
                   <td colSpan={2} className="px-3 py-2 text-right font-semibold text-sm" style={{ color: 'var(--text)' }}>
                     <LotTotal lot={lot} posts={posts} offerPosts={posts} allowCustomQty={allowCustomQty} />
@@ -441,26 +481,58 @@ export function OfferTable({
                   </tr>
                 ))}
               </>
-            ))}
+              )
+            })}
 
-            {/* Ligne total général */}
+            {/* Ligne total HT */}
             <tr style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>
               <td
                 colSpan={allowCustomQty ? 5 : 4}
-                className="px-3 py-3 font-semibold"
+                className="px-3 py-2 font-semibold text-sm"
                 style={{ color: 'var(--text)' }}
               >
                 TOTAL GÉNÉRAL HT
               </td>
               <td
                 colSpan={2}
-                className="px-3 py-3 text-right font-semibold tabular-nums"
-                style={{
-                  color: grandComplete ? 'var(--green)' : 'var(--text3)',
-                  fontSize: '15px',
-                }}
+                className="px-3 py-2 text-right font-semibold tabular-nums text-sm"
+                style={{ color: grandComplete ? 'var(--text)' : 'var(--text3)' }}
               >
                 {grandComplete ? `${formatPrice(grandTotal)} €` : '—'}
+              </td>
+            </tr>
+            {/* Ligne TVA */}
+            <tr style={{ background: 'var(--surface2)' }}>
+              <td
+                colSpan={allowCustomQty ? 5 : 4}
+                className="px-3 py-1.5 text-sm"
+                style={{ color: 'var(--text2)' }}
+              >
+                TVA (taux par lot)
+              </td>
+              <td
+                colSpan={2}
+                className="px-3 py-1.5 text-right tabular-nums text-sm"
+                style={{ color: grandComplete ? 'var(--text2)' : 'var(--text3)' }}
+              >
+                {grandComplete ? `${formatPrice(grandTvA)} €` : '—'}
+              </td>
+            </tr>
+            {/* Ligne TTC */}
+            <tr style={{ background: 'var(--green-light)', borderTop: '1px solid var(--border)' }}>
+              <td
+                colSpan={allowCustomQty ? 5 : 4}
+                className="px-3 py-3 font-bold"
+                style={{ color: 'var(--green)', fontSize: '15px' }}
+              >
+                TOTAL GÉNÉRAL TTC
+              </td>
+              <td
+                colSpan={2}
+                className="px-3 py-3 text-right font-bold tabular-nums"
+                style={{ color: grandComplete ? 'var(--green)' : 'var(--text3)', fontSize: '15px' }}
+              >
+                {grandComplete ? `${formatPrice(grandTotal + grandTvA)} €` : '—'}
               </td>
             </tr>
           </tbody>

@@ -186,7 +186,7 @@ export default async function ClientPage({ params }: Props) {
         return { id: post.id, ref: post.ref, title: post.title, unit: post.unit, qtyArchi: post.qtyArchi ?? null, unitPriceArchi: post.unitPriceArchi ?? null, totalArchi: postTotalArchi, minPrice, maxPrice, minCompanyId, maxCompanyId, hasQtyDivergence }
       })
       if (lotTotalArchi != null) estimatifTotal = (estimatifTotal ?? 0) + lotTotalArchi
-      return { id: lot.id, number: lot.number, name: lot.name, totalArchi: lotTotalArchi, posts: postsData }
+      return { id: lot.id, number: lot.number, name: lot.name, vatRate: lot.vatRate, totalArchi: lotTotalArchi, posts: postsData }
     })
 
     const companiesData = aoCompanies.map((company) => {
@@ -218,6 +218,7 @@ export default async function ClientPage({ params }: Props) {
 
       return {
         id: company.id, name, total, offerPosts,
+        lotVatRates: null,
         submittedAt: company.offer?.submittedAt?.toISOString() ?? null,
         invitedAt: ao.createdAt.toISOString(),
         adminDocs: adminDocsMap.get(company.id) ?? [],

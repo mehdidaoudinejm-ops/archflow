@@ -60,7 +60,7 @@ interface DPGFTableProps {
   search: string
   isReadOnly?: boolean
   onAddLot: (name: string) => Promise<void>
-  onUpdateLot: (lotId: string, data: { name?: string; position?: number }) => Promise<void>
+  onUpdateLot: (lotId: string, data: { name?: string; position?: number; vatRate?: number }) => Promise<void>
   onDeleteLot: (lotId: string) => Promise<void>
   onReorderLots: (items: { lotId: string; position: number }[]) => Promise<void>
   onAddSubLot: (lotId: string, data: { number: string; name: string }) => Promise<void>
@@ -95,16 +95,19 @@ function fmt(n: number): string {
 }
 
 // ── LotRow ─────────────────────────────────────────────────────────────────────
+const VAT_RATES = [5.5, 10, 20]
+
 interface LotRowProps {
   lot: LotWithChildren
   collapsed: boolean
   onToggle: () => void
   onRename: (name: string) => Promise<void>
   onDelete: () => Promise<void>
+  onUpdateVatRate: (rate: number) => Promise<void>
   isReadOnly: boolean
 }
 
-function LotRow({ lot, collapsed, onToggle, onRename, onDelete, isReadOnly }: LotRowProps) {
+function LotRow({ lot, collapsed, onToggle, onRename, onDelete, onUpdateVatRate, isReadOnly }: LotRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lot.id,
   })
@@ -174,6 +177,32 @@ function LotRow({ lot, collapsed, onToggle, onRename, onDelete, isReadOnly }: Lo
           {lot.name}
         </span>
       )}
+
+      {/* TVA suggérée */}
+      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+        <span className="text-xs" style={{ color: 'rgba(255,255,255,0.55)' }}>TVA</span>
+        {isReadOnly ? (
+          <span className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.8)' }}>
+            {lot.vatRate}%
+          </span>
+        ) : (
+          <select
+            value={lot.vatRate}
+            onChange={(e) => { void onUpdateVatRate(parseFloat(e.target.value)) }}
+            onClick={(e) => e.stopPropagation()}
+            className="text-xs rounded px-1 py-0.5 outline-none"
+            style={{
+              background: 'rgba(255,255,255,0.12)',
+              border: '1px solid rgba(255,255,255,0.25)',
+              color: '#fff',
+            }}
+          >
+            {VAT_RATES.map((v) => (
+              <option key={v} value={v} style={{ color: '#000' }}>{v}%</option>
+            ))}
+          </select>
+        )}
+      </div>
 
       <div className="flex items-center gap-1 ml-auto shrink-0">
         {!isReadOnly && (
@@ -1399,6 +1428,7 @@ export function DPGFTable({
                   onToggle={() => toggleCollapse(row.lot.id)}
                   onRename={(name) => onUpdateLot(row.lot.id, { name })}
                   onDelete={() => onDeleteLot(row.lot.id)}
+                  onUpdateVatRate={(vatRate) => onUpdateLot(row.lot.id, { vatRate })}
                   isReadOnly={isReadOnly}
                 />
               )

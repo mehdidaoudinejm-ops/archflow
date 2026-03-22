@@ -157,7 +157,11 @@ export default async function AnalysePage({ params }: Props) {
     where: { aoId: ao.id, offer: { isComplete: true } },
     include: {
       offer: {
-        include: { offerPosts: { include: { post: true } } },
+        select: {
+          submittedAt: true,
+          lotVatRates: true,
+          offerPosts: { include: { post: true } },
+        },
       },
     },
   })
@@ -303,7 +307,7 @@ export default async function AnalysePage({ params }: Props) {
       }
     })
     if (lotTotalArchi != null) estimatifTotal = (estimatifTotal ?? 0) + lotTotalArchi
-    return { id: lot.id, number: lot.number, name: lot.name, totalArchi: lotTotalArchi, posts: postsData }
+    return { id: lot.id, number: lot.number, name: lot.name, vatRate: lot.vatRate, totalArchi: lotTotalArchi, posts: postsData }
   })
 
   const companiesData = aoCompanies.map((company) => {
@@ -345,6 +349,7 @@ export default async function AnalysePage({ params }: Props) {
       name,
       total,
       offerPosts,
+      lotVatRates: (company.offer?.lotVatRates ?? null) as Record<string, number> | null,
       submittedAt: company.offer?.submittedAt?.toISOString() ?? null,
       invitedAt: ao.createdAt.toISOString(),
       adminDocs: adminDocsMap.get(company.id) ?? [],

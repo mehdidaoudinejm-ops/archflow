@@ -118,6 +118,7 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
           number: nextNumber,
           name,
           position: nextPosition,
+          vatRate: 20,
           sublots: [],
           posts: [],
         }
@@ -154,7 +155,7 @@ export function useDPGF(dpgfId: string, fallbackData?: DPGFWithLots) {
   )
 
   const updateLot = useCallback(
-    async (lotId: string, data: { name?: string; position?: number }) => {
+    async (lotId: string, data: { name?: string; position?: number; vatRate?: number }) => {
       void mutate(
         (prev) => {
           const d = prev ?? dpgfRef.current

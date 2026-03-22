@@ -70,6 +70,14 @@ export async function PATCH(
       return NextResponse.json({ error: 'L\'offre a déjà été soumise' }, { status: 400 })
     }
 
+    // Sauvegarder lotVatRates si fournis
+    if (parsed.data.lotVatRates) {
+      await prisma.offer.update({
+        where: { id: offer.id },
+        data: { lotVatRates: parsed.data.lotVatRates },
+      })
+    }
+
     // Upsert des postes (batch — une seule requête de lecture + transaction)
     const postIds = parsed.data.posts.map((p) => p.postId)
     const existingPosts = await prisma.offerPost.findMany({
@@ -255,10 +263,14 @@ export async function PUT(
       })
     )
 
-    // Marquer l'offre comme soumise
+    // Marquer l'offre comme soumise (+ sauvegarder lotVatRates si fournis)
     await prisma.offer.update({
       where: { id: offer.id },
-      data: { submittedAt: new Date(), isComplete: true },
+      data: {
+        submittedAt: new Date(),
+        isComplete: true,
+        ...(parsed.data.lotVatRates ? { lotVatRates: parsed.data.lotVatRates } : {}),
+      },
     })
 
     // Mettre à jour le statut de l'entreprise

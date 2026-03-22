@@ -28,6 +28,7 @@ interface InitialOffer {
   id: string
   submittedAt: string | null
   isComplete: boolean
+  lotVatRates: Record<string, number> | null
   offerPosts: InitialOfferPost[]
 }
 
@@ -52,6 +53,12 @@ export function useOffer({ aoId, initialOffer, token }: UseOfferOptions) {
     })
     return map
   })
+
+  const [lotVatRates, setLotVatRates] = useState<Record<string, number>>(
+    initialOffer?.lotVatRates ?? {}
+  )
+  const lotVatRatesRef = useRef(lotVatRates)
+  useEffect(() => { lotVatRatesRef.current = lotVatRates }, [lotVatRates])
 
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved')
   const [isSubmitted, setIsSubmitted] = useState(initialOffer?.isComplete ?? false)
@@ -101,7 +108,7 @@ export function useOffer({ aoId, initialOffer, token }: UseOfferOptions) {
       const res = await fetch(`/api/portal/${aoId}/offer`, {
         method: 'PATCH',
         headers,
-        body: JSON.stringify({ posts: postsArray }),
+        body: JSON.stringify({ posts: postsArray, lotVatRates: lotVatRatesRef.current }),
       })
       if (res.ok) {
         setSaveStatus('saved')
@@ -132,6 +139,22 @@ export function useOffer({ aoId, initialOffer, token }: UseOfferOptions) {
     [aoId, token]
   )
 
+  const updateLotVatRate = useCallback(
+    (lotId: string, rate: number) => {
+      setLotVatRates((prev) => {
+        const next = { ...prev, [lotId]: rate }
+        lotVatRatesRef.current = next
+        return next
+      })
+      setSaveStatus('unsaved')
+      hasUnsavedRef.current = true
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => { void saveNow() }, 3000)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [aoId, token]
+  )
+
   async function submit(
     allPostIds: string[]
   ): Promise<{ success: boolean; error?: string; details?: string[] }> {
@@ -144,7 +167,7 @@ export function useOffer({ aoId, initialOffer, token }: UseOfferOptions) {
       const res = await fetch(`/api/portal/${aoId}/offer`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify({ posts: postsArray }),
+        body: JSON.stringify({ posts: postsArray, lotVatRates: lotVatRatesRef.current }),
       })
 
       if (res.ok) {
@@ -161,5 +184,5 @@ export function useOffer({ aoId, initialOffer, token }: UseOfferOptions) {
     }
   }
 
-  return { posts, updatePost, saveStatus, save: saveNow, submit, isSubmitted, submittedAt }
+  return { posts, updatePost, lotVatRates, updateLotVatRate, saveStatus, save: saveNow, submit, isSubmitted, submittedAt }
 }

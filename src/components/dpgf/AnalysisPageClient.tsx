@@ -38,6 +38,7 @@ interface Lot {
   id: string
   number: number
   name: string
+  vatRate: number
   totalArchi: number | null
   posts: Post[]
 }
@@ -47,6 +48,7 @@ interface CompanyData {
   name: string
   total: number | null
   offerPosts: Record<string, OfferPostData>
+  lotVatRates: Record<string, number> | null
   submittedAt: string | null
   invitedAt: string
   adminDocs: { id: string; type: string; status: string; fileUrl: string; rejectionReason: string | null; expiresAt: string | null }[]
@@ -711,6 +713,25 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
   // TVA toggle
   const [showTTC, setShowTTC] = useState(false)
   const vatMultiplier = showTTC ? (1 + vatRate / 100) : 1
+
+  // Compute TTC total for a company using per-lot TVA rates
+  function companyTTC(company: CompanyData): number | null {
+    let total: number | null = null
+    for (const lot of lots) {
+      const lotRate = company.lotVatRates?.[lot.id] ?? lot.vatRate
+      const multiplier = showTTC ? (1 + lotRate / 100) : 1
+      for (const post of lot.posts) {
+        const op = company.offerPosts[post.id]
+        if (!op) continue
+        const qty = op.qtyCompany ?? post.qtyArchi
+        if (qty != null && op.unitPrice != null) {
+          total = (total ?? 0) + qty * op.unitPrice * multiplier
+        }
+      }
+    }
+    return total
+  }
+
   function fmt(v: number | null): string {
     if (v == null) return '—'
     return formatPrice(v * vatMultiplier)
@@ -1027,7 +1048,7 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
           ))}
           {showTTC && (
             <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--amber-light)', color: 'var(--amber)' }}>
-              TVA {vatRate}% incluse
+              TVA par lot incluse
             </span>
           )}
         </div>

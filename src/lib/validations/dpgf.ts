@@ -8,6 +8,7 @@ export const createLotSchema = z.object({
 export const updateLotSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   position: z.number().int().nonnegative().optional(),
+  vatRate: z.number().min(0).max(100).optional(),
 })
 
 export const createPostSchema = z.object({

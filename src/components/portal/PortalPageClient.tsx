@@ -23,6 +23,7 @@ interface Lot {
   id: string
   number: number
   name: string
+  vatRate: number
   posts: Post[]
 }
 
@@ -42,6 +43,7 @@ interface InitialOffer {
   id: string
   submittedAt: string | null
   isComplete: boolean
+  lotVatRates: Record<string, number> | null
   offerPosts: Array<{
     postId: string
     unitPrice: number | null
@@ -419,11 +421,14 @@ function PortalPageClientInner({
   newDocumentIds,
   profileIncomplete,
 }: PortalPageClientProps) {
-  const { posts, updatePost, saveStatus, save, submit, isSubmitted } = useOffer({
+  const { posts, updatePost, lotVatRates, updateLotVatRate, saveStatus, save, submit, isSubmitted } = useOffer({
     aoId: ao.id,
     initialOffer,
     token,
   })
+
+  // Taux TVA suggérés par l'architecte (depuis Lot.vatRate)
+  const defaultLotVatRates = Object.fromEntries(lots.map((l) => [l.id, l.vatRate]))
 
   // ── Sélection des lots ────────────────────────────────────────────────────
   const [selectedLotIds, setSelectedLotIds] = useState<string[]>(initialSelectedLotIds)
@@ -802,6 +807,9 @@ function PortalPageClientInner({
           lots={selectedLots}
           posts={posts}
           updatePost={updatePost}
+          lotVatRates={lotVatRates}
+          onUpdateLotVatRate={updateLotVatRate}
+          defaultLotVatRates={defaultLotVatRates}
           allowCustomQty={ao.allowCustomQty}
           aoStatus={ao.status}
           isSubmitted={isSubmitted}

@@ -182,6 +182,7 @@ model Lot {
   number   Int
   name     String
   position Int
+  vatRate  Float    @default(20)
   dpgf     DPGF     @relation(fields: [dpgfId], references: [id])
   sublots  SubLot[]
   posts    Post[]
@@ -319,14 +320,15 @@ model AOCompany {
 }
 
 model Offer {
-  id          String      @id @default(cuid())
-  aoId        String
-  aoCompanyId String      @unique
-  submittedAt DateTime?
-  isComplete  Boolean     @default(false)
-  vatRate     Float       @default(20)
-  aoCompany   AOCompany   @relation(fields: [aoCompanyId], references: [id])
-  offerPosts  OfferPost[]
+  id           String      @id @default(cuid())
+  aoId         String
+  aoCompanyId  String      @unique
+  submittedAt  DateTime?
+  isComplete   Boolean     @default(false)
+  vatRate      Float       @default(20)
+  lotVatRates  Json?       // { [lotId]: number } — taux TVA par lot (saisi par l'entreprise)
+  aoCompany    AOCompany   @relation(fields: [aoCompanyId], references: [id])
+  offerPosts   OfferPost[]
 
   @@index([aoId])
 }

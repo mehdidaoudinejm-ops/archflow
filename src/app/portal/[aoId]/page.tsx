@@ -75,6 +75,7 @@ export default async function PortalPage({ params, searchParams }: Props) {
       id: true,
       number: true,
       name: true,
+      vatRate: true,
       posts: {
         orderBy: { position: 'asc' },
         select: {
@@ -97,6 +98,7 @@ export default async function PortalPage({ params, searchParams }: Props) {
       id: true,
       submittedAt: true,
       isComplete: true,
+      lotVatRates: true,
       offerPosts: {
         select: {
           postId: true,
@@ -199,6 +201,7 @@ export default async function PortalPage({ params, searchParams }: Props) {
               id: offer.id,
               submittedAt: offer.submittedAt?.toISOString() ?? null,
               isComplete: offer.isComplete,
+              lotVatRates: offer.lotVatRates as Record<string, number> | null,
               offerPosts: offer.offerPosts,
             }
           : null
