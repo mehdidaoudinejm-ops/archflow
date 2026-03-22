@@ -91,7 +91,11 @@ export async function POST(req: Request) {
     try {
       const pdfBuffer = new Uint8Array(await file.arrayBuffer())
       const { text } = await extractText(pdfBuffer, { mergePages: true })
+      console.log('[import-pdf] Texte extrait (500 premiers chars):', text.slice(0, 500))
+      console.log('[import-pdf] Nombre de lignes brutes:', text.split('\n').filter(l => l.trim().length > 3).length)
       posts = postsFromText(text)
+      console.log('[import-pdf] Posts détectés:', posts.length)
+      console.log('[import-pdf] Exemples:', JSON.stringify(posts.slice(0, 3)))
 
       if (posts.length === 0) {
         return NextResponse.json({ error: 'parsing_failed' }, { status: 422 })
