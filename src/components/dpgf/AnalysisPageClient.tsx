@@ -1262,54 +1262,129 @@ export function AnalysisPageClient({ projectId, projectName, agencyName, initial
                 </tr>
               </thead>
               <tbody>
-                {sortedPosts.map((post, i) => {
-                  const ecartPct =
-                    post.minPrice != null && post.maxPrice != null && post.maxPrice !== 0
-                      ? (((post.maxPrice - post.minPrice) / post.maxPrice) * 100).toFixed(0) + '%'
-                      : '—'
+                {(() => {
+                  // ── helpers ────────────────────────────────────────────────
+                  type VisiblePost = (typeof sortedPosts)[number]
+
+                  function postRow(post: VisiblePost, i: number) {
+                    const ecartPct =
+                      post.minPrice != null && post.maxPrice != null && post.maxPrice !== 0
+                        ? (((post.maxPrice - post.minPrice) / post.maxPrice) * 100).toFixed(0) + '%'
+                        : '—'
+                    return (
+                      <tr key={post.id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface2)' }}>
+                        <td className="px-3 py-2.5 font-mono text-xs" style={{ color: 'var(--text3)' }}>{post.ref}</td>
+                        <td className="px-3 py-2.5" style={{ color: 'var(--text)' }}>
+                          <span className="flex items-center gap-1.5">
+                            {post.title}
+                            {post.hasQtyDivergence && <span title="Métrés divergents" style={{ color: 'var(--amber)' }}>⚠</span>}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: 'var(--text2)' }}>
+                          {post.qtyArchi ?? '—'} {post.unit}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: 'var(--text2)' }}>
+                          {formatPrice(post.totalArchi)}
+                        </td>
+                        {companies.map((c) => {
+                          const op = c.offerPosts[post.id]
+                          const qty = op?.qtyCompany ?? post.qtyArchi
+                          const total = qty != null && op?.unitPrice != null ? qty * op.unitPrice : null
+                          const isMin = c.id === post.minCompanyId && total != null
+                          const isMax = c.id === post.maxCompanyId && total != null && post.minCompanyId !== post.maxCompanyId
+                          return (
+                            <td key={c.id} className="px-3 py-2.5 text-right tabular-nums text-sm"
+                              style={{
+                                color: isMin ? 'var(--green)' : isMax ? 'var(--red)' : 'var(--text)',
+                                fontWeight: isMin || isMax ? 600 : 400,
+                                background: isMin ? 'rgba(26,92,58,0.06)' : isMax ? 'rgba(155,28,28,0.06)' : undefined,
+                              }}>
+                              {op ? (
+                                <>
+                                  <div>{formatPrice(total)}</div>
+                                  {op.unitPrice != null && <div className="text-xs" style={{ color: 'var(--text3)' }}>{formatPrice(op.unitPrice)}/{post.unit}</div>}
+                                </>
+                              ) : <span style={{ color: 'var(--text3)' }}>—</span>}
+                            </td>
+                          )
+                        })}
+                        <td className="px-3 py-2.5 text-right tabular-nums font-medium text-xs" style={{ color: 'var(--green)' }}>{formatPrice(post.minPrice)}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums font-medium text-xs" style={{ color: 'var(--red)' }}>{formatPrice(post.maxPrice)}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-xs" style={{ color: 'var(--text2)' }}>{ecartPct}</td>
+                      </tr>
+                    )
+                  }
+
+                  function totalRow(posts: VisiblePost[], label: string, grand: boolean) {
+                    const sumEstimatif = posts.reduce((s, p) => s + (p.totalArchi ?? 0), 0)
+                    const sumMin = posts.reduce((s, p) => s + (p.minPrice ?? 0), 0)
+                    const sumMax = posts.reduce((s, p) => s + (p.maxPrice ?? 0), 0)
+                    const ecart = sumMax > 0 ? Math.round(((sumMax - sumMin) / sumMax) * 100) + '%' : '—'
+                    const bg = grand ? 'var(--green-light)' : 'var(--surface2)'
+                    const labelColor = grand ? 'var(--green)' : 'var(--text)'
+                    return (
+                      <tr key={`total-${label}`} style={{ borderTop: `2px solid ${grand ? 'var(--green)' : 'var(--border)'}`, background: bg }}>
+                        <td colSpan={2} className="px-3 py-2.5 text-xs font-semibold" style={{ color: labelColor }}>{label}</td>
+                        <td className="px-3 py-2.5" />
+                        <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-xs" style={{ color: labelColor }}>
+                          {sumEstimatif > 0 ? formatPrice(sumEstimatif) : '—'}
+                        </td>
+                        {companies.map((c) => {
+                          const sum = posts.reduce((s, post) => {
+                            const op = c.offerPosts[post.id]
+                            const qty = op?.qtyCompany ?? post.qtyArchi
+                            return qty != null && op?.unitPrice != null ? s + qty * op.unitPrice : s
+                          }, 0)
+                          return (
+                            <td key={c.id} className="px-3 py-2.5 text-right tabular-nums font-semibold text-xs" style={{ color: labelColor }}>
+                              {sum > 0 ? formatPrice(sum) : '—'}
+                            </td>
+                          )
+                        })}
+                        <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-xs" style={{ color: grand ? 'var(--green)' : 'var(--green)' }}>
+                          {sumMin > 0 ? formatPrice(sumMin) : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-xs" style={{ color: grand ? 'var(--green)' : 'var(--red)' }}>
+                          {sumMax > 0 ? formatPrice(sumMax) : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-xs font-semibold" style={{ color: 'var(--text2)' }}>{ecart}</td>
+                      </tr>
+                    )
+                  }
+
+                  // ── rendering ──────────────────────────────────────────────
+                  if (selectedLotId !== 'all') {
+                    // Single lot: posts + total
+                    return (
+                      <>
+                        {sortedPosts.map((post, i) => postRow(post, i))}
+                        {sortedPosts.length > 0 && totalRow(sortedPosts, 'TOTAL', true)}
+                      </>
+                    )
+                  }
+
+                  // All lots: group by lot, subtotal per lot, grand total
                   return (
-                    <tr key={post.id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface2)' }}>
-                      <td className="px-3 py-2.5 font-mono text-xs" style={{ color: 'var(--text3)' }}>{post.ref}</td>
-                      <td className="px-3 py-2.5" style={{ color: 'var(--text)' }}>
-                        <span className="flex items-center gap-1.5">
-                          {post.title}
-                          {post.hasQtyDivergence && <span title="Métrés divergents" style={{ color: 'var(--amber)' }}>⚠</span>}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: 'var(--text2)' }}>
-                        {post.qtyArchi ?? '—'} {post.unit}
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: 'var(--text2)' }}>
-                        {formatPrice(post.totalArchi)}
-                      </td>
-                      {companies.map((c) => {
-                        const op = c.offerPosts[post.id]
-                        const qty = op?.qtyCompany ?? post.qtyArchi
-                        const total = qty != null && op?.unitPrice != null ? qty * op.unitPrice : null
-                        const isMin = c.id === post.minCompanyId && total != null
-                        const isMax = c.id === post.maxCompanyId && total != null && post.minCompanyId !== post.maxCompanyId
+                    <>
+                      {lots.map((lot) => {
+                        const lotPosts = sortedPosts.filter((p) => p.lotNumber === lot.number)
+                        if (lotPosts.length === 0) return null
                         return (
-                          <td key={c.id} className="px-3 py-2.5 text-right tabular-nums text-sm"
-                            style={{
-                              color: isMin ? 'var(--green)' : isMax ? 'var(--red)' : 'var(--text)',
-                              fontWeight: isMin || isMax ? 600 : 400,
-                              background: isMin ? 'rgba(26,92,58,0.06)' : isMax ? 'rgba(155,28,28,0.06)' : undefined,
-                            }}>
-                            {op ? (
-                              <>
-                                <div>{formatPrice(total)}</div>
-                                {op.unitPrice != null && <div className="text-xs" style={{ color: 'var(--text3)' }}>{formatPrice(op.unitPrice)}/{post.unit}</div>}
-                              </>
-                            ) : <span style={{ color: 'var(--text3)' }}>—</span>}
-                          </td>
+                          <>
+                            <tr key={`header-${lot.id}`} style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>
+                              <td colSpan={4 + companies.length + 3} className="px-3 py-2 text-xs font-semibold" style={{ color: 'var(--text2)' }}>
+                                Lot {lot.number} — {lot.name}
+                              </td>
+                            </tr>
+                            {lotPosts.map((post, i) => postRow(post, i))}
+                            {totalRow(lotPosts, `Sous-total Lot ${lot.number}`, false)}
+                          </>
                         )
                       })}
-                      <td className="px-3 py-2.5 text-right tabular-nums font-medium text-xs" style={{ color: 'var(--green)' }}>{formatPrice(post.minPrice)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums font-medium text-xs" style={{ color: 'var(--red)' }}>{formatPrice(post.maxPrice)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-xs" style={{ color: 'var(--text2)' }}>{ecartPct}</td>
-                    </tr>
+                      {sortedPosts.length > 0 && totalRow(sortedPosts, 'TOTAL GÉNÉRAL', true)}
+                    </>
                   )
-                })}
+                })()}
               </tbody>
             </table>
           </div>
