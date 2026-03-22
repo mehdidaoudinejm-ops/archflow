@@ -26,9 +26,8 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
   const [dragging, setDragging] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [loadingMode, setLoadingMode] = useState<'ai' | 'direct' | 'pdf' | null>(null)
+  const [loading, setLoading] = useState(false)
   const [importSuccess, setImportSuccess] = useState<{ imported: number; skipped: number } | null>(null)
-  const loading = loadingMode !== null
 
   function handleClose() {
     if (loading) return
@@ -68,9 +67,7 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
     setDragging(true)
   }
 
-  function onDragLeave() {
-    setDragging(false)
-  }
+  function onDragLeave() { setDragging(false) }
 
   function onDrop(e: DragEvent<HTMLDivElement>) {
     e.preventDefault()
@@ -79,54 +76,43 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
     if (f) validateAndSetFile(f)
   }
 
-  async function handleImport(mode: 'ai' | 'direct') {
+  async function handleExcelImport() {
     if (!file || loading) return
-    setLoadingMode(mode)
+    setLoading(true)
     setError(null)
 
     try {
       const form = new FormData()
       form.append('file', file)
 
-      // [LEGACY - import IA] const endpoint = mode === 'direct' ? `/api/excel-import?dpgfId=${dpgfId}` : `/api/ai-import?dpgfId=${dpgfId}`
-      const endpoint = mode === 'direct'
-        ? `/api/excel-import?dpgfId=${dpgfId}`
-        : `/api/ai-import?dpgfId=${dpgfId}` // [LEGACY - import IA] — Excel uniquement désormais
-
-      const res = await fetch(endpoint, { method: 'POST', body: form })
+      const res = await fetch(`/api/excel-import?dpgfId=${dpgfId}`, { method: 'POST', body: form })
 
       let data: { importId?: string; error?: string } = {}
       try {
         data = await res.json() as { importId?: string; error?: string }
       } catch {
-        setError(
-          mode === 'ai'
-            ? `Erreur serveur (HTTP ${res.status}). Vérifiez que ANTHROPIC_API_KEY est définie en production.`
-            : `Erreur serveur (HTTP ${res.status}).`
-        )
-        setLoadingMode(null)
+        setError(`Erreur serveur (HTTP ${res.status}).`)
+        setLoading(false)
         return
       }
 
       if (!res.ok || !data.importId) {
-        setError(data.error ?? (mode === 'ai' ? "Échec de l'analyse IA" : "Échec de l'import"))
-        setLoadingMode(null)
+        setError(data.error ?? "Échec de l'import")
+        setLoading(false)
         return
       }
 
       handleClose()
       router.push(`/dpgf/${projectId}/import?importId=${data.importId}`)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erreur réseau'
-      setError(msg)
-      setLoadingMode(null)
+      setError(err instanceof Error ? err.message : 'Erreur réseau')
+      setLoading(false)
     }
   }
 
-  // Nouveau flow PDF : conversion via iLovePDF (sans IA)
   async function handlePdfImport() {
     if (!file || loading) return
-    setLoadingMode('pdf')
+    setLoading(true)
     setError(null)
     setImportSuccess(null)
 
@@ -142,7 +128,7 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
         data = await res.json() as typeof data
       } catch {
         setError(`Erreur serveur (HTTP ${res.status}).`)
-        setLoadingMode(null)
+        setLoading(false)
         return
       }
 
@@ -152,22 +138,20 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
           : data.error === 'parsing_failed'  ? 'Impossible de lire les données du fichier converti.'
           : data.error ?? "Échec de l'import"
         setError(msg)
-        setLoadingMode(null)
+        setLoading(false)
         return
       }
 
       setImportSuccess({ imported: data.imported ?? 0, skipped: data.skipped ?? 0 })
-      setLoadingMode(null)
+      setLoading(false)
       router.refresh()
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erreur réseau'
-      setError(msg)
-      setLoadingMode(null)
+      setError(err instanceof Error ? err.message : 'Erreur réseau')
+      setLoading(false)
     }
   }
 
   const isPDF = file?.name.toLowerCase().endsWith('.pdf')
-  const isExcel = file ? !isPDF : false
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -185,8 +169,7 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
         </DialogHeader>
 
         <p className="text-sm" style={{ color: 'var(--text2)' }}>
-          Importez un fichier Excel (xlsx, xls, csv) ou PDF. Pour Excel, vous pouvez importer
-          directement ou utiliser l&apos;IA. Pour PDF, la conversion se fait via iLovePDF.
+          Glissez un fichier Excel (xlsx, xls, csv) ou PDF pour l&apos;importer dans votre DPGF.
         </p>
 
         {/* Zone drop */}
@@ -276,54 +259,12 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
             className="px-4 py-2 text-sm rounded-[var(--radius)] border"
             style={{ borderColor: 'var(--border)', color: 'var(--text2)', background: 'var(--surface)' }}
           >
-            Annuler
+            {importSuccess ? 'Fermer' : 'Annuler'}
           </button>
 
-          {/* Import direct — Excel uniquement */}
-          {isExcel && (
+          {!importSuccess && file && (
             <button
-              onClick={() => handleImport('direct')}
-              disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 text-sm rounded-[var(--radius)] font-medium"
-              style={{
-                background: loading ? 'var(--surface2)' : 'var(--surface)',
-                color: loading ? 'var(--text3)' : 'var(--green)',
-                border: `1.5px solid ${loading ? 'var(--border)' : 'var(--green)'}`,
-              }}
-            >
-              {loadingMode === 'direct' && <Loader2 size={14} className="animate-spin" />}
-              {loadingMode === 'direct' ? 'Import en cours…' : 'Import direct'}
-            </button>
-          )}
-
-          {/* Analyse IA — Excel uniquement */}
-          {isExcel && (
-            <button
-              onClick={() => handleImport('ai')}
-              disabled={!file || loading}
-              className="flex items-center gap-2 px-4 py-2 text-sm rounded-[var(--radius)] font-medium"
-              style={{
-                background: !file || loading ? 'var(--surface2)' : 'var(--green-btn)',
-                color: !file || loading ? 'var(--text3)' : '#fff',
-                border: 'none',
-              }}
-            >
-              {loadingMode === 'ai' && <Loader2 size={14} className="animate-spin" />}
-              {loadingMode === 'ai' ? 'Analyse IA en cours…' : "Analyser avec l'IA"}
-            </button>
-          )}
-
-          {/* [LEGACY - import IA] Ancien bouton PDF → Claude :
-          {isPDF && (
-            <button onClick={() => handleImport('ai')} ...>
-              Analyser
-            </button>
-          )} */}
-
-          {/* Nouveau flow PDF → iLovePDF (sans IA) */}
-          {isPDF && !importSuccess && (
-            <button
-              onClick={handlePdfImport}
+              onClick={isPDF ? handlePdfImport : handleExcelImport}
               disabled={loading}
               className="flex items-center gap-2 px-4 py-2 text-sm rounded-[var(--radius)] font-medium"
               style={{
@@ -332,18 +273,8 @@ export function ImportDialog({ open, onClose, dpgfId, projectId }: ImportDialogP
                 border: 'none',
               }}
             >
-              {loadingMode === 'pdf' && <Loader2 size={14} className="animate-spin" />}
-              {loadingMode === 'pdf' ? 'Conversion en cours…' : 'Importer'}
-            </button>
-          )}
-
-          {importSuccess && (
-            <button
-              onClick={handleClose}
-              className="px-4 py-2 text-sm rounded-[var(--radius)] font-medium"
-              style={{ background: 'var(--green-btn)', color: '#fff', border: 'none' }}
-            >
-              Fermer
+              {loading && <Loader2 size={14} className="animate-spin" />}
+              {loading ? 'Import en cours…' : 'Importer'}
             </button>
           )}
         </div>
