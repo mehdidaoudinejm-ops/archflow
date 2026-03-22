@@ -7,6 +7,9 @@ import { AuthError } from '@/lib/auth'
 
 const MAX_SIZE = 10 * 1024 * 1024 // 10 Mo
 
+// Extensions autorisées pour les documents administratifs entreprise
+const ALLOWED_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png', '.docx', '.xlsx']
+
 export async function POST(req: Request) {
   try {
     // Vérifier l'auth portail (token JWT dans X-Portal-Token ou Authorization)
@@ -20,8 +23,10 @@ export async function POST(req: Request) {
 
     const formData = await req.formData()
     const file = formData.get('file') as File | null
-    const bucket = (formData.get('bucket') as string | null) ?? 'admin-docs'
     const path = formData.get('path') as string | null
+
+    // Le bucket est toujours admin-docs pour les uploads portail entreprise
+    const bucket = 'admin-docs'
 
     if (!file || !path) {
       return NextResponse.json({ error: 'file et path sont requis' }, { status: 400 })
@@ -29,6 +34,11 @@ export async function POST(req: Request) {
 
     if (file.size > MAX_SIZE) {
       return NextResponse.json({ error: 'Fichier trop volumineux (max 10 Mo)' }, { status: 400 })
+    }
+
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase()
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      return NextResponse.json({ error: 'Format non autorisé' }, { status: 400 })
     }
 
     // Upload via service role — bypass RLS
@@ -51,10 +61,21 @@ export async function POST(req: Request) {
 
     const buffer = Buffer.from(await file.arrayBuffer())
 
+    // MIME type dérivé de l'extension — ne pas faire confiance à file.type (client-contrôlé)
+    const MIME_MAP: Record<string, string> = {
+      '.pdf': 'application/pdf',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    }
+    const contentType = MIME_MAP[ext] ?? 'application/octet-stream'
+
     const { data, error } = await supabaseAdmin.storage
       .from(bucket)
       .upload(path, buffer, {
-        contentType: file.type || 'application/octet-stream',
+        contentType,
         upsert: true,
       })
 

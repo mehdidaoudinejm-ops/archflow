@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
+import { requireRole, AuthError } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   try {
+    await requireRole(['ARCHITECT', 'COLLABORATOR'])
     const { searchParams } = new URL(req.url)
     const lot = searchParams.get('lot') ?? ''
     const q = searchParams.get('q') ?? ''
@@ -24,6 +26,9 @@ export async function GET(req: Request) {
 
     return NextResponse.json(items)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+    }
     console.error('[GET /api/library/suggestions]', error)
     return NextResponse.json([])
   }
