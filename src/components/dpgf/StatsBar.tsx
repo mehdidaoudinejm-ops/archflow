@@ -33,7 +33,7 @@ export function StatsBar({ dpgf, libraryCount }: StatsBarProps) {
   ).length
 
   return (
-    <div className="grid grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
       <Card
         label="Estimatif total"
         value={allPosts.length > 0 && totalEstimate > 0 ? formatPrice(totalEstimate) : '—'}

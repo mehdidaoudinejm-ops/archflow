@@ -801,7 +801,9 @@ FINALISATION :
 | S08 | DCE + Q&A + Espace client | 3-4h | ⭐⭐⭐ |
 | S09 | Dashboard analyse | 3h | ⭐⭐⭐⭐ |
 | S10 | IA + Stripe + Déploiement | 4-5h | ⭐⭐⭐⭐ |
-| **Total** | | **~25-35h** | |
+| S11–S15 | UX/fixes, waitlist, admin, prod | — | — |
+| S16 | Responsive mobile complet | 2-3h | ⭐⭐⭐ |
+| **Total** | | **~27-38h** | |
 
 ---
 

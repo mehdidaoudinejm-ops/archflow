@@ -648,6 +648,7 @@ Ajouter dans `layout.tsx` depuis Google Fonts.
 | S13 | Interface admin : dashboard, users, impersonation, announcements, emails broadcast | ✅ Terminé |
 | S14 | Corrections prod : flow invitation entreprise, bannière impersonation, suppression Supabase Auth | ✅ Terminé |
 | S15 | Bibliothèque DPGF admin + limites plan + améliorations admin | ✅ Terminé |
+| S16 | Responsive mobile : navigation drawer, DPGFTable scroll, StatsBar/Toolbar adaptatifs, portail responsive, auth padding | ✅ Terminé |
 
 ---
 
@@ -720,6 +721,13 @@ npx tsc --noEmit
 - SOLO : 0 collabs / 3 imports IA/mois — STUDIO : 2 / 6 — AGENCY : 5 / 20
 - Limite imports IA : fenêtre mensuelle (`createdAt >= startOfMonth`), override admin via `user.aiImportLimit`
 - Agences architectes : `activeModules.includes('dpgf')` — Entreprises BTP : `activeModules = []`
+
+### Navigation mobile (S16)
+- **Shell** : `MobileNavContext` (context React) → `MobileNavProvider` wrappé dans le layout shell → `Sidebar` et `Topbar` consomment le context via `useMobileNav()`
+- **Sidebar shell** : `fixed inset-y-0 left-0 z-50` + `md:relative md:translate-x-0` — se comporte en drawer sur mobile, sticky en sidebar sur desktop
+- **PortalShell** : état local `isMobileMenuOpen` (self-contained, pas de context)
+- **AdminNav** : état local `isMobileMenuOpen` + mobile header bar `fixed top-0` (`h-14`) → le `<main>` de AdminLayout doit avoir `pt-14 md:pt-0`
+- **DPGFTable** : enveloppé dans `overflow-x-auto` avec `minWidth: 680` → scroll horizontal sur mobile, pas de refonte de la grille CSS
 
 ### <datalist> dans les tables
 - Ne jamais placer un `<datalist>` à l'intérieur d'un `<table>/<tr>/<td>` — HTML invalide, le navigateur le supprime silencieusement

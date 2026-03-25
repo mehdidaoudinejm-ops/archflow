@@ -1387,9 +1387,13 @@ export function DPGFTable({
   // ── Render ────────────────────────────────────────────
   return (
     <div
-      className="rounded-[var(--radius-lg)] overflow-hidden border"
+      className="rounded-[var(--radius-lg)] border overflow-hidden"
       style={{ borderColor: 'var(--border)', boxShadow: 'var(--shadow-sm)' }}
     >
+      {/* Scrollable container for mobile */}
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: 680 }}>
+
       {/* Column header */}
       <div
         className="grid text-xs font-semibold border-b"
@@ -1525,6 +1529,9 @@ export function DPGFTable({
           )}
         </DragOverlay>
       </DndContext>
+
+        </div>{/* end minWidth wrapper */}
+      </div>{/* end overflow-x-auto */}
     </div>
   )
 }

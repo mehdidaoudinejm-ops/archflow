@@ -5,7 +5,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
       <div
-        className="w-full max-w-md p-8 rounded-[var(--radius-lg)]"
+        className="w-full max-w-md mx-4 p-6 sm:p-8 rounded-[var(--radius-lg)]"
         style={{
           background: 'var(--surface)',
           boxShadow: 'var(--shadow-md)',

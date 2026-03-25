@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Bell, ChevronDown, LogOut, Check } from 'lucide-react'
+import { Bell, ChevronDown, LogOut, Check, Menu } from 'lucide-react'
 import { createBrowserClient } from '@/lib/supabase'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useMobileNav } from './MobileNavContext'
 
 interface Notification {
   id: string
@@ -168,6 +169,7 @@ function NotificationDropdown() {
 
 export function Topbar({ user, projectName }: TopbarProps) {
   const router = useRouter()
+  const { toggle } = useMobileNav()
 
   const initials =
     user.firstName && user.lastName
@@ -183,20 +185,26 @@ export function Topbar({ user, projectName }: TopbarProps) {
 
   return (
     <header
-      className="h-14 flex items-center justify-between px-6 border-b shrink-0"
+      className="h-14 flex items-center justify-between px-4 sm:px-6 border-b shrink-0"
       style={{
         background: 'var(--surface)',
         borderColor: 'var(--border)',
       }}
     >
-      {/* Nom du projet actif */}
-      <div>
-        {projectName ? (
-          <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+      {/* Gauche : hamburger mobile + nom du projet */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={toggle}
+          className="p-1.5 rounded-[var(--radius)] transition-colors hover:bg-[var(--surface2)] md:hidden"
+          style={{ color: 'var(--text2)' }}
+          aria-label="Ouvrir le menu"
+        >
+          <Menu size={20} />
+        </button>
+        {projectName && (
+          <p className="text-sm font-medium truncate max-w-[160px] sm:max-w-none" style={{ color: 'var(--text)' }}>
             {projectName}
           </p>
-        ) : (
-          <div />
         )}
       </div>
 
@@ -221,10 +229,10 @@ export function Topbar({ user, projectName }: TopbarProps) {
                   {initials}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-sm" style={{ color: 'var(--text)' }}>
+              <span className="text-sm hidden sm:inline" style={{ color: 'var(--text)' }}>
                 {user.firstName ?? user.email}
               </span>
-              <ChevronDown size={14} style={{ color: 'var(--text3)' }} />
+              <ChevronDown size={14} className="hidden sm:inline" style={{ color: 'var(--text3)' }} />
             </button>
           </DropdownMenuTrigger>
 

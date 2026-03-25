@@ -180,7 +180,7 @@ export function OfferTable({
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       {/* Bannière soumise */}
       {isSubmitted && (
         <div
@@ -196,7 +196,7 @@ export function OfferTable({
 
       {/* Bouton soumission */}
       {!isReadonly && (
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <div>
             <p className="text-sm" style={{ color: 'var(--text2)' }}>
               <span className="font-medium" style={{ color: 'var(--text)' }}>
@@ -229,7 +229,8 @@ export function OfferTable({
           boxShadow: 'var(--shadow-sm)',
         }}
       >
-        <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm" style={{ borderCollapse: 'collapse', minWidth: 520 }}>
           <thead>
             <tr style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
               <th className="text-left px-3 py-2.5 font-medium w-20" style={{ color: 'var(--text2)' }}>Réf</th>
@@ -537,6 +538,7 @@ export function OfferTable({
             </tr>
           </tbody>
         </table>
+        </div>{/* end overflow-x-auto */}
       </div>
 
       {/* Instruction */}

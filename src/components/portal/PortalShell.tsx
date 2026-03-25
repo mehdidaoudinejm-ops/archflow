@@ -1,8 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { FileText, FolderOpen, MessageSquare, Shield, Clock, CheckCircle2, Save, Building2 } from 'lucide-react'
+import { FileText, FolderOpen, MessageSquare, Shield, Clock, CheckCircle2, Save, Building2, Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface PortalShellProps {
@@ -51,6 +52,7 @@ export function PortalShell({
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
   const tokenSuffix = token ? `?token=${token}` : ''
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const navItems = [
     { key: 'entreprise', label: 'Mon entreprise', icon: <Building2 size={16} />, href: `/portal/${aoId}/entreprise${tokenSuffix}` },
@@ -71,33 +73,54 @@ export function PortalShell({
 
   return (
     <div className="flex min-h-screen">
+      {/* Backdrop mobile */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-40 md:hidden"
+          style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        className="w-56 flex-shrink-0 flex flex-col"
+        className={[
+          'flex-shrink-0 flex flex-col w-64 md:w-56',
+          'fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-in-out',
+          'md:relative md:translate-x-0',
+          isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full',
+        ].join(' ')}
         style={{
           background: 'var(--green)',
           borderRight: '1px solid rgba(0,0,0,0.08)',
-          position: 'sticky',
-          top: 0,
-          height: '100vh',
         }}
       >
         {/* Logo */}
-        <div className="px-5 py-5 border-b" style={{ borderColor: 'rgba(0,0,0,0.1)' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <p
-              className="text-xl font-semibold"
-              style={{ fontFamily: '"DM Serif Display", serif', color: '#fff', margin: 0 }}
-            >
-              ArchFlow
+        <div className="px-5 py-5 border-b flex items-center justify-between" style={{ borderColor: 'rgba(0,0,0,0.1)' }}>
+          <div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <p
+                className="text-xl font-semibold"
+                style={{ fontFamily: '"DM Serif Display", serif', color: '#fff', margin: 0 }}
+              >
+                ArchFlow
+              </p>
+              <span style={{ fontFamily: '"DM Sans", sans-serif', fontSize: 8, fontWeight: 400, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C4C4BC' }}>
+                By The Blueprint Lab
+              </span>
+            </div>
+            <p className="text-xs mt-0.5 truncate" style={{ color: '#fff', opacity: 0.6 }}>
+              Portail entreprise
             </p>
-            <span style={{ fontFamily: '"DM Sans", sans-serif', fontSize: 8, fontWeight: 400, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C4C4BC' }}>
-              By The Blueprint Lab
-            </span>
           </div>
-          <p className="text-xs mt-0.5 truncate" style={{ color: '#fff', opacity: 0.6 }}>
-            Portail entreprise
-          </p>
+          <button
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="md:hidden p-1 rounded"
+            style={{ color: 'rgba(255,255,255,0.6)' }}
+            aria-label="Fermer le menu"
+          >
+            <X size={18} />
+          </button>
         </div>
 
 
@@ -109,6 +132,7 @@ export function PortalShell({
               <Link
                 key={item.key}
                 href={item.href}
+                onClick={() => setIsMobileMenuOpen(false)}
                 className="flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius)] text-sm transition-colors"
                 style={{
                   background: isActive ? 'rgba(255,255,255,0.3)' : 'transparent',
@@ -154,7 +178,7 @@ export function PortalShell({
       <div className="flex-1 flex flex-col min-w-0">
         {/* Topbar */}
         <header
-          className="h-14 flex items-center justify-between px-6 border-b flex-shrink-0"
+          className="h-14 flex items-center justify-between px-4 sm:px-6 border-b flex-shrink-0"
           style={{
             background: 'var(--surface)',
             borderColor: 'var(--border)',
@@ -163,7 +187,16 @@ export function PortalShell({
             zIndex: 10,
           }}
         >
-          <div className="flex items-center gap-4 min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Hamburger mobile */}
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="p-1.5 rounded-[var(--radius)] transition-colors hover:bg-[var(--surface2)] md:hidden flex-shrink-0"
+              style={{ color: 'var(--text2)' }}
+              aria-label="Ouvrir le menu"
+            >
+              <Menu size={20} />
+            </button>
             <div className="min-w-0">
               <p
                 className="font-semibold text-sm truncate"
@@ -172,7 +205,7 @@ export function PortalShell({
                 {aoName}
               </p>
             </div>
-            <div className="text-sm">
+            <div className="text-sm hidden sm:block flex-shrink-0">
               <Countdown deadline={deadline} />
             </div>
           </div>
@@ -182,10 +215,10 @@ export function PortalShell({
             {!isSubmitted && (
               <div className="flex items-center gap-2">
                 {saveStatus === 'saved' && (
-                  <span className="text-xs" style={{ color: 'var(--green)' }}>✓ Enregistré</span>
+                  <span className="text-xs hidden sm:inline" style={{ color: 'var(--green)' }}>✓ Enregistré</span>
                 )}
                 {saveStatus === 'saving' && (
-                  <span className="text-xs" style={{ color: 'var(--amber)' }}>Sauvegarde...</span>
+                  <span className="text-xs hidden sm:inline" style={{ color: 'var(--amber)' }}>Sauvegarde...</span>
                 )}
                 <Button
                   size="sm"

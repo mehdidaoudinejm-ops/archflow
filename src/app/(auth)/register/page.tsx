@@ -58,7 +58,7 @@ export default function RegisterPage() {
         style={{ background: 'var(--bg)' }}
       >
         <div
-          className="w-full max-w-md p-8 rounded-[var(--radius-lg)] text-center"
+          className="w-full max-w-md mx-4 p-6 sm:p-8 rounded-[var(--radius-lg)] text-center"
           style={{
             background: 'var(--surface)',
             boxShadow: 'var(--shadow-md)',
@@ -99,7 +99,7 @@ export default function RegisterPage() {
       style={{ background: 'var(--bg)' }}
     >
       <div
-        className="w-full max-w-md p-8 rounded-[var(--radius-lg)]"
+        className="w-full max-w-md mx-4 p-6 sm:p-8 rounded-[var(--radius-lg)]"
         style={{
           background: 'var(--surface)',
           boxShadow: 'var(--shadow-md)',
